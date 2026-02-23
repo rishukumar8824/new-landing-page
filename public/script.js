@@ -1,7 +1,7 @@
 const form = document.getElementById('leadForm');
 const message = document.getElementById('message');
 const whatsappBtn = document.getElementById('whatsappBtn');
-const WHATSAPP_NUMBER = '91XXXXXXXXXX'; // Replace with your WhatsApp number in countrycode format
+const WHATSAPP_NUMBER = '918003993930';
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
