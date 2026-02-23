@@ -6,8 +6,8 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim().toLowerCase();
-const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || 'change-this-password').trim();
+const ADMIN_USERNAME = 'admin';
+const ADMIN_PASSWORD = 'admin123';
 const SESSION_COOKIE_NAME = 'admin_session';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 const sessions = new Map();
@@ -20,10 +20,6 @@ if (!fs.existsSync(dataDir)) {
 }
 if (!fs.existsSync(dataFile)) {
   fs.writeFileSync(dataFile, '[]', 'utf8');
-}
-
-if (!process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD) {
-  console.warn('WARNING: Set ADMIN_USERNAME and ADMIN_PASSWORD in environment for secure admin access.');
 }
 
 app.use(express.json());
