@@ -1,0 +1,45 @@
+const form = document.getElementById('leadForm');
+const message = document.getElementById('message');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const name = document.getElementById('name').value.trim();
+  const mobile = document.getElementById('mobile').value.trim();
+
+  message.textContent = '';
+  message.className = 'message';
+
+  if (name.length < 2) {
+    message.textContent = 'Please enter a valid name.';
+    message.classList.add('error');
+    return;
+  }
+
+  if (!/^\d{10}$/.test(mobile)) {
+    message.textContent = 'Please enter a valid 10-digit mobile number.';
+    message.classList.add('error');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mobile })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Something went wrong.');
+    }
+
+    message.textContent = data.message;
+    message.classList.add('success');
+    form.reset();
+  } catch (err) {
+    message.textContent = err.message;
+    message.classList.add('error');
+  }
+});

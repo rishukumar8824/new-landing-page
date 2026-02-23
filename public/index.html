@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lead Landing Page</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <section class="card">
+        <h1>Get in Touch</h1>
+        <p>Fill your details and we will contact you soon.</p>
+
+        <form id="leadForm" novalidate>
+          <label for="name">Name</label>
+          <input id="name" name="name" type="text" placeholder="Enter your name" required minlength="2" />
+
+          <label for="mobile">Mobile Number</label>
+          <input id="mobile" name="mobile" type="tel" placeholder="10-digit mobile number" required pattern="[0-9]{10}" maxlength="10" />
+
+          <button type="submit">Submit</button>
+          <p id="message" class="message"></p>
+        </form>
+      </section>
+    </main>
+
+    <script src="/script.js"></script>
+  </body>
+</html>
