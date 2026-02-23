@@ -12,10 +12,9 @@ const tickerStrip = document.getElementById('tickerStrip');
 
 const chartPair = document.getElementById('chartPair');
 const chartPrice = document.getElementById('chartPrice');
-const chartPath = document.getElementById('chartPath');
-const chartArea = document.getElementById('chartArea');
 const chartStatus = document.getElementById('chartStatus');
 const pairSwitch = document.getElementById('pairSwitch');
+const tvFrame = document.getElementById('tvFrame');
 
 const WHATSAPP_NUMBER = '918003993930';
 const MARKET_IDS = 'bitcoin,ethereum,binancecoin,solana,ripple';
@@ -117,31 +116,9 @@ function initLiveStats() {
   }
 }
 
-function toPath(points, width, height) {
-  if (points.length < 2) {
-    return '';
-  }
-
-  const values = points.map((p) => p[1]);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-
-  const mapped = points.map((p, i) => {
-    const x = (i / (points.length - 1)) * width;
-    const y = height - ((p[1] - min) / range) * (height - 6) - 3;
-    return [x, y];
-  });
-
-  const line = mapped.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(' ');
-  const area = `${line} L ${width} ${height} L 0 ${height} Z`;
-
-  return { line, area };
-}
-
 async function loadChart(coinId, symbol) {
   if (chartStatus) {
-    chartStatus.textContent = 'Loading chart...';
+    chartStatus.textContent = 'Loading TradingView chart...';
   }
 
   try {
@@ -154,13 +131,18 @@ async function loadChart(coinId, symbol) {
       throw new Error('Chart API error');
     }
 
-    const path = toPath(data.prices, 760, 280);
-    chartPath.setAttribute('d', path.line);
-    chartArea.setAttribute('d', path.area);
-
     const latest = data.prices[data.prices.length - 1][1];
     chartPair.textContent = `${symbol}/USDT`;
     chartPrice.textContent = `$${latest.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+    if (tvFrame) {
+      const tvSymbol = `BINANCE:${symbol}USDT`;
+      tvFrame.src =
+        `https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSymbol)}` +
+        '&interval=60&hidesidetoolbar=1&symboledit=0&saveimage=0' +
+        '&toolbarbg=131722&studies=[]&theme=dark&style=1&timezone=Etc/UTC' +
+        '&withdateranges=1&hideideas=1&hide_top_toolbar=1&hide_legend=1&locale=en';
+    }
 
     if (chartStatus) {
       chartStatus.textContent = `Updated: ${new Date().toLocaleTimeString()}`;

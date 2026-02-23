@@ -65,16 +65,14 @@
           </div>
 
           <div class="chart-wrap">
-            <svg id="lineChart" viewBox="0 0 760 280" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="fillGrad" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stop-color="rgba(0, 210, 184, 0.35)"></stop>
-                  <stop offset="100%" stop-color="rgba(0, 210, 184, 0)"></stop>
-                </linearGradient>
-              </defs>
-              <path id="chartArea" fill="url(#fillGrad)" d=""></path>
-              <path id="chartPath" fill="none" stroke="#00d2b8" stroke-width="3" d=""></path>
-            </svg>
+            <iframe
+              id="tvFrame"
+              title="TradingView Chart"
+              src="https://s.tradingview.com/widgetembed/?symbol=BINANCE:BTCUSDT&interval=60&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=131722&studies=[]&theme=dark&style=1&timezone=Etc/UTC&withdateranges=1&hideideas=1&hide_top_toolbar=1&hide_legend=1&locale=en"
+              frameborder="0"
+              allowtransparency="true"
+              scrolling="no"
+            ></iframe>
             <p class="chart-status" id="chartStatus">Loading live chart...</p>
           </div>
         </section>
