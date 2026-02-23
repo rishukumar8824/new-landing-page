@@ -33,8 +33,7 @@ function requiresAdminAuth(req, res, next) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Basic ')) {
-    res.set('WWW-Authenticate', 'Basic realm="Admin Panel"');
-    return res.status(401).send('Authentication required.');
+    return res.status(401).json({ message: 'Authentication required.' });
   }
 
   const base64Credentials = authHeader.split(' ')[1];
@@ -47,8 +46,7 @@ function requiresAdminAuth(req, res, next) {
     return next();
   }
 
-  res.set('WWW-Authenticate', 'Basic realm="Admin Panel"');
-  return res.status(401).send('Invalid credentials.');
+  return res.status(401).json({ message: 'Invalid credentials.' });
 }
 
 app.post('/api/leads', (req, res) => {
