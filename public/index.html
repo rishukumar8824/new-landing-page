@@ -3,15 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lead Landing Page</title>
+    <title>Trade Smart | Contact</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="landing">
-    <main class="container">
-      <section class="card">
-        <div class="glow-line"></div>
-        <h1>Get in Touch</h1>
-        <p>Fill your details and we will contact you soon.</p>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="orb orb-a" aria-hidden="true"></div>
+    <div class="orb orb-b" aria-hidden="true"></div>
+
+    <main class="landing-shell">
+      <section class="hero-copy">
+        <p class="eyebrow">NEXT-GEN TRADING EXPERIENCE</p>
+        <h1>Trade Faster, Smarter, and with Confidence.</h1>
+        <p class="hero-sub">
+          Join thousands of users who trust our platform for secure and lightning-fast execution.
+          Share your details and our team will connect with you.
+        </p>
+
+        <div class="stats-row">
+          <article class="stat-card">
+            <p class="stat-label">24H Volume</p>
+            <p class="stat-value">$1.4B+</p>
+          </article>
+          <article class="stat-card">
+            <p class="stat-label">Active Traders</p>
+            <p class="stat-value">220K+</p>
+          </article>
+          <article class="stat-card">
+            <p class="stat-label">Uptime</p>
+            <p class="stat-value">99.99%</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="form-card">
+        <div class="form-glow"></div>
+        <h2>Get Started</h2>
+        <p class="form-sub">Drop your details and get a callback from our team.</p>
 
         <form id="leadForm" novalidate>
           <label for="name">Name</label>
@@ -20,7 +48,7 @@
           <label for="mobile">Mobile Number</label>
           <input id="mobile" name="mobile" type="tel" placeholder="10-digit mobile number" required pattern="[0-9]{10}" maxlength="10" />
 
-          <button type="submit">Submit</button>
+          <button type="submit">Submit Details</button>
           <button id="whatsappBtn" type="button" class="whatsapp-btn">Chat on WhatsApp</button>
           <p id="message" class="message"></p>
         </form>
