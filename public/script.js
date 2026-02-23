@@ -2,6 +2,9 @@ const form = document.getElementById('leadForm');
 const message = document.getElementById('message');
 const whatsappBtn = document.getElementById('whatsappBtn');
 const WHATSAPP_NUMBER = '918003993930';
+const statVolume = document.getElementById('statVolume');
+const statTraders = document.getElementById('statTraders');
+const statUptime = document.getElementById('statUptime');
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -65,3 +68,38 @@ whatsappBtn.addEventListener('click', () => {
   const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
   window.open(url, '_blank');
 });
+
+function animateValue(element, start, end, duration, formatter) {
+  if (!element) {
+    return;
+  }
+
+  const startTime = performance.now();
+
+  function step(currentTime) {
+    const progress = Math.min((currentTime - startTime) / duration, 1);
+    const value = start + (end - start) * progress;
+    element.textContent = formatter(value);
+
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    }
+  }
+
+  requestAnimationFrame(step);
+}
+
+function initLiveStats() {
+  animateValue(statVolume, 0, 1.4, 1600, (v) => `$${v.toFixed(1)}B+`);
+  animateValue(statTraders, 0, 220, 1700, (v) => `${Math.round(v)}K+`);
+
+  if (statUptime) {
+    let toggle = false;
+    setInterval(() => {
+      toggle = !toggle;
+      statUptime.textContent = toggle ? '99.99%' : '99.98%';
+    }, 1500);
+  }
+}
+
+initLiveStats();

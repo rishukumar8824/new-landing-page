@@ -149,6 +149,10 @@ body {
   color: #f7fbff;
 }
 
+.stat-live {
+  animation: statPulse 1.5s ease-in-out infinite;
+}
+
 .form-card {
   position: relative;
   overflow: hidden;
@@ -336,6 +340,12 @@ th {
 @keyframes lineMove {
   0% { background-position: 0% 50%; }
   100% { background-position: 100% 50%; }
+}
+
+@keyframes statPulse {
+  0% { opacity: 0.72; }
+  50% { opacity: 1; }
+  100% { opacity: 0.72; }
 }
 
 @media (max-width: 900px) {
