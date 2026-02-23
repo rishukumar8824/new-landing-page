@@ -8,6 +8,8 @@
   --border: #d1d5db;
   --error: #b91c1c;
   --success: #166534;
+  --whatsapp: #25d366;
+  --whatsapp-hover: #1ebe57;
 }
 
 * {
@@ -89,6 +91,14 @@ button,
 button:hover,
 .secondary-btn:hover {
   background: var(--primary-hover);
+}
+
+.whatsapp-btn {
+  background: var(--whatsapp);
+}
+
+.whatsapp-btn:hover {
+  background: var(--whatsapp-hover);
 }
 
 .message {
