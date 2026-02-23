@@ -6,16 +6,18 @@ Simple landing page with separate frontend and backend files.
 
 - `server.js` -> Backend (Express API + static hosting)
 - `public/index.html` -> Frontend HTML (lead form)
+- `public/admin-login.html` -> Admin login page
 - `public/admin.html` -> Admin panel (lead list)
 - `public/styles.css` -> Frontend CSS
 - `public/script.js` -> Frontend JS (form submit logic)
+- `public/admin-login.js` -> Admin login JS
 - `public/admin.js` -> Admin JS (fetch + render leads)
 - `data/leads.json` -> Saved leads data (auto-created)
 - `package.json` -> Dependencies and start script
 
 ## Admin Security
 
-Admin panel is protected using Basic Auth.
+Admin panel uses session-based login.
 
 Set environment variables before starting server:
 
@@ -30,10 +32,10 @@ Then start app:
 npm start
 ```
 
-Admin URL:
+Admin login URL:
 
 ```
-http://localhost:3000/admin
+http://localhost:3000/admin-login
 ```
 
 ## Run Locally
@@ -42,7 +44,7 @@ http://localhost:3000/admin
    ```bash
    npm install
    ```
-2. (Recommended) Set admin credentials:
+2. Set admin credentials:
    ```bash
    export ADMIN_USERNAME="your-username"
    export ADMIN_PASSWORD="your-strong-password"
@@ -55,9 +57,9 @@ http://localhost:3000/admin
    ```
    http://localhost:3000
    ```
-5. Open admin panel:
+5. Open admin login:
    ```
-   http://localhost:3000/admin
+   http://localhost:3000/admin-login
    ```
 
 ## API
@@ -73,7 +75,7 @@ Request body:
 ```
 
 ### GET `/api/leads`
-Returns all submitted leads (latest first). Requires admin auth.
+Returns all submitted leads (latest first). Requires admin session.
 
 ## Deploy (Render)
 

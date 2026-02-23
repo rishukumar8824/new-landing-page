@@ -1,6 +1,7 @@
 const leadRows = document.getElementById('leadRows');
 const adminMessage = document.getElementById('adminMessage');
 const refreshBtn = document.getElementById('refreshBtn');
+const logoutBtn = document.getElementById('logoutBtn');
 
 function formatDate(value) {
   if (!value) {
@@ -46,12 +47,18 @@ async function loadLeads() {
   showMessage('Loading leads...', '');
 
   try {
-    const response = await fetch('/api/leads');
+    const response = await fetch('/api/leads', { credentials: 'include' });
+
     let data = null;
     try {
       data = await response.json();
     } catch (error) {
       data = { message: 'Unexpected server response.' };
+    }
+
+    if (response.status === 401) {
+      window.location.href = '/admin-login';
+      return;
     }
 
     if (!response.ok) {
@@ -66,6 +73,18 @@ async function loadLeads() {
   }
 }
 
+async function logout() {
+  try {
+    await fetch('/api/admin/logout', {
+      method: 'POST',
+      credentials: 'include'
+    });
+  } finally {
+    window.location.href = '/admin-login';
+  }
+}
+
 refreshBtn.addEventListener('click', loadLeads);
+logoutBtn.addEventListener('click', logout);
 
 loadLeads();
