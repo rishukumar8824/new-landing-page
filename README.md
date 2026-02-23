@@ -5,11 +5,36 @@ Simple landing page with separate frontend and backend files.
 ## Project Structure
 
 - `server.js` -> Backend (Express API + static hosting)
-- `public/index.html` -> Frontend HTML
+- `public/index.html` -> Frontend HTML (lead form)
+- `public/admin.html` -> Admin panel (lead list)
 - `public/styles.css` -> Frontend CSS
 - `public/script.js` -> Frontend JS (form submit logic)
+- `public/admin.js` -> Admin JS (fetch + render leads)
 - `data/leads.json` -> Saved leads data (auto-created)
 - `package.json` -> Dependencies and start script
+
+## Admin Security
+
+Admin panel is protected using Basic Auth.
+
+Set environment variables before starting server:
+
+```bash
+export ADMIN_USERNAME="your-username"
+export ADMIN_PASSWORD="your-strong-password"
+```
+
+Then start app:
+
+```bash
+npm start
+```
+
+Admin URL:
+
+```
+http://localhost:3000/admin
+```
 
 ## Run Locally
 
@@ -17,19 +42,29 @@ Simple landing page with separate frontend and backend files.
    ```bash
    npm install
    ```
-2. Start server:
+2. (Recommended) Set admin credentials:
+   ```bash
+   export ADMIN_USERNAME="your-username"
+   export ADMIN_PASSWORD="your-strong-password"
+   ```
+3. Start server:
    ```bash
    npm start
    ```
-3. Open:
+4. Open landing page:
    ```
    http://localhost:3000
+   ```
+5. Open admin panel:
+   ```
+   http://localhost:3000/admin
    ```
 
 ## API
 
 ### POST `/api/leads`
 Request body:
+
 ```json
 {
   "name": "Rahul",
@@ -37,13 +72,15 @@ Request body:
 }
 ```
 
-## Deploy (Example: Render/Railway)
+### GET `/api/leads`
+Returns all submitted leads (latest first). Requires admin auth.
+
+## Deploy (Render)
 
 1. Push this folder to GitHub.
-2. Create a new Web Service.
-3. Set:
-   - Build command: `npm install`
-   - Start command: `npm start`
-4. Deploy.
+2. In Render Web Service, set Environment Variables:
+   - `ADMIN_USERNAME` = your username
+   - `ADMIN_PASSWORD` = your strong password
+3. Deploy latest commit.
 
 Node version required: `18+`.
