@@ -5,8 +5,8 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'change-this-password';
+const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim().toLowerCase();
+const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || 'change-this-password').trim();
 
 const dataDir = path.join(__dirname, 'data');
 const dataFile = path.join(dataDir, 'leads.json');
@@ -39,7 +39,9 @@ function requiresAdminAuth(req, res, next) {
 
   const base64Credentials = authHeader.split(' ')[1];
   const credentials = Buffer.from(base64Credentials, 'base64').toString('utf8');
-  const [username, password] = credentials.split(':');
+  const separatorIndex = credentials.indexOf(':');
+  const username = separatorIndex >= 0 ? credentials.slice(0, separatorIndex).trim().toLowerCase() : '';
+  const password = separatorIndex >= 0 ? credentials.slice(separatorIndex + 1).trim() : '';
 
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     return next();
@@ -94,7 +96,7 @@ app.get('/api/leads', requiresAdminAuth, (req, res) => {
   }
 });
 
-app.get('/admin', requiresAdminAuth, (req, res) => {
+app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
