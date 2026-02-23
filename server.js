@@ -84,7 +84,7 @@ app.post('/api/leads', (req, res) => {
   }
 });
 
-app.get('/api/leads', requiresAdminAuth, (req, res) => {
+app.get('/api/leads', (req, res) => {
   try {
     const leads = readLeads();
     const sortedLeads = [...leads].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

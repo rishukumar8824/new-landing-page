@@ -1,7 +1,6 @@
 const leadRows = document.getElementById('leadRows');
 const adminMessage = document.getElementById('adminMessage');
 const refreshBtn = document.getElementById('refreshBtn');
-const AUTH_STORAGE_KEY = 'admin_basic_auth_token';
 
 function formatDate(value) {
   if (!value) {
@@ -47,24 +46,7 @@ async function loadLeads() {
   showMessage('Loading leads...', '');
 
   try {
-    let token = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!token) {
-      const username = window.prompt('Enter admin username');
-      const password = window.prompt('Enter admin password');
-
-      if (!username || !password) {
-        throw new Error('Username and password are required.');
-      }
-
-      token = btoa(`${username}:${password}`);
-      localStorage.setItem(AUTH_STORAGE_KEY, token);
-    }
-
-    const response = await fetch('/api/leads', {
-      headers: {
-        Authorization: `Basic ${token}`
-      }
-    });
+    const response = await fetch('/api/leads');
     let data = null;
     try {
       data = await response.json();
@@ -73,10 +55,6 @@ async function loadLeads() {
     }
 
     if (!response.ok) {
-      if (response.status === 401) {
-        localStorage.removeItem(AUTH_STORAGE_KEY);
-        throw new Error('Invalid admin credentials. Click Refresh and try again.');
-      }
       throw new Error(data.message || 'Failed to load leads.');
     }
 
