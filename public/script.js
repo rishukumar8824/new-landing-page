@@ -1,13 +1,25 @@
 const form = document.getElementById('leadForm');
 const message = document.getElementById('message');
 const whatsappBtn = document.getElementById('whatsappBtn');
-const WHATSAPP_NUMBER = '918003993930';
+
 const statVolume = document.getElementById('statVolume');
 const statTraders = document.getElementById('statTraders');
 const statUptime = document.getElementById('statUptime');
+
 const marketRows = document.getElementById('marketRows');
 const marketStatus = document.getElementById('marketStatus');
+const tickerStrip = document.getElementById('tickerStrip');
+
+const chartPair = document.getElementById('chartPair');
+const chartPrice = document.getElementById('chartPrice');
+const chartPath = document.getElementById('chartPath');
+const chartArea = document.getElementById('chartArea');
+const chartStatus = document.getElementById('chartStatus');
+const pairSwitch = document.getElementById('pairSwitch');
+
+const WHATSAPP_NUMBER = '918003993930';
 const MARKET_IDS = 'bitcoin,ethereum,binancecoin,solana,ripple';
+let activeCoin = { id: 'bitcoin', symbol: 'BTC' };
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -105,34 +117,59 @@ function initLiveStats() {
   }
 }
 
-initLiveStats();
-
-function drawSparkline(canvas, values, positive) {
-  if (!canvas || !values || values.length < 2) {
-    return;
+function toPath(points, width, height) {
+  if (points.length < 2) {
+    return '';
   }
 
-  const ctx = canvas.getContext('2d');
-  const width = canvas.width;
-  const height = canvas.height;
+  const values = points.map((p) => p[1]);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
 
-  ctx.clearRect(0, 0, width, height);
-  ctx.beginPath();
-  values.forEach((val, i) => {
-    const x = (i / (values.length - 1)) * width;
-    const y = height - ((val - min) / range) * (height - 2) - 1;
-    if (i === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
+  const mapped = points.map((p, i) => {
+    const x = (i / (points.length - 1)) * width;
+    const y = height - ((p[1] - min) / range) * (height - 6) - 3;
+    return [x, y];
   });
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = positive ? '#49de80' : '#ff6b6b';
-  ctx.stroke();
+
+  const line = mapped.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(' ');
+  const area = `${line} L ${width} ${height} L 0 ${height} Z`;
+
+  return { line, area };
+}
+
+async function loadChart(coinId, symbol) {
+  if (chartStatus) {
+    chartStatus.textContent = 'Loading chart...';
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=1&interval=hourly`
+    );
+    const data = await response.json();
+
+    if (!response.ok || !Array.isArray(data.prices)) {
+      throw new Error('Chart API error');
+    }
+
+    const path = toPath(data.prices, 760, 280);
+    chartPath.setAttribute('d', path.line);
+    chartArea.setAttribute('d', path.area);
+
+    const latest = data.prices[data.prices.length - 1][1];
+    chartPair.textContent = `${symbol}/USDT`;
+    chartPrice.textContent = `$${latest.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+    if (chartStatus) {
+      chartStatus.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+    }
+  } catch (error) {
+    if (chartStatus) {
+      chartStatus.textContent = 'Chart unavailable right now';
+    }
+  }
 }
 
 function renderMarketRows(coins) {
@@ -142,27 +179,35 @@ function renderMarketRows(coins) {
 
   marketRows.innerHTML = coins
     .map((coin) => {
-      const isUp = coin.price_change_percentage_24h >= 0;
+      const up = coin.price_change_percentage_24h >= 0;
       const pair = `${coin.symbol.toUpperCase()}/USDT`;
-      const change = `${isUp ? '+' : ''}${coin.price_change_percentage_24h.toFixed(2)}%`;
-      const sparkId = `spark-${coin.symbol}`;
+      const change = `${up ? '+' : ''}${coin.price_change_percentage_24h.toFixed(2)}%`;
 
       return `
         <tr>
           <td>${pair}</td>
           <td>$${coin.current_price.toLocaleString()}</td>
-          <td class="${isUp ? 'up' : 'down'}">${change}</td>
-          <td><canvas id="${sparkId}" class="spark" width="100" height="28"></canvas></td>
+          <td class="${up ? 'up' : 'down'}">${change}</td>
         </tr>
       `;
     })
     .join('');
+}
 
-  coins.forEach((coin) => {
-    const spark = document.getElementById(`spark-${coin.symbol}`);
-    const prices = coin.sparkline_in_7d?.price?.slice(-30) || [];
-    drawSparkline(spark, prices, coin.price_change_percentage_24h >= 0);
-  });
+function renderTicker(coins) {
+  if (!tickerStrip) {
+    return;
+  }
+
+  tickerStrip.innerHTML = coins
+    .map((coin) => {
+      const up = coin.price_change_percentage_24h >= 0;
+      const pair = `${coin.symbol.toUpperCase()}/USDT`;
+      const price = `$${coin.current_price.toLocaleString()}`;
+      const change = `${up ? '+' : ''}${coin.price_change_percentage_24h.toFixed(2)}%`;
+      return `<span class="${up ? 'up' : 'down'}">${pair} ${price} ${change}</span>`;
+    })
+    .join('');
 }
 
 async function loadMarket() {
@@ -172,7 +217,7 @@ async function loadMarket() {
 
   try {
     const response = await fetch(
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${MARKET_IDS}&order=market_cap_desc&per_page=5&page=1&sparkline=true&price_change_percentage=24h`
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${MARKET_IDS}&order=market_cap_desc&per_page=5&page=1&sparkline=false&price_change_percentage=24h`
     );
     const data = await response.json();
 
@@ -181,12 +226,14 @@ async function loadMarket() {
     }
 
     renderMarketRows(data);
+    renderTicker(data);
+
     if (marketStatus) {
       marketStatus.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
     }
   } catch (error) {
     if (marketRows) {
-      marketRows.innerHTML = '<tr><td colspan="4" class="down">Market temporarily unavailable.</td></tr>';
+      marketRows.innerHTML = '<tr><td colspan="3" class="down">Market temporarily unavailable.</td></tr>';
     }
     if (marketStatus) {
       marketStatus.textContent = 'Update failed';
@@ -194,5 +241,22 @@ async function loadMarket() {
   }
 }
 
+pairSwitch.addEventListener('click', (event) => {
+  const target = event.target.closest('.pair-btn');
+  if (!target) {
+    return;
+  }
+
+  pairSwitch.querySelectorAll('.pair-btn').forEach((btn) => btn.classList.remove('active'));
+  target.classList.add('active');
+
+  activeCoin = { id: target.dataset.id, symbol: target.dataset.symbol };
+  loadChart(activeCoin.id, activeCoin.symbol);
+});
+
+initLiveStats();
 loadMarket();
+loadChart(activeCoin.id, activeCoin.symbol);
+
 setInterval(loadMarket, 20000);
+setInterval(() => loadChart(activeCoin.id, activeCoin.symbol), 30000);

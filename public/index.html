@@ -3,76 +3,118 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Trade Smart | Contact</title>
+    <title>Trade Desk | Fast Markets</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="landing">
-    <div class="bg-grid" aria-hidden="true"></div>
-    <div class="orb orb-a" aria-hidden="true"></div>
-    <div class="orb orb-b" aria-hidden="true"></div>
+    <header class="topbar">
+      <div class="brand">TRADENOVA</div>
+      <nav class="top-links">
+        <a href="#">Markets</a>
+        <a href="#">Futures</a>
+        <a href="#">Copy Trade</a>
+      </nav>
+      <a class="cta-mini" href="#leadForm">Start Now</a>
+    </header>
 
-    <main class="landing-shell">
-      <section class="hero-copy">
-        <p class="eyebrow">NEXT-GEN TRADING EXPERIENCE</p>
-        <h1>Trade Faster, Smarter, and with Confidence.</h1>
+    <section class="ticker-strip" id="tickerStrip">
+      <span>BTC/USDT --</span>
+      <span>ETH/USDT --</span>
+      <span>BNB/USDT --</span>
+      <span>SOL/USDT --</span>
+      <span>XRP/USDT --</span>
+    </section>
+
+    <main class="exchange-shell">
+      <section class="left-pane">
+        <p class="eyebrow">PRO EXCHANGE EXPERIENCE</p>
+        <h1>Trade Crypto In Real Time With Institutional Speed.</h1>
         <p class="hero-sub">
-          Join thousands of users who trust our platform for secure and lightning-fast execution.
-          Share your details and our team will connect with you.
+          Bitget-inspired modern interface with live prices, smooth chart rendering,
+          and fast lead onboarding.
         </p>
 
-        <div class="stats-row">
-          <article class="stat-card">
-            <p class="stat-label">24H Volume</p>
-            <p class="stat-value" id="statVolume">$0.0B+</p>
+        <div class="quick-stats">
+          <article>
+            <span>24H Volume</span>
+            <strong id="statVolume">$0.0B+</strong>
           </article>
-          <article class="stat-card">
-            <p class="stat-label">Active Traders</p>
-            <p class="stat-value" id="statTraders">0K+</p>
+          <article>
+            <span>Active Traders</span>
+            <strong id="statTraders">0K+</strong>
           </article>
-          <article class="stat-card">
-            <p class="stat-label">Uptime</p>
-            <p class="stat-value stat-live" id="statUptime">99.90%</p>
+          <article>
+            <span>Uptime</span>
+            <strong id="statUptime">99.90%</strong>
           </article>
         </div>
 
-        <section class="market-card">
-          <div class="market-head">
-            <p class="market-title">Live Market (Top Pairs)</p>
-            <p class="market-status" id="marketStatus">Updating...</p>
+        <section class="chart-card">
+          <div class="chart-head">
+            <div>
+              <p class="pair" id="chartPair">BTC/USDT</p>
+              <p class="price" id="chartPrice">$0</p>
+            </div>
+            <div class="pair-switch" id="pairSwitch">
+              <button class="pair-btn active" data-id="bitcoin" data-symbol="BTC">BTC</button>
+              <button class="pair-btn" data-id="ethereum" data-symbol="ETH">ETH</button>
+              <button class="pair-btn" data-id="binancecoin" data-symbol="BNB">BNB</button>
+              <button class="pair-btn" data-id="solana" data-symbol="SOL">SOL</button>
+              <button class="pair-btn" data-id="ripple" data-symbol="XRP">XRP</button>
+            </div>
           </div>
-          <div class="market-table-wrap">
-            <table class="market-table">
-              <thead>
-                <tr>
-                  <th>Pair</th>
-                  <th>Price</th>
-                  <th>24h</th>
-                  <th>Trend</th>
-                </tr>
-              </thead>
-              <tbody id="marketRows"></tbody>
-            </table>
+
+          <div class="chart-wrap">
+            <svg id="lineChart" viewBox="0 0 760 280" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="fillGrad" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(0, 210, 184, 0.35)"></stop>
+                  <stop offset="100%" stop-color="rgba(0, 210, 184, 0)"></stop>
+                </linearGradient>
+              </defs>
+              <path id="chartArea" fill="url(#fillGrad)" d=""></path>
+              <path id="chartPath" fill="none" stroke="#00d2b8" stroke-width="3" d=""></path>
+            </svg>
+            <p class="chart-status" id="chartStatus">Loading live chart...</p>
           </div>
         </section>
       </section>
 
-      <section class="form-card">
-        <div class="form-glow"></div>
-        <h2>Get Started</h2>
-        <p class="form-sub">Drop your details and get a callback from our team.</p>
+      <aside class="right-pane">
+        <section class="form-card">
+          <h2>Create Account Lead</h2>
+          <p>Share your details and our desk will contact you quickly.</p>
 
-        <form id="leadForm" novalidate>
-          <label for="name">Name</label>
-          <input id="name" name="name" type="text" placeholder="Enter your name" required minlength="2" />
+          <form id="leadForm" novalidate>
+            <label for="name">Name</label>
+            <input id="name" name="name" type="text" placeholder="Enter your name" required minlength="2" />
 
-          <label for="mobile">Mobile Number</label>
-          <input id="mobile" name="mobile" type="tel" placeholder="10-digit mobile number" required pattern="[0-9]{10}" maxlength="10" />
+            <label for="mobile">Mobile Number</label>
+            <input id="mobile" name="mobile" type="tel" placeholder="10-digit mobile number" required pattern="[0-9]{10}" maxlength="10" />
 
-          <button type="submit">Submit Details</button>
-          <button id="whatsappBtn" type="button" class="whatsapp-btn">Chat on WhatsApp</button>
-          <p id="message" class="message"></p>
-        </form>
-      </section>
+            <button type="submit">Submit Details</button>
+            <button id="whatsappBtn" type="button" class="whatsapp-btn">Chat on WhatsApp</button>
+            <p id="message" class="message"></p>
+          </form>
+        </section>
+
+        <section class="market-card">
+          <div class="market-top">
+            <p>Top Movers</p>
+            <span id="marketStatus">Updating...</span>
+          </div>
+          <table class="market-table">
+            <thead>
+              <tr>
+                <th>Pair</th>
+                <th>Price</th>
+                <th>24h</th>
+              </tr>
+            </thead>
+            <tbody id="marketRows"></tbody>
+          </table>
+        </section>
+      </aside>
     </main>
 
     <script src="/script.js"></script>
