@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const fs = require('fs');
+const nodemailer = require('nodemailer');
 const path = require('path');
 
 const app = express();
@@ -17,6 +18,13 @@ const P2P_USER_COOKIE_NAME = 'p2p_user_session';
 const P2P_USER_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const P2P_ORDER_TTL_MS = 1000 * 60 * 15;
 const SIGNUP_OTP_TTL_MS = 1000 * 60 * 10;
+const IS_PRODUCTION = String(process.env.NODE_ENV || '')
+  .trim()
+  .toLowerCase() === 'production';
+const ALLOW_DEMO_OTP =
+  String(process.env.ALLOW_DEMO_OTP || '')
+    .trim()
+    .toLowerCase() === 'true' || !IS_PRODUCTION;
 
 const sessions = new Map();
 const p2pUsers = new Map();
@@ -130,33 +138,96 @@ function removeExpiredSignupOtps() {
 }
 
 async function trySendSignupEmailOtp(email, code) {
-  const apiKey = String(process.env.RESEND_API_KEY || '').trim();
-  const fromEmail = String(process.env.RESEND_FROM_EMAIL || '').trim();
+  const subject = 'Your TradeNova verification code';
+  const text = `Your verification code is ${code}. This code expires in 10 minutes.`;
+  const html = `<p>Your verification code is <strong>${code}</strong>.</p><p>This code expires in 10 minutes.</p>`;
 
-  if (!apiKey || !fromEmail) {
+  const resendApiKey = String(process.env.RESEND_API_KEY || '').trim();
+  const resendFromEmail = String(process.env.RESEND_FROM_EMAIL || '').trim();
+  if (resendApiKey && resendFromEmail) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: resendFromEmail,
+          to: [email],
+          subject,
+          html
+        })
+      });
+
+      if (response.ok) {
+        return { delivered: true, reason: 'sent_via_resend' };
+      }
+
+      const errorText = await response.text();
+      return { delivered: false, reason: `resend_error:${errorText}` };
+    } catch (error) {
+      return { delivered: false, reason: `resend_error:${error.message}` };
+    }
+  }
+
+  const smtpHost = String(process.env.SMTP_HOST || '').trim();
+  const smtpPortRaw = String(process.env.SMTP_PORT || '').trim();
+  const smtpUser = String(process.env.SMTP_USER || '').trim();
+  const smtpPass = String(process.env.SMTP_PASS || '').trim();
+  const smtpFromEmail = String(process.env.SMTP_FROM_EMAIL || '').trim();
+  const smtpSecureRaw = String(process.env.SMTP_SECURE || '')
+    .trim()
+    .toLowerCase();
+
+  const gmailUser = String(process.env.GMAIL_USER || '').trim();
+  const gmailAppPassword = String(process.env.GMAIL_APP_PASSWORD || '').trim();
+
+  let transporter = null;
+  let fromEmail = '';
+
+  if (smtpHost && smtpUser && smtpPass) {
+    const parsedPort = Number.parseInt(smtpPortRaw || '587', 10);
+    const smtpPort = Number.isFinite(parsedPort) ? parsedPort : 587;
+    const secure = smtpSecureRaw ? smtpSecureRaw === 'true' : smtpPort === 465;
+
+    transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass
+      }
+    });
+    fromEmail = smtpFromEmail || smtpUser;
+  } else if (gmailUser && gmailAppPassword) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: gmailUser,
+        pass: gmailAppPassword
+      }
+    });
+    fromEmail = smtpFromEmail || gmailUser;
+  }
+
+  if (!transporter || !fromEmail) {
     return { delivered: false, reason: 'missing_email_provider_config' };
   }
 
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
+  try {
+    await transporter.sendMail({
       from: fromEmail,
-      to: [email],
-      subject: 'Your TradeNova verification code',
-      html: `<p>Your verification code is <strong>${code}</strong>.</p><p>This code expires in 10 minutes.</p>`
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    return { delivered: false, reason: `provider_error:${errorText}` };
+      to: email,
+      subject,
+      text,
+      html
+    });
+    return { delivered: true, reason: 'sent_via_smtp' };
+  } catch (error) {
+    return { delivered: false, reason: `smtp_error:${error.message}` };
   }
-
-  return { delivered: true, reason: 'sent_via_resend' };
 }
 
 function parseCookies(req) {
@@ -485,10 +556,25 @@ app.post('/api/signup/send-code', async (req, res) => {
       delivery = 'email';
       deliveryMessage = 'Verification code sent to your email.';
     } else {
+      if (!ALLOW_DEMO_OTP) {
+        signupOtps.delete(contactInfo.value);
+        return res.status(503).json({
+          message:
+            'Email OTP service is not configured. Set RESEND or SMTP env vars, then redeploy.',
+          reason: sendResult.reason
+        });
+      }
       delivery = 'simulated';
       deliveryMessage = 'Email provider not configured, using demo verification code.';
     }
   } else {
+    if (!ALLOW_DEMO_OTP) {
+      signupOtps.delete(contactInfo.value);
+      return res.status(503).json({
+        message: 'SMS OTP service is not configured.',
+        reason: 'missing_sms_provider_config'
+      });
+    }
     deliveryMessage = 'SMS provider not configured, using demo verification code.';
   }
 
@@ -499,7 +585,7 @@ app.post('/api/signup/send-code', async (req, res) => {
     delivery
   };
 
-  if (delivery !== 'email') {
+  if (delivery !== 'email' && ALLOW_DEMO_OTP) {
     payload.devCode = code;
   }
 
