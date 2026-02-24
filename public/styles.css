@@ -479,6 +479,39 @@ button:hover,
   align-self: end;
 }
 
+.p2p-login-box {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(255, 196, 64, 0.24);
+  border-radius: 12px;
+  background: rgba(7, 10, 15, 0.9);
+}
+
+.user-status {
+  margin: 0;
+  font-size: 13px;
+  color: #bac2cf;
+}
+
+.user-online {
+  color: #90efb5;
+}
+
+.user-error {
+  color: #ffb3b3;
+}
+
+.p2p-login-row {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr auto auto;
+}
+
+.p2p-login-row input {
+  width: 100%;
+}
+
 .p2p-table-head {
   display: flex;
   justify-content: space-between;
@@ -490,6 +523,22 @@ button:hover,
   margin: 0;
   color: #adb6c4;
   font-size: 13px;
+}
+
+.join-ref-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.join-ref-row input {
+  min-width: 260px;
+  border: 1px solid rgba(255, 196, 64, 0.25);
+  border-radius: 10px;
+  padding: 10px;
+  color: #f0f3f8;
+  background: rgba(7, 9, 14, 0.9);
 }
 
 .p2p-table-wrap {
@@ -522,13 +571,15 @@ button:hover,
 
 .adv-name {
   margin: 0;
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 15px;
+  color: #ffffff;
 }
 
 .adv-meta {
   margin: 5px 0 0;
-  color: #9fa9b8;
-  font-size: 11px;
+  color: #b0bac8;
+  font-size: 12px;
 }
 
 .p2p-price {
@@ -856,6 +907,14 @@ th {
   .order-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .p2p-login-row {
+    grid-template-columns: 1fr;
+  }
+
+  .join-ref-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 680px) {
@@ -890,6 +949,10 @@ th {
   .p2p-table td {
     font-size: 12px;
     padding: 10px 8px;
+  }
+
+  .join-ref-row input {
+    min-width: 0;
   }
 
   .order-panel {

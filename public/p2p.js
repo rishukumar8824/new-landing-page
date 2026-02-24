@@ -8,6 +8,16 @@ const advertiserFilter = document.getElementById('advertiserFilter');
 const applyFilters = document.getElementById('applyFilters');
 const refreshOffers = document.getElementById('refreshOffers');
 
+const userStatus = document.getElementById('userStatus');
+const usernameInput = document.getElementById('usernameInput');
+const loginBtn = document.getElementById('loginBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+
+const liveOrdersMeta = document.getElementById('liveOrdersMeta');
+const liveOrdersRows = document.getElementById('liveOrdersRows');
+const orderReferenceInput = document.getElementById('orderReferenceInput');
+const joinByRefBtn = document.getElementById('joinByRefBtn');
+
 const orderModal = document.getElementById('orderModal');
 const closeModalBtn = document.getElementById('closeModalBtn');
 const closeModalBackdrop = document.getElementById('closeModalBackdrop');
@@ -20,6 +30,7 @@ const orderPrice = document.getElementById('orderPrice');
 const orderAmount = document.getElementById('orderAmount');
 const orderAssetAmount = document.getElementById('orderAssetAmount');
 const orderPayment = document.getElementById('orderPayment');
+const orderParticipants = document.getElementById('orderParticipants');
 
 const markPaidBtn = document.getElementById('markPaidBtn');
 const releaseBtn = document.getElementById('releaseBtn');
@@ -37,6 +48,8 @@ let activeOrderId = null;
 let pollingIntervalId = null;
 let countdownIntervalId = null;
 let remainingSeconds = 0;
+let currentUser = null;
+let orderStream = null;
 
 function formatNumber(value) {
   return Number(value).toLocaleString('en-IN');
@@ -99,6 +112,10 @@ function resetPolling() {
     clearInterval(countdownIntervalId);
     countdownIntervalId = null;
   }
+  if (orderStream) {
+    orderStream.close();
+    orderStream = null;
+  }
 }
 
 function closeOrderModal() {
@@ -109,6 +126,76 @@ function closeOrderModal() {
   chatInput.disabled = false;
   chatState.textContent = 'Waiting for messages...';
   resetPolling();
+}
+
+function updateUserUi() {
+  if (currentUser) {
+    userStatus.textContent = `Logged in as ${currentUser.username}`;
+    userStatus.className = 'user-status user-online';
+  } else {
+    userStatus.textContent = 'Not logged in. Login to start P2P orders.';
+    userStatus.className = 'user-status';
+  }
+}
+
+async function loadCurrentUser() {
+  try {
+    const response = await fetch('/api/p2p/me');
+    const data = await response.json();
+
+    if (data.loggedIn) {
+      currentUser = data.user;
+    } else {
+      currentUser = null;
+    }
+  } catch (error) {
+    currentUser = null;
+  }
+
+  updateUserUi();
+}
+
+async function loginUser() {
+  const username = usernameInput.value.trim();
+
+  try {
+    const response = await fetch('/api/p2p/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username })
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Login failed.');
+    }
+
+    currentUser = data.user;
+    updateUserUi();
+    await loadOffers();
+    await loadLiveOrders();
+  } catch (error) {
+    userStatus.textContent = error.message;
+    userStatus.className = 'user-status user-error';
+  }
+}
+
+async function logoutUser() {
+  try {
+    await fetch('/api/p2p/logout', { method: 'POST' });
+  } finally {
+    currentUser = null;
+    updateUserUi();
+    await loadOffers();
+    liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Login to see live orders.</td></tr>';
+    liveOrdersMeta.textContent = 'Live Orders: login required';
+    closeOrderModal();
+  }
+}
+
+function requireLoginNotice() {
+  userStatus.textContent = 'Please login first to create/join order.';
+  userStatus.className = 'user-status user-error';
 }
 
 function renderOffers(data) {
@@ -144,9 +231,8 @@ function renderOffers(data) {
               class="${actionClass} action-offer-btn"
               type="button"
               data-offer-id="${offer.id}"
-              data-action-side="${data.side}"
             >
-              ${actionLabel}
+              ${currentUser ? actionLabel : 'Login First'}
             </button>
           </td>
         </tr>
@@ -191,6 +277,56 @@ async function loadOffers() {
   }
 }
 
+function renderLiveOrders(orders) {
+  if (!Array.isArray(orders) || orders.length === 0) {
+    liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">No live orders available.</td></tr>';
+    return;
+  }
+
+  liveOrdersRows.innerHTML = orders
+    .map((order) => {
+      return `
+        <tr>
+          <td>${order.reference}</td>
+          <td>${order.side.toUpperCase()} ${order.asset}</td>
+          <td>₹${formatNumber(order.amountInr)}</td>
+          <td><span class="status-pill ${statusClass(order.status)}">${statusLabel(order.status)}</span></td>
+          <td>${escapeHtml(order.participantsLabel)}</td>
+          <td><button class="secondary-btn join-order-btn" data-order-id="${order.id}">Join</button></td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+async function loadLiveOrders() {
+  if (!currentUser) {
+    liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Login to see live orders.</td></tr>';
+    liveOrdersMeta.textContent = 'Live Orders: login required';
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      side: currentSide,
+      asset: currentAsset
+    });
+
+    const response = await fetch(`/api/p2p/orders/live?${params.toString()}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to load live orders.');
+    }
+
+    renderLiveOrders(data.orders);
+    liveOrdersMeta.textContent = `Live Orders: ${data.total}`;
+  } catch (error) {
+    liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Unable to load live orders.</td></tr>';
+    liveOrdersMeta.textContent = error.message;
+  }
+}
+
 function updateOrderUi(order) {
   orderRef.textContent = order.reference;
   orderMerchant.textContent = order.advertiser;
@@ -198,6 +334,7 @@ function updateOrderUi(order) {
   orderAmount.textContent = `₹${formatNumber(order.amountInr)}`;
   orderAssetAmount.textContent = `${formatNumber(order.assetAmount)} ${order.asset}`;
   orderPayment.textContent = order.paymentMethod;
+  orderParticipants.textContent = order.participantsLabel || '--';
 
   orderStatus.className = `status-pill ${statusClass(order.status)}`;
   orderStatus.textContent = statusLabel(order.status);
@@ -219,25 +356,6 @@ function updateOrderUi(order) {
   }
 }
 
-async function loadOrderDetails() {
-  if (!activeOrderId) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/p2p/orders/${activeOrderId}`);
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to fetch order.');
-    }
-
-    updateOrderUi(data.order);
-  } catch (error) {
-    chatState.textContent = error.message;
-  }
-}
-
 function renderMessages(messages) {
   if (!Array.isArray(messages) || messages.length === 0) {
     chatMessages.innerHTML = '<p class="chat-empty">No messages yet.</p>';
@@ -246,7 +364,13 @@ function renderMessages(messages) {
 
   chatMessages.innerHTML = messages
     .map((msg) => {
-      const cls = msg.sender === 'You' ? 'chat-you' : msg.sender === 'System' ? 'chat-system' : 'chat-merchant';
+      const cls =
+        currentUser && msg.sender === currentUser.username
+          ? 'chat-you'
+          : msg.sender === 'System'
+            ? 'chat-system'
+            : 'chat-merchant';
+
       return `
         <article class="chat-item ${cls}">
           <p class="chat-sender">${escapeHtml(msg.sender)}</p>
@@ -280,7 +404,69 @@ async function loadMessages() {
   }
 }
 
+async function loadOrderDetails() {
+  if (!activeOrderId) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/p2p/orders/${activeOrderId}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch order.');
+    }
+
+    updateOrderUi(data.order);
+  } catch (error) {
+    chatState.textContent = error.message;
+  }
+}
+
+function openOrder(order) {
+  activeOrderId = order.id;
+  setModalOpen(true);
+  updateOrderUi(order);
+  loadMessages();
+
+  resetPolling();
+
+  pollingIntervalId = setInterval(() => {
+    loadOrderDetails();
+    loadMessages();
+    loadLiveOrders();
+  }, 6000);
+
+  countdownIntervalId = setInterval(() => {
+    remainingSeconds = Math.max(0, remainingSeconds - 1);
+    orderTimer.textContent = formatTimer(remainingSeconds);
+  }, 1000);
+
+  orderStream = new EventSource(`/api/p2p/orders/${order.id}/stream`);
+  orderStream.addEventListener('order_update', (event) => {
+    const payload = JSON.parse(event.data || '{}');
+    if (payload.order) {
+      updateOrderUi(payload.order);
+    }
+  });
+  orderStream.addEventListener('message_update', (event) => {
+    const payload = JSON.parse(event.data || '{}');
+    if (payload.messages) {
+      renderMessages(payload.messages);
+      chatState.textContent = `Messages: ${payload.messages.length}`;
+    }
+  });
+  orderStream.onerror = () => {
+    chatState.textContent = 'Realtime connection interrupted. Retrying...';
+  };
+}
+
 async function createOrder(offerId) {
+  if (!currentUser) {
+    requireLoginNotice();
+    return;
+  }
+
   const offer = offersMap.get(offerId);
   if (!offer) {
     metaEl.textContent = 'Offer not available. Refresh list.';
@@ -306,23 +492,60 @@ async function createOrder(offerId) {
       throw new Error(data.message || 'Unable to create order.');
     }
 
-    activeOrderId = data.order.id;
-    setModalOpen(true);
-    updateOrderUi(data.order);
-    await loadMessages();
-
-    resetPolling();
-    pollingIntervalId = setInterval(() => {
-      loadOrderDetails();
-      loadMessages();
-    }, 5000);
-
-    countdownIntervalId = setInterval(() => {
-      remainingSeconds = Math.max(0, remainingSeconds - 1);
-      orderTimer.textContent = formatTimer(remainingSeconds);
-    }, 1000);
+    openOrder(data.order);
+    loadLiveOrders();
   } catch (error) {
     metaEl.textContent = error.message;
+  }
+}
+
+async function joinOrderById(orderId) {
+  if (!currentUser) {
+    requireLoginNotice();
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/p2p/orders/${orderId}/join`, {
+      method: 'POST'
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Unable to join order.');
+    }
+
+    openOrder(data.order);
+    loadLiveOrders();
+  } catch (error) {
+    liveOrdersMeta.textContent = error.message;
+  }
+}
+
+async function joinOrderByReference() {
+  if (!currentUser) {
+    requireLoginNotice();
+    return;
+  }
+
+  const reference = orderReferenceInput.value.trim();
+  if (!reference) {
+    liveOrdersMeta.textContent = 'Enter order reference first.';
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/p2p/orders/by-reference/${encodeURIComponent(reference)}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Unable to join by reference.');
+    }
+
+    openOrder(data.order);
+    liveOrdersMeta.textContent = `Joined order ${data.order.reference}`;
+  } catch (error) {
+    liveOrdersMeta.textContent = error.message;
   }
 }
 
@@ -346,6 +569,7 @@ async function updateOrderStatus(action) {
 
     updateOrderUi(data.order);
     await loadMessages();
+    await loadLiveOrders();
   } catch (error) {
     chatState.textContent = error.message;
   }
@@ -360,6 +584,15 @@ rowsEl.addEventListener('click', (event) => {
   createOrder(actionBtn.dataset.offerId);
 });
 
+liveOrdersRows.addEventListener('click', (event) => {
+  const joinBtn = event.target.closest('.join-order-btn');
+  if (!joinBtn) {
+    return;
+  }
+
+  joinOrderById(joinBtn.dataset.orderId);
+});
+
 sideTabs.addEventListener('click', (event) => {
   const target = event.target.closest('.side-tab');
   if (!target) {
@@ -371,10 +604,21 @@ sideTabs.addEventListener('click', (event) => {
 
   currentSide = target.dataset.side;
   loadOffers();
+  loadLiveOrders();
 });
 
-applyFilters.addEventListener('click', loadOffers);
-refreshOffers.addEventListener('click', loadOffers);
+applyFilters.addEventListener('click', () => {
+  loadOffers();
+  loadLiveOrders();
+});
+refreshOffers.addEventListener('click', () => {
+  loadOffers();
+  loadLiveOrders();
+});
+
+loginBtn.addEventListener('click', loginUser);
+logoutBtn.addEventListener('click', logoutUser);
+joinByRefBtn.addEventListener('click', joinOrderByReference);
 
 closeModalBtn.addEventListener('click', closeOrderModal);
 closeModalBackdrop.addEventListener('click', closeOrderModal);
@@ -413,4 +657,14 @@ chatForm.addEventListener('submit', async (event) => {
   }
 });
 
-loadOffers();
+(async function init() {
+  await loadCurrentUser();
+  await loadOffers();
+  await loadLiveOrders();
+})();
+
+setInterval(() => {
+  if (currentUser && !activeOrderId) {
+    loadLiveOrders();
+  }
+}, 8000);

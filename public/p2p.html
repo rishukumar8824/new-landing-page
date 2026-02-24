@@ -27,6 +27,15 @@
           <button class="side-tab" data-side="sell">Sell</button>
         </div>
 
+        <div class="p2p-login-box">
+          <p id="userStatus" class="user-status">Not logged in. Login to start P2P orders.</p>
+          <div class="p2p-login-row">
+            <input id="usernameInput" type="text" placeholder="Enter username (e.g. trader_01)" maxlength="20" />
+            <button id="loginBtn" type="button">Login</button>
+            <button id="logoutBtn" type="button" class="secondary-btn">Logout</button>
+          </div>
+        </div>
+
         <div class="p2p-filters">
           <label>
             Asset
@@ -85,6 +94,32 @@
           </table>
         </div>
       </section>
+
+      <section class="p2p-table-card">
+        <div class="p2p-table-head">
+          <p id="liveOrdersMeta">Live Orders: loading...</p>
+          <div class="join-ref-row">
+            <input id="orderReferenceInput" type="text" placeholder="Enter Order Ref (e.g. P2P-123456-7890)" />
+            <button id="joinByRefBtn" type="button">Join by Ref</button>
+          </div>
+        </div>
+
+        <div class="p2p-table-wrap">
+          <table class="p2p-table">
+            <thead>
+              <tr>
+                <th>Order Ref</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Participants</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="liveOrdersRows"></tbody>
+          </table>
+        </div>
+      </section>
     </main>
 
     <section id="orderModal" class="order-modal hidden" aria-hidden="true">
@@ -104,6 +139,7 @@
           <article><span>Amount</span><strong id="orderAmount">--</strong></article>
           <article><span>Crypto Qty</span><strong id="orderAssetAmount">--</strong></article>
           <article><span>Payment</span><strong id="orderPayment">--</strong></article>
+          <article><span>Participants</span><strong id="orderParticipants">--</strong></article>
         </div>
 
         <div class="order-action-row">
