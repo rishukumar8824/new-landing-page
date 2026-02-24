@@ -54,8 +54,11 @@ const flashModeBtn = document.getElementById('flashModeBtn');
 const proModeBtn = document.getElementById('proModeBtn');
 const canvas = document.getElementById('klineCanvas');
 const tradeSideSwitch = document.getElementById('tradeSideSwitch');
+const orderTypeTabs = document.getElementById('orderTypeTabs');
 const tradeOrderType = document.getElementById('tradeOrderType');
 const tradeAmountUsdt = document.getElementById('tradeAmountUsdt');
+const tradePriceView = document.getElementById('tradePriceView');
+const tradeRiskSlider = document.getElementById('tradeRiskSlider');
 const tradeEstimateQty = document.getElementById('tradeEstimateQty');
 const placeTradeBtn = document.getElementById('placeTradeBtn');
 const tradeActionMessage = document.getElementById('tradeActionMessage');
@@ -124,7 +127,8 @@ function syncTradeActionButton() {
   if (!placeTradeBtn) {
     return;
   }
-  placeTradeBtn.textContent = state.tradeSide === 'sell' ? 'Place Sell Order' : 'Place Buy Order';
+  placeTradeBtn.textContent = state.tradeSide === 'sell' ? 'Sell' : 'Buy';
+  placeTradeBtn.classList.toggle('is-sell', state.tradeSide === 'sell');
 }
 
 function setTradeSide(side) {
@@ -177,6 +181,9 @@ function renderTicker(ticker) {
   }
   if (pairVolume) {
     pairVolume.textContent = formatVolume(ticker.volume24h);
+  }
+  if (tradePriceView) {
+    tradePriceView.value = formatPrice(ticker.lastPrice, 6);
   }
 
   setPriceChangeStyle(change);
@@ -505,6 +512,16 @@ function setMode(mode) {
   proModeBtn?.classList.toggle('active', isPro);
 }
 
+function setOrderType(orderType) {
+  const normalized = ['limit', 'market', 'tpsl'].includes(orderType) ? orderType : 'limit';
+  if (tradeOrderType) {
+    tradeOrderType.value = normalized;
+  }
+  orderTypeTabs?.querySelectorAll('button[data-order-type]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.orderType === normalized);
+  });
+}
+
 function setupInteractions() {
   tabOrderBook?.addEventListener('click', () => openBookPanel('book'));
   tabRecentTrades?.addEventListener('click', () => openBookPanel('trades'));
@@ -539,7 +556,27 @@ function setupInteractions() {
   });
 
   tradeOrderType?.addEventListener('change', () => {
-    setTradeActionMessage(`Order type set to ${(tradeOrderType.value || 'market').toUpperCase()}.`);
+    setOrderType(tradeOrderType.value || 'limit');
+    setTradeActionMessage(`Order type set to ${(tradeOrderType.value || 'limit').toUpperCase()}.`);
+  });
+
+  orderTypeTabs?.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-order-type]');
+    if (!btn) {
+      return;
+    }
+    setOrderType(btn.dataset.orderType || 'limit');
+    setTradeActionMessage(`Order type set to ${(tradeOrderType?.value || 'limit').toUpperCase()}.`);
+  });
+
+  tradeRiskSlider?.addEventListener('input', () => {
+    const percent = Number(tradeRiskSlider.value || 0);
+    const simulatedWalletUsdt = 1000;
+    const nextAmount = (simulatedWalletUsdt * percent) / 100;
+    if (tradeAmountUsdt) {
+      tradeAmountUsdt.value = nextAmount <= 0 ? '' : nextAmount.toFixed(2);
+    }
+    renderEstimatedQty();
   });
 
   placeTradeBtn?.addEventListener('click', placeTradeOrder);
@@ -553,6 +590,7 @@ function setupInteractions() {
 async function initTradePage() {
   setPairIdentity();
   setupInteractions();
+  setOrderType(tradeOrderType?.value || 'limit');
   setTradeSide(state.tradeSide);
   renderEstimatedQty();
   openBookPanel('book');

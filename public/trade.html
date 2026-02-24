@@ -7,39 +7,50 @@
     <link rel="stylesheet" href="/trade.css" />
   </head>
   <body class="trade-page">
-    <header class="trade-header">
-      <a href="/" class="trade-brand">BITEGIT</a>
-      <nav class="trade-nav">
+    <header class="trade-topbar">
+      <div class="topbar-left">
+        <button class="icon-btn" type="button" aria-label="Menu">☰</button>
+        <div class="pair-chip">
+          <span class="pair-coin">₿</span>
+          <div>
+            <h1 id="pairTitle">BTC/USDT</h1>
+            <p>Spot</p>
+          </div>
+        </div>
+      </div>
+
+      <nav class="topbar-nav">
         <a href="/">Buy Crypto</a>
         <a href="/">Markets</a>
         <a href="/p2p">P2P</a>
         <a href="/" class="active">Trade</a>
         <a href="/">Derivatives</a>
       </nav>
-      <div class="trade-header-actions">
-        <a class="link-btn" href="/p2p#p2pLoginCard">Login</a>
+
+      <div class="topbar-actions">
+        <a class="link-btn" href="/p2p#p2pLoginCard">Log In</a>
         <a class="solid-btn" href="/">Sign Up</a>
       </div>
     </header>
 
-    <section class="trade-stats-bar">
-      <div class="pair-main">
-        <h1 id="pairTitle">BTC/USDT</h1>
-        <p id="pairPrice">--</p>
-      </div>
-      <article>
+    <section class="trade-stats-strip">
+      <article class="stat stat-price">
+        <span>Last Price</span>
+        <strong id="pairPrice">--</strong>
+      </article>
+      <article class="stat">
         <span>24H Change</span>
         <strong id="pairChange">--</strong>
       </article>
-      <article>
+      <article class="stat">
         <span>24H High</span>
         <strong id="pairHigh">--</strong>
       </article>
-      <article>
+      <article class="stat">
         <span>24H Low</span>
         <strong id="pairLow">--</strong>
       </article>
-      <article>
+      <article class="stat">
         <span>24H Volume</span>
         <strong id="pairVolume">--</strong>
       </article>
@@ -49,112 +60,169 @@
       </div>
     </section>
 
-    <main class="trade-main">
-      <section class="trade-left">
-        <div class="chart-card">
-          <div class="chart-head">
-            <div class="chart-tabs">
-              <button type="button" class="active">TradingView</button>
-              <button type="button">Depth</button>
-            </div>
-            <div class="interval-tabs" id="intervalTabs">
-              <button type="button" class="active" data-interval="5m">5m</button>
-              <button type="button" data-interval="15m">15m</button>
-              <button type="button" data-interval="1h">1h</button>
-              <button type="button" data-interval="4h">4h</button>
-              <button type="button" data-interval="1d">1d</button>
-            </div>
+    <main class="trade-main-grid">
+      <section class="chart-column">
+        <div class="chart-tabs-top">
+          <div class="chart-main-tabs">
+            <button type="button" class="active">Chart</button>
+            <button type="button">Overview</button>
+            <button type="button">Data</button>
+            <button type="button">Feed</button>
+            <button type="button">Trade Analysis</button>
           </div>
-          <div class="chart-wrap">
-            <canvas id="klineCanvas"></canvas>
+          <div class="chart-view-tabs">
+            <button type="button">Standard</button>
+            <button type="button" class="active">TradingView</button>
+            <button type="button">Depth</button>
           </div>
-          <div class="chart-foot">
-            <p id="chartStatus">Loading chart...</p>
-            <span id="chartUpdatedAt">--</span>
-          </div>
+        </div>
+
+        <div class="chart-toolbar" id="intervalTabs">
+          <button type="button" data-interval="1m">1m</button>
+          <button type="button" class="active" data-interval="5m">5m</button>
+          <button type="button" data-interval="15m">15m</button>
+          <button type="button" data-interval="30m">30m</button>
+          <button type="button" data-interval="1h">1h</button>
+          <button type="button" data-interval="4h">4h</button>
+          <button type="button" data-interval="1d">1d</button>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="klineCanvas"></canvas>
+        </div>
+
+        <div class="chart-foot">
+          <p id="chartStatus">Loading chart...</p>
+          <span id="chartUpdatedAt">--</span>
         </div>
       </section>
 
-      <aside class="trade-right">
-        <section class="book-card">
-          <div class="book-head">
-            <div class="book-tabs">
-              <button id="tabOrderBook" type="button" class="active">Order Book</button>
-              <button id="tabRecentTrades" type="button">Recent Trades</button>
-            </div>
-            <p id="bookSource">Source: --</p>
+      <section class="book-column">
+        <div class="book-head">
+          <div class="book-tabs">
+            <button id="tabOrderBook" type="button" class="active">Order Book</button>
+            <button id="tabRecentTrades" type="button">Recent Trades</button>
           </div>
+          <p id="bookSource">Source: --</p>
+        </div>
 
-          <div id="panelOrderBook" class="book-panel">
-            <table class="book-table">
-              <thead>
-                <tr>
-                  <th>Price</th>
-                  <th>Qty</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody id="askRows"></tbody>
-            </table>
+        <div id="panelOrderBook" class="book-panel">
+          <table class="book-table">
+            <thead>
+              <tr>
+                <th>Price</th>
+                <th>Qty</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="askRows"></tbody>
+          </table>
 
-            <p class="mid-price" id="midPrice">--</p>
+          <p class="mid-price" id="midPrice">--</p>
 
-            <table class="book-table">
-              <tbody id="bidRows"></tbody>
-            </table>
+          <table class="book-table">
+            <tbody id="bidRows"></tbody>
+          </table>
+
+          <div class="book-ratio">
+            <span class="buy">B 45%</span>
+            <span class="sell">S 55%</span>
           </div>
+        </div>
 
-          <div id="panelTrades" class="book-panel hidden">
-            <table class="book-table">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Price</th>
-                  <th>Amount</th>
-                  <th>Side</th>
-                </tr>
-              </thead>
-              <tbody id="tradeRows"></tbody>
-            </table>
+        <div id="panelTrades" class="book-panel hidden">
+          <table class="book-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Price</th>
+                <th>Amount</th>
+                <th>Side</th>
+              </tr>
+            </thead>
+            <tbody id="tradeRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="trade-side-panel">
+        <h2>Trade</h2>
+
+        <div class="market-switch-row">
+          <div class="spot-convert-switch">
+            <button type="button" class="active">Spot</button>
+            <button type="button">Convert</button>
           </div>
-        </section>
+          <p>Margin <span>Off</span></p>
+        </div>
 
-        <section class="auth-box">
-          <div id="tradeSideSwitch" class="trade-side-switch">
-            <button type="button" data-side="buy" class="active">Buy</button>
-            <button type="button" data-side="sell">Sell</button>
+        <div id="tradeSideSwitch" class="trade-side-switch">
+          <button type="button" data-side="buy" class="active">Buy</button>
+          <button type="button" data-side="sell">Sell</button>
+        </div>
+
+        <div id="orderTypeTabs" class="order-type-tabs">
+          <button type="button" class="active" data-order-type="limit">Limit</button>
+          <button type="button" data-order-type="market">Market</button>
+          <button type="button" data-order-type="tpsl">TP/SL</button>
+        </div>
+
+        <select id="tradeOrderType" class="hidden-select">
+          <option value="limit" selected>Limit</option>
+          <option value="market">Market</option>
+          <option value="tpsl">TP/SL</option>
+        </select>
+
+        <p class="balance-line">Available Balance <strong>******** USDT</strong></p>
+
+        <label class="trade-field">
+          <span>Price</span>
+          <input id="tradePriceView" type="text" value="--" readonly />
+        </label>
+
+        <label class="trade-field">
+          <span>Order Value (USDT)</span>
+          <input id="tradeAmountUsdt" type="number" min="10" step="0.01" value="100" />
+        </label>
+
+        <div class="risk-row">
+          <input id="tradeRiskSlider" type="range" min="0" max="100" value="10" step="1" />
+          <div>
+            <span>0</span>
+            <span>100%</span>
           </div>
+        </div>
 
-          <label class="trade-field">
-            <span>Order Type</span>
-            <select id="tradeOrderType">
-              <option value="market">Market</option>
-              <option value="limit">Limit</option>
-            </select>
-          </label>
+        <p class="trade-estimate">Estimated Qty: <strong id="tradeEstimateQty">--</strong></p>
+        <p id="tradeActionMessage" class="trade-action-message">Enter amount and place order.</p>
 
-          <label class="trade-field">
-            <span>Amount (USDT)</span>
-            <input id="tradeAmountUsdt" type="number" min="10" step="0.01" value="100" />
-          </label>
+        <button id="placeTradeBtn" type="button" class="trade-submit-btn">Buy</button>
 
-          <p class="trade-estimate">Estimated Qty: <strong id="tradeEstimateQty">--</strong></p>
-          <button id="placeTradeBtn" type="button" class="trade-submit-btn">Place Buy Order</button>
-          <p id="tradeActionMessage" class="trade-action-message">Use minimum 10 USDT for order placement.</p>
-
-          <div class="trade-auth-links">
-            <a class="outline-cta" href="/p2p#p2pLoginCard">Login</a>
-            <a class="green-cta" href="/">Sign Up</a>
-          </div>
-        </section>
+        <div class="side-actions">
+          <button type="button">Borrow</button>
+          <button type="button">Deposit</button>
+          <button type="button">Transfer</button>
+        </div>
       </aside>
     </main>
 
-    <section class="order-footer">
-      <p>Active Orders <span>0</span></p>
-      <p>Conditional Orders <span>0</span></p>
-      <p>Order History</p>
-      <p>Trade History</p>
+    <section class="orders-bottom">
+      <div class="orders-main-tabs">
+        <p class="active">Open Orders (0)</p>
+        <p>Positions (0)</p>
+        <p>Order History</p>
+        <p>Trade History</p>
+        <p>Assets</p>
+        <p>Tools (0)</p>
+      </div>
+
+      <div class="orders-sub-tabs">
+        <p class="active">Limit & Market Orders</p>
+        <p>Conditional</p>
+        <p>TP/SL</p>
+        <p>Trailing Stop</p>
+        <p>Spread Trading</p>
+      </div>
     </section>
 
     <script src="/trade.js"></script>
