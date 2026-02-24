@@ -22,7 +22,7 @@ const p2pOrderStreams = new Map();
 
 const dataDir = path.join(__dirname, 'data');
 const dataFile = path.join(dataDir, 'leads.json');
-const p2pOffers = [
+let p2pOffers = [
   {
     id: 'ofr_1001',
     side: 'buy',
@@ -141,6 +141,7 @@ const p2pOffers = [
     payments: ['Bank Transfer', 'Paytm']
   }
 ];
+let p2pOfferAutoId = 1010;
 
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -236,8 +237,9 @@ function removeExpiredP2PUsers() {
 
 function createP2PUserSession(username) {
   const token = createToken();
+  const normalizedUsername = username.toLowerCase();
   const user = {
-    id: `usr_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+    id: `usr_${normalizedUsername}`,
     username,
     expiresAt: Date.now() + P2P_USER_TTL_MS
   };
@@ -284,6 +286,10 @@ function createOrderReference() {
 
 function findOfferById(offerId) {
   return p2pOffers.find((offer) => offer.id === offerId) || null;
+}
+
+function createOfferId() {
+  return `ofr_${p2pOfferAutoId++}`;
 }
 
 function findOrderByReference(reference) {
@@ -334,6 +340,19 @@ function normalizeOrderState(order) {
 
 function isParticipant(order, userId) {
   return order.participants.some((participant) => participant.id === userId);
+}
+
+function getNextParticipantRole(order) {
+  const hasBuyer = order.participants.some((participant) => participant.role === 'buyer');
+  const hasSeller = order.participants.some((participant) => participant.role === 'seller');
+
+  if (!hasBuyer) {
+    return 'buyer';
+  }
+  if (!hasSeller) {
+    return 'seller';
+  }
+  return 'viewer';
 }
 
 function addSystemMessage(order, text) {
@@ -445,6 +464,46 @@ app.get('/api/p2p/me', (req, res) => {
   });
 });
 
+app.get('/api/p2p/exchange-ticker', async (req, res) => {
+  const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
+  const encodedSymbols = encodeURIComponent(JSON.stringify(symbols));
+
+  try {
+    const response = await fetch(
+      `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodedSymbols}`
+    );
+    const data = await response.json();
+
+    if (!response.ok || !Array.isArray(data)) {
+      throw new Error('Exchange API unavailable');
+    }
+
+    const ticker = data.map((item) => ({
+      symbol: item.symbol,
+      lastPrice: Number(item.lastPrice),
+      change24h: Number(item.priceChangePercent)
+    }));
+
+    return res.json({
+      source: 'binance',
+      updatedAt: new Date().toISOString(),
+      ticker
+    });
+  } catch (error) {
+    return res.json({
+      source: 'fallback',
+      updatedAt: new Date().toISOString(),
+      ticker: [
+        { symbol: 'BTCUSDT', lastPrice: 0, change24h: 0 },
+        { symbol: 'ETHUSDT', lastPrice: 0, change24h: 0 },
+        { symbol: 'BNBUSDT', lastPrice: 0, change24h: 0 },
+        { symbol: 'SOLUSDT', lastPrice: 0, change24h: 0 },
+        { symbol: 'XRPUSDT', lastPrice: 0, change24h: 0 }
+      ]
+    });
+  }
+});
+
 app.post('/api/leads', (req, res) => {
   const { name, mobile } = req.body;
 
@@ -536,6 +595,73 @@ app.get('/api/p2p/offers', (req, res) => {
   });
 });
 
+app.post('/api/p2p/offers', requiresP2PUser, (req, res) => {
+  const asset = String(req.body.asset || '').trim().toUpperCase();
+  const adType = String(req.body.adType || 'sell').trim().toLowerCase();
+  const price = Number(req.body.price || 0);
+  const available = Number(req.body.available || 0);
+  const minLimit = Number(req.body.minLimit || 0);
+  const maxLimit = Number(req.body.maxLimit || 0);
+  const rawPayments = Array.isArray(req.body.payments) ? req.body.payments : [];
+
+  if (!['USDT', 'BTC', 'ETH'].includes(asset)) {
+    return res.status(400).json({ message: 'Asset must be USDT, BTC or ETH.' });
+  }
+
+  if (!['sell', 'buy'].includes(adType)) {
+    return res.status(400).json({ message: 'adType must be either sell or buy.' });
+  }
+
+  if (!Number.isFinite(price) || price <= 0) {
+    return res.status(400).json({ message: 'Price must be greater than 0.' });
+  }
+
+  if (!Number.isFinite(available) || available <= 0) {
+    return res.status(400).json({ message: 'Available quantity must be greater than 0.' });
+  }
+
+  if (!Number.isFinite(minLimit) || !Number.isFinite(maxLimit) || minLimit <= 0 || maxLimit < minLimit) {
+    return res.status(400).json({ message: 'Enter valid min/max limits.' });
+  }
+
+  const payments = rawPayments
+    .map((method) => String(method).trim())
+    .filter((method) => method.length > 0)
+    .slice(0, 4);
+
+  if (payments.length === 0) {
+    return res.status(400).json({ message: 'Add at least one payment method.' });
+  }
+
+  const takerActionSide = adType === 'sell' ? 'buy' : 'sell';
+  const normalizedPrice = Number(price.toFixed(asset === 'USDT' ? 2 : 0));
+  const normalizedAvailable = Number(available.toFixed(asset === 'USDT' ? 2 : 6));
+
+  const newOffer = {
+    id: createOfferId(),
+    side: takerActionSide,
+    asset,
+    advertiser: req.p2pUser.username,
+    price: normalizedPrice,
+    available: normalizedAvailable,
+    minLimit: Math.floor(minLimit),
+    maxLimit: Math.floor(maxLimit),
+    completionRate: 100,
+    orders: 0,
+    payments,
+    createdByUserId: req.p2pUser.id,
+    createdByUsername: req.p2pUser.username,
+    adType
+  };
+
+  p2pOffers = [newOffer, ...p2pOffers];
+
+  return res.status(201).json({
+    message: 'Ad created successfully.',
+    offer: newOffer
+  });
+});
+
 app.post('/api/p2p/orders', requiresP2PUser, (req, res) => {
   const offerId = String(req.body.offerId || '').trim();
   const amountInr = Number(req.body.amountInr || 0);
@@ -543,6 +669,10 @@ app.post('/api/p2p/orders', requiresP2PUser, (req, res) => {
 
   if (!offer) {
     return res.status(404).json({ message: 'Offer not found.' });
+  }
+
+  if (offer.createdByUserId && offer.createdByUserId === req.p2pUser.id) {
+    return res.status(400).json({ message: 'You cannot create order on your own ad.' });
   }
 
   const fallbackAmount = offer.minLimit;
@@ -556,6 +686,24 @@ app.post('/api/p2p/orders', requiresP2PUser, (req, res) => {
 
   const assetAmount = finalAmount / offer.price;
   const now = Date.now();
+  const creatorRole = offer.side === 'buy' ? 'buyer' : 'seller';
+  const counterpartyRole = creatorRole === 'buyer' ? 'seller' : 'buyer';
+  const participants = [
+    {
+      id: req.p2pUser.id,
+      username: req.p2pUser.username,
+      role: creatorRole
+    }
+  ];
+
+  if (offer.createdByUserId && offer.createdByUsername) {
+    participants.push({
+      id: offer.createdByUserId,
+      username: offer.createdByUsername,
+      role: counterpartyRole
+    });
+  }
+
   const order = {
     id: `ord_${now}_${Math.floor(Math.random() * 10000)}`,
     reference: createOrderReference(),
@@ -571,13 +719,7 @@ app.post('/api/p2p/orders', requiresP2PUser, (req, res) => {
     expiresAt: now + P2P_ORDER_TTL_MS,
     updatedAt: now,
     status: 'OPEN',
-    participants: [
-      {
-        id: req.p2pUser.id,
-        username: req.p2pUser.username,
-        role: 'creator'
-      }
-    ],
+    participants,
     messages: [
       {
         id: `msg_${now}_welcome`,
@@ -587,6 +729,10 @@ app.post('/api/p2p/orders', requiresP2PUser, (req, res) => {
       }
     ]
   };
+
+  if (offer.createdByUserId && offer.createdByUsername) {
+    addSystemMessage(order, `${offer.createdByUsername} is auto-added as counterparty from ad owner.`);
+  }
 
   p2pOrders.set(order.id, order);
 
@@ -617,6 +763,7 @@ app.get('/api/p2p/orders/live', requiresP2PUser, (req, res) => {
       amountInr: order.amountInr,
       price: order.price,
       participantsLabel: order.participantsLabel,
+      isParticipant: order.participants.some((participant) => participant.id === req.p2pUser.id),
       updatedAt: order.updatedAt,
       remainingSeconds: order.remainingSeconds
     }));
@@ -638,10 +785,14 @@ app.get('/api/p2p/orders/by-reference/:reference', requiresP2PUser, (req, res) =
   normalizeOrderState(order);
 
   if (!isParticipant(order, req.p2pUser.id)) {
+    if (order.participants.length >= 2) {
+      return res.status(400).json({ message: 'Order already has both buyer and seller.' });
+    }
+
     order.participants.push({
       id: req.p2pUser.id,
       username: req.p2pUser.username,
-      role: 'counterparty'
+      role: getNextParticipantRole(order)
     });
     order.updatedAt = Date.now();
     addSystemMessage(order, `${req.p2pUser.username} joined this order.`);
@@ -669,10 +820,14 @@ app.post('/api/p2p/orders/:orderId/join', requiresP2PUser, (req, res) => {
   normalizeOrderState(order);
 
   if (!isParticipant(order, req.p2pUser.id)) {
+    if (order.participants.length >= 2) {
+      return res.status(400).json({ message: 'Order already has both buyer and seller.' });
+    }
+
     order.participants.push({
       id: req.p2pUser.id,
       username: req.p2pUser.username,
-      role: 'counterparty'
+      role: getNextParticipantRole(order)
     });
     order.updatedAt = Date.now();
     addSystemMessage(order, `${req.p2pUser.username} joined this order.`);

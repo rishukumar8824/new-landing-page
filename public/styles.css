@@ -512,6 +512,99 @@ button:hover,
   width: 100%;
 }
 
+.exchange-live-box {
+  margin-top: 12px;
+  border: 1px solid rgba(255, 196, 64, 0.2);
+  border-radius: 12px;
+  background: #0a0d13;
+  padding: 10px;
+}
+
+.exchange-live-title {
+  margin: 0;
+  font-size: 12px;
+  color: #b9c3d2;
+}
+
+.exchange-ticker {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.exchange-ticker span {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(255, 196, 64, 0.14);
+  border: 1px solid rgba(255, 196, 64, 0.28);
+}
+
+.create-ad-card {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(255, 196, 64, 0.2);
+  border-radius: 12px;
+  background: #0a0d13;
+}
+
+.create-ad-card h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.create-ad-card p {
+  margin: 6px 0 0;
+  color: #aeb8c8;
+  font-size: 13px;
+}
+
+.create-ad-grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.create-ad-grid label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.create-ad-grid select,
+.create-ad-grid input {
+  width: 100%;
+  border: 1px solid rgba(255, 196, 64, 0.25);
+  border-radius: 10px;
+  padding: 10px;
+  color: #f0f3f8;
+  background: rgba(7, 9, 14, 0.9);
+}
+
+.full-span {
+  grid-column: 1 / -1;
+}
+
+.create-ad-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.create-ad-status {
+  margin: 0;
+  font-size: 12px;
+  color: #b7c1cf;
+}
+
+.create-ad-ok {
+  color: #90efb5;
+}
+
 .p2p-table-head {
   display: flex;
   justify-content: space-between;
@@ -549,6 +642,7 @@ button:hover,
 .p2p-table {
   width: 100%;
   border-collapse: collapse;
+  background: #090b10;
 }
 
 .p2p-table th,
@@ -563,6 +657,7 @@ button:hover,
 .p2p-table th {
   color: #9aa3b1;
   font-weight: 600;
+  background: #0f131a;
 }
 
 .p2p-table td {
@@ -574,6 +669,24 @@ button:hover,
   font-weight: 800;
   font-size: 15px;
   color: #ffffff;
+}
+
+.adv-tag {
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid rgba(255, 196, 64, 0.35);
+  color: #ffdca3;
+  background: rgba(255, 196, 64, 0.1);
+}
+
+.seed-ad {
+  color: #b6d3ff;
+  border-color: rgba(111, 167, 255, 0.38);
+  background: rgba(111, 167, 255, 0.12);
 }
 
 .adv-meta {
@@ -780,14 +893,25 @@ button:hover,
   padding: 8px 10px;
   background: rgba(18, 22, 30, 0.95);
   border: 1px solid rgba(255, 196, 64, 0.12);
+  max-width: 82%;
+  width: fit-content;
 }
 
 .chat-you {
   border-color: rgba(61, 211, 126, 0.35);
+  justify-self: end;
+  background: rgba(17, 36, 27, 0.95);
 }
 
 .chat-system {
   border-color: rgba(255, 196, 64, 0.35);
+  justify-self: center;
+  background: rgba(38, 30, 16, 0.95);
+}
+
+.chat-merchant {
+  justify-self: start;
+  border-color: rgba(255, 196, 64, 0.2);
 }
 
 .chat-sender {
@@ -904,6 +1028,10 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .create-ad-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .order-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -942,6 +1070,10 @@ th {
   }
 
   .p2p-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .create-ad-grid {
     grid-template-columns: 1fr;
   }
 

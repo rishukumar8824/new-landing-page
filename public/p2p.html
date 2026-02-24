@@ -22,6 +22,11 @@
         <h1>P2P Trading</h1>
         <p>Bybit-style P2P desk with verified advertisers, real-time order timer and in-order chat.</p>
 
+        <div class="exchange-live-box">
+          <p class="exchange-live-title">Exchange Feed (Binance)</p>
+          <div id="exchangeTicker" class="exchange-ticker">Loading exchange data...</div>
+        </div>
+
         <div class="p2p-tabs" id="sideTabs">
           <button class="side-tab active" data-side="buy">Buy</button>
           <button class="side-tab" data-side="sell">Sell</button>
@@ -35,6 +40,58 @@
             <button id="logoutBtn" type="button" class="secondary-btn">Logout</button>
           </div>
         </div>
+
+        <section class="create-ad-card">
+          <h3>Create Your P2P Ad</h3>
+          <p>Post your own sell/buy ad. Other logged-in users can place order against it.</p>
+          <div class="create-ad-grid">
+            <label>
+              Ad Type
+              <select id="adTypeSelect">
+                <option value="sell">Sell Ad (others buy)</option>
+                <option value="buy">Buy Ad (others sell)</option>
+              </select>
+            </label>
+
+            <label>
+              Asset
+              <select id="adAssetSelect">
+                <option value="USDT">USDT</option>
+                <option value="BTC">BTC</option>
+                <option value="ETH">ETH</option>
+              </select>
+            </label>
+
+            <label>
+              Price (INR)
+              <input id="adPriceInput" type="number" min="0" step="0.01" placeholder="e.g. 89.65" />
+            </label>
+
+            <label>
+              Available Qty
+              <input id="adAvailableInput" type="number" min="0" step="0.000001" placeholder="e.g. 1500" />
+            </label>
+
+            <label>
+              Min Limit (INR)
+              <input id="adMinLimitInput" type="number" min="0" placeholder="e.g. 1000" />
+            </label>
+
+            <label>
+              Max Limit (INR)
+              <input id="adMaxLimitInput" type="number" min="0" placeholder="e.g. 50000" />
+            </label>
+
+            <label class="full-span">
+              Payment Methods (comma separated)
+              <input id="adPaymentsInput" type="text" placeholder="UPI, IMPS, Bank Transfer" />
+            </label>
+          </div>
+          <div class="create-ad-actions">
+            <button id="createAdBtn" type="button">Create Ad</button>
+            <p id="createAdStatus" class="create-ad-status">Login required to create ad.</p>
+          </div>
+        </section>
 
         <div class="p2p-filters">
           <label>

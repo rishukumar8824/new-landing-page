@@ -40,6 +40,17 @@ const chatState = document.getElementById('chatState');
 const chatMessages = document.getElementById('chatMessages');
 const chatForm = document.getElementById('chatForm');
 const chatInput = document.getElementById('chatInput');
+const exchangeTicker = document.getElementById('exchangeTicker');
+
+const adTypeSelect = document.getElementById('adTypeSelect');
+const adAssetSelect = document.getElementById('adAssetSelect');
+const adPriceInput = document.getElementById('adPriceInput');
+const adAvailableInput = document.getElementById('adAvailableInput');
+const adMinLimitInput = document.getElementById('adMinLimitInput');
+const adMaxLimitInput = document.getElementById('adMaxLimitInput');
+const adPaymentsInput = document.getElementById('adPaymentsInput');
+const createAdBtn = document.getElementById('createAdBtn');
+const createAdStatus = document.getElementById('createAdStatus');
 
 let currentSide = 'buy';
 let currentAsset = 'USDT';
@@ -132,9 +143,18 @@ function updateUserUi() {
   if (currentUser) {
     userStatus.textContent = `Logged in as ${currentUser.username}`;
     userStatus.className = 'user-status user-online';
+    usernameInput.value = currentUser.username;
   } else {
     userStatus.textContent = 'Not logged in. Login to start P2P orders.';
     userStatus.className = 'user-status';
+  }
+
+  if (currentUser) {
+    createAdStatus.textContent = `You can create ad as ${currentUser.username}.`;
+    createAdStatus.className = 'create-ad-status create-ad-ok';
+  } else {
+    createAdStatus.textContent = 'Login required to create ad.';
+    createAdStatus.className = 'create-ad-status';
   }
 }
 
@@ -198,6 +218,37 @@ function requireLoginNotice() {
   userStatus.className = 'user-status user-error';
 }
 
+async function loadExchangeTicker() {
+  if (!exchangeTicker) {
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/p2p/exchange-ticker');
+    const data = await response.json();
+
+    if (!response.ok || !Array.isArray(data.ticker)) {
+      throw new Error('Ticker unavailable');
+    }
+
+    exchangeTicker.innerHTML = data.ticker
+      .map((item) => {
+        const up = item.change24h >= 0;
+        const cls = up ? 'up' : 'down';
+        const sign = up ? '+' : '';
+        return `
+          <span class="${cls}">
+            ${item.symbol}: $${Number(item.lastPrice).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+            (${sign}${Number(item.change24h).toFixed(2)}%)
+          </span>
+        `;
+      })
+      .join('');
+  } catch (error) {
+    exchangeTicker.textContent = 'Exchange feed unavailable right now.';
+  }
+}
+
 function renderOffers(data) {
   offersMap = new Map();
 
@@ -215,11 +266,15 @@ function renderOffers(data) {
       const availableLabel = `${formatNumber(offer.available)} ${offer.asset}`;
       const limitsLabel = `₹${formatNumber(offer.minLimit)} - ₹${formatNumber(offer.maxLimit)}`;
       const payments = offer.payments.map((method) => `<span class="pay-chip">${escapeHtml(method)}</span>`).join(' ');
+      const isOwnAd = currentUser && offer.createdByUserId === currentUser.id;
+      const adBadge = offer.createdByUserId ? '<span class="adv-tag">User Ad</span>' : '<span class="adv-tag seed-ad">Verified</span>';
+      const buttonText = !currentUser ? 'Login First' : isOwnAd ? 'Your Ad' : actionLabel;
+      const buttonDisabled = isOwnAd ? 'disabled' : '';
 
       return `
         <tr>
           <td>
-            <p class="adv-name">${escapeHtml(offer.advertiser)}</p>
+            <p class="adv-name">${escapeHtml(offer.advertiser)} ${adBadge}</p>
             <p class="adv-meta">${offer.orders} orders | ${offer.completionRate}%</p>
           </td>
           <td class="p2p-price">₹${formatNumber(offer.price)}</td>
@@ -231,8 +286,9 @@ function renderOffers(data) {
               class="${actionClass} action-offer-btn"
               type="button"
               data-offer-id="${offer.id}"
+              ${buttonDisabled}
             >
-              ${currentUser ? actionLabel : 'Login First'}
+              ${buttonText}
             </button>
           </td>
         </tr>
@@ -285,6 +341,7 @@ function renderLiveOrders(orders) {
 
   liveOrdersRows.innerHTML = orders
     .map((order) => {
+      const actionText = order.isParticipant ? 'Open' : 'Join';
       return `
         <tr>
           <td>${order.reference}</td>
@@ -292,7 +349,7 @@ function renderLiveOrders(orders) {
           <td>₹${formatNumber(order.amountInr)}</td>
           <td><span class="status-pill ${statusClass(order.status)}">${statusLabel(order.status)}</span></td>
           <td>${escapeHtml(order.participantsLabel)}</td>
-          <td><button class="secondary-btn join-order-btn" data-order-id="${order.id}">Join</button></td>
+          <td><button class="secondary-btn join-order-btn" data-order-id="${order.id}">${actionText}</button></td>
         </tr>
       `;
     })
@@ -499,6 +556,58 @@ async function createOrder(offerId) {
   }
 }
 
+async function createAd() {
+  if (!currentUser) {
+    requireLoginNotice();
+    return;
+  }
+
+  const payload = {
+    adType: adTypeSelect.value,
+    asset: adAssetSelect.value,
+    price: Number(adPriceInput.value || 0),
+    available: Number(adAvailableInput.value || 0),
+    minLimit: Number(adMinLimitInput.value || 0),
+    maxLimit: Number(adMaxLimitInput.value || 0),
+    payments: adPaymentsInput.value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+  };
+
+  createAdStatus.textContent = 'Creating ad...';
+  createAdStatus.className = 'create-ad-status';
+
+  try {
+    const response = await fetch('/api/p2p/offers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to create ad.');
+    }
+
+    createAdStatus.textContent = `Ad created: ${data.offer.id}`;
+    createAdStatus.className = 'create-ad-status create-ad-ok';
+
+    currentSide = data.offer.side === 'buy' ? 'buy' : 'sell';
+    sideTabs.querySelectorAll('.side-tab').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.side === currentSide);
+    });
+    assetFilter.value = data.offer.asset;
+    currentAsset = data.offer.asset;
+
+    await loadOffers();
+    await loadLiveOrders();
+  } catch (error) {
+    createAdStatus.textContent = error.message;
+    createAdStatus.className = 'create-ad-status user-error';
+  }
+}
+
 async function joinOrderById(orderId) {
   if (!currentUser) {
     requireLoginNotice();
@@ -618,7 +727,22 @@ refreshOffers.addEventListener('click', () => {
 
 loginBtn.addEventListener('click', loginUser);
 logoutBtn.addEventListener('click', logoutUser);
+createAdBtn.addEventListener('click', createAd);
 joinByRefBtn.addEventListener('click', joinOrderByReference);
+
+usernameInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    loginUser();
+  }
+});
+
+orderReferenceInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    joinOrderByReference();
+  }
+});
 
 closeModalBtn.addEventListener('click', closeOrderModal);
 closeModalBackdrop.addEventListener('click', closeOrderModal);
@@ -661,6 +785,7 @@ chatForm.addEventListener('submit', async (event) => {
   await loadCurrentUser();
   await loadOffers();
   await loadLiveOrders();
+  await loadExchangeTicker();
 })();
 
 setInterval(() => {
@@ -668,3 +793,5 @@ setInterval(() => {
     loadLiveOrders();
   }
 }, 8000);
+
+setInterval(loadExchangeTicker, 5000);
