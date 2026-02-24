@@ -2918,3 +2918,41 @@ th {
 .p2p-bybit .pay-chip {
   font-size: 10px !important;
 }
+
+/* Full Page Buy USDT View Override */
+.p2p-bybit .p2p-shell-light,
+.p2p-bybit .p2p-subnav-shell {
+  max-width: 100% !important;
+  width: 100% !important;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
+
+.p2p-bybit .p2p-board-card {
+  width: 100% !important;
+}
+
+.p2p-bybit .p2p-shell-light,
+.p2p-bybit .p2p-shell-light * {
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+}
+
+.p2p-bybit .p2p-table.light .p2p-price {
+  font-size: 22px !important;
+}
+
+.p2p-bybit .order-modal {
+  place-items: stretch !important;
+  padding: 0 !important;
+}
+
+.p2p-bybit .order-panel {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  padding: 18px !important;
+}
