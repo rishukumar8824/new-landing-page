@@ -66,6 +66,62 @@ const tradeActionMessage = document.getElementById('tradeActionMessage');
 let depthTimer = null;
 let klineTimer = null;
 let resizeTimer = null;
+const chartView = {
+  offset: 0,
+  visible: 90,
+  minVisible: 28,
+  maxVisible: 220,
+  dragging: false,
+  dragStartX: 0,
+  dragStartOffset: 0,
+  rafPending: false
+};
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getVisibleBounds(total) {
+  if (!Number.isFinite(total) || total <= 0) {
+    return { min: 0, max: 0 };
+  }
+  const max = Math.max(1, Math.min(chartView.maxVisible, total));
+  const min = Math.max(1, Math.min(chartView.minVisible, max));
+  return { min, max };
+}
+
+function requestChartRedraw() {
+  if (chartView.rafPending) {
+    return;
+  }
+  chartView.rafPending = true;
+  window.requestAnimationFrame(() => {
+    chartView.rafPending = false;
+    drawCandles(state.klines);
+  });
+}
+
+function getVisibleKlines(data) {
+  if (!Array.isArray(data) || data.length === 0) {
+    return { rows: [], total: 0 };
+  }
+
+  const bounds = getVisibleBounds(data.length);
+  chartView.visible = clamp(chartView.visible, bounds.min, bounds.max);
+
+  const maxOffset = Math.max(0, data.length - chartView.visible);
+  chartView.offset = clamp(chartView.offset, 0, maxOffset);
+
+  const start = Math.max(0, data.length - chartView.visible - chartView.offset);
+  const end = Math.min(data.length, start + chartView.visible);
+
+  return {
+    rows: data.slice(start, end),
+    start,
+    end,
+    total: data.length
+  };
+}
 
 function formatPrice(value, digits = 6) {
   return Number(value || 0).toLocaleString(undefined, {
@@ -290,7 +346,10 @@ function drawCandles(data) {
     return;
   }
 
-  if (!Array.isArray(data) || data.length === 0) {
+  const visibleWindow = getVisibleKlines(data);
+  const chartRows = visibleWindow.rows;
+
+  if (!Array.isArray(chartRows) || chartRows.length === 0) {
     drawNoChartState('No chart data');
     return;
   }
@@ -312,9 +371,9 @@ function drawCandles(data) {
   ctx.fillStyle = '#0d121a';
   ctx.fillRect(0, 0, width, height);
 
-  const lows = data.map((item) => item.low);
-  const highs = data.map((item) => item.high);
-  const volumes = data.map((item) => item.volume);
+  const lows = chartRows.map((item) => item.low);
+  const highs = chartRows.map((item) => item.high);
+  const volumes = chartRows.map((item) => item.volume);
 
   let minPrice = Math.min(...lows);
   let maxPrice = Math.max(...highs);
@@ -329,7 +388,7 @@ function drawCandles(data) {
 
   const maxVolume = Math.max(...volumes, 1);
   const priceToY = (price) => chartTop + ((maxPrice - price) / (maxPrice - minPrice)) * chartHeight;
-  const stepX = usableWidth / data.length;
+  const stepX = usableWidth / chartRows.length;
   const candleWidth = Math.max(2, stepX * 0.58);
 
   ctx.strokeStyle = 'rgba(164, 178, 201, 0.12)';
@@ -348,8 +407,8 @@ function drawCandles(data) {
     ctx.fillText(formatPrice(label, 4), width - padding.right + 6, y + 4);
   }
 
-  for (let i = 0; i < data.length; i += 1) {
-    const candle = data[i];
+  for (let i = 0; i < chartRows.length; i += 1) {
+    const candle = chartRows[i];
     const x = padding.left + i * stepX + stepX / 2;
     const openY = priceToY(candle.open);
     const closeY = priceToY(candle.close);
@@ -377,7 +436,7 @@ function drawCandles(data) {
     ctx.globalAlpha = 1;
   }
 
-  const lastClose = data[data.length - 1].close;
+  const lastClose = chartRows[chartRows.length - 1].close;
   const lastY = priceToY(lastClose);
   ctx.strokeStyle = 'rgba(184, 248, 11, 0.55)';
   ctx.setLineDash([5, 4]);
@@ -427,7 +486,7 @@ async function loadKlines() {
     const params = new URLSearchParams({
       symbol: state.symbol,
       interval: state.interval,
-      limit: '120'
+      limit: '320'
     });
     const response = await fetch(`/api/p2p/klines?${params.toString()}`);
     const data = await response.json();
@@ -437,10 +496,16 @@ async function loadKlines() {
     }
 
     state.klines = data.klines;
-    drawCandles(state.klines);
+    const bounds = getVisibleBounds(state.klines.length);
+    if (bounds.max > 0) {
+      chartView.visible = clamp(chartView.visible, bounds.min, bounds.max);
+      chartView.offset = clamp(chartView.offset, 0, Math.max(0, state.klines.length - chartView.visible));
+    }
+
+    requestChartRedraw();
 
     if (chartStatus) {
-      chartStatus.textContent = `${state.interval} candles • ${data.klines.length} points`;
+      chartStatus.textContent = `${state.interval} candles • ${data.klines.length} points • drag to pan • wheel to zoom`;
     }
     if (chartUpdatedAt) {
       chartUpdatedAt.textContent = `Updated ${new Date().toLocaleTimeString()}`;
@@ -522,7 +587,99 @@ function setOrderType(orderType) {
   });
 }
 
+function setupChartInteractions() {
+  if (!canvas) {
+    return;
+  }
+
+  const stopDrag = (pointerId) => {
+    if (!chartView.dragging) {
+      return;
+    }
+    chartView.dragging = false;
+    canvas.classList.remove('dragging');
+    if (pointerId != null && canvas.hasPointerCapture?.(pointerId)) {
+      canvas.releasePointerCapture(pointerId);
+    }
+  };
+
+  canvas.addEventListener('pointerdown', (event) => {
+    if (!Array.isArray(state.klines) || state.klines.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    chartView.dragging = true;
+    chartView.dragStartX = event.clientX;
+    chartView.dragStartOffset = chartView.offset;
+    canvas.classList.add('dragging');
+    canvas.setPointerCapture?.(event.pointerId);
+  });
+
+  canvas.addEventListener('pointermove', (event) => {
+    if (!chartView.dragging || !Array.isArray(state.klines) || state.klines.length === 0) {
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const chartWidth = Math.max(120, rect.width - 72);
+    const pxPerCandle = chartWidth / Math.max(1, chartView.visible);
+    const movedX = event.clientX - chartView.dragStartX;
+    const shiftedCandles = Math.round(movedX / Math.max(1, pxPerCandle));
+
+    const maxOffset = Math.max(0, state.klines.length - chartView.visible);
+    chartView.offset = clamp(chartView.dragStartOffset + shiftedCandles, 0, maxOffset);
+    requestChartRedraw();
+  });
+
+  canvas.addEventListener('pointerup', (event) => stopDrag(event.pointerId));
+  canvas.addEventListener('pointercancel', (event) => stopDrag(event.pointerId));
+  canvas.addEventListener('pointerleave', () => stopDrag());
+
+  canvas.addEventListener(
+    'wheel',
+    (event) => {
+      if (!Array.isArray(state.klines) || state.klines.length === 0) {
+        return;
+      }
+      event.preventDefault();
+
+      const delta = event.deltaY > 0 ? 8 : -8;
+      const bounds = getVisibleBounds(state.klines.length);
+      if (bounds.max <= 0) {
+        return;
+      }
+
+      const prevVisible = chartView.visible;
+      const nextVisible = clamp(prevVisible + delta, bounds.min, bounds.max);
+      if (nextVisible === prevVisible) {
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const focusRatio = clamp((event.clientX - rect.left) / Math.max(rect.width, 1), 0, 1);
+      const prevMaxOffset = Math.max(0, state.klines.length - prevVisible);
+      const prevOffset = clamp(chartView.offset, 0, prevMaxOffset);
+      const prevStart = Math.max(0, state.klines.length - prevVisible - prevOffset);
+      const focusIndex = prevStart + Math.round(focusRatio * Math.max(prevVisible - 1, 0));
+
+      chartView.visible = nextVisible;
+      const nextStart = clamp(
+        focusIndex - Math.round(focusRatio * Math.max(nextVisible - 1, 0)),
+        0,
+        Math.max(state.klines.length - nextVisible, 0)
+      );
+      const nextOffset = state.klines.length - nextVisible - nextStart;
+      chartView.offset = clamp(nextOffset, 0, Math.max(0, state.klines.length - nextVisible));
+
+      requestChartRedraw();
+    },
+    { passive: false }
+  );
+}
+
 function setupInteractions() {
+  setupChartInteractions();
+
   tabOrderBook?.addEventListener('click', () => openBookPanel('book'));
   tabRecentTrades?.addEventListener('click', () => openBookPanel('trades'));
 
@@ -583,7 +740,7 @@ function setupInteractions() {
 
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => drawCandles(state.klines), 120);
+    resizeTimer = setTimeout(() => requestChartRedraw(), 120);
   });
 }
 
@@ -605,7 +762,7 @@ async function initTradePage() {
   }
 
   depthTimer = setInterval(loadDepth, 4000);
-  klineTimer = setInterval(loadKlines, 12000);
+  klineTimer = setInterval(loadKlines, 8000);
 }
 
 initTradePage();
