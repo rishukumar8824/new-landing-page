@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bitegit</string>
+    <string name="title_activity_main">Bitegit</string>
+    <string name="package_name">com.bitegit.app</string>
+    <string name="custom_url_scheme">com.bitegit.app</string>
+</resources>

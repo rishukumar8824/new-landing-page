@@ -4,13 +4,23 @@
   "description": "Landing page with Name and Mobile Number form",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "mobile:sync": "npx cap sync android",
+    "mobile:open": "npx cap open android",
+    "mobile:copy": "npx cap copy android",
+    "mobile:icons": "npx @capacitor/assets generate --android"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
     "express": "^4.21.2",
     "nodemailer": "^6.10.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.1.0"
   }
 }

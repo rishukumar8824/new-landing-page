@@ -86,3 +86,45 @@ Returns all submitted leads (latest first). Requires admin session.
 3. Deploy latest commit.
 
 Node version required: `18+`.
+
+## Android APK (Bitegit)
+
+This project is now configured with Capacitor for Android.
+
+Important files:
+
+- `capacitor.config.json` -> App ID, app name, live site URL
+- `android/` -> Native Android project
+- `resources/README.md` -> Icon setup instructions
+
+### App details
+
+- App Name: `Bitegit`
+- Package ID: `com.bitegit.app`
+- Live URL loaded in app: `https://new-landing-page-1hz9.onrender.com`
+
+### Build APK (step-by-step)
+
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Put logo file:
+   - Save your logo as `resources/icon.png` (square PNG, 1024x1024 preferred).
+3. Generate Android icons:
+   ```bash
+   npm run mobile:icons
+   ```
+4. Sync web + native:
+   ```bash
+   npm run mobile:sync
+   ```
+5. Open Android Studio project:
+   ```bash
+   npm run mobile:open
+   ```
+6. In Android Studio:
+   - Wait for Gradle sync.
+   - Go to `Build > Build Bundle(s) / APK(s) > Build APK(s)`.
+7. Final APK path:
+   - `android/app/build/outputs/apk/debug/app-debug.apk`

@@ -1,0 +1,9 @@
+{
+  "appId": "com.bitegit.app",
+  "appName": "Bitegit",
+  "webDir": "public",
+  "server": {
+    "url": "https://new-landing-page-1hz9.onrender.com",
+    "cleartext": false
+  }
+}
