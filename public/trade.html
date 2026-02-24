@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bitegit Trade</title>
+    <link rel="stylesheet" href="/trade.css" />
+  </head>
+  <body class="trade-page">
+    <header class="trade-header">
+      <a href="/" class="trade-brand">BITEGIT</a>
+      <nav class="trade-nav">
+        <a href="/">Buy Crypto</a>
+        <a href="/">Markets</a>
+        <a href="/p2p">P2P</a>
+        <a href="/" class="active">Trade</a>
+        <a href="/">Derivatives</a>
+      </nav>
+      <div class="trade-header-actions">
+        <a class="link-btn" href="/p2p#p2pLoginCard">Login</a>
+        <a class="solid-btn" href="/">Sign Up</a>
+      </div>
+    </header>
+
+    <section class="trade-stats-bar">
+      <div class="pair-main">
+        <h1 id="pairTitle">BTC/USDT</h1>
+        <p id="pairPrice">--</p>
+      </div>
+      <article>
+        <span>24H Change</span>
+        <strong id="pairChange">--</strong>
+      </article>
+      <article>
+        <span>24H High</span>
+        <strong id="pairHigh">--</strong>
+      </article>
+      <article>
+        <span>24H Low</span>
+        <strong id="pairLow">--</strong>
+      </article>
+      <article>
+        <span>24H Volume</span>
+        <strong id="pairVolume">--</strong>
+      </article>
+      <div class="mode-switch">
+        <button id="flashModeBtn" type="button" class="active">Flash</button>
+        <button id="proModeBtn" type="button">Pro</button>
+      </div>
+    </section>
+
+    <main class="trade-main">
+      <section class="trade-left">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div class="chart-tabs">
+              <button type="button" class="active">TradingView</button>
+              <button type="button">Depth</button>
+            </div>
+            <div class="interval-tabs" id="intervalTabs">
+              <button type="button" class="active" data-interval="5m">5m</button>
+              <button type="button" data-interval="15m">15m</button>
+              <button type="button" data-interval="1h">1h</button>
+              <button type="button" data-interval="4h">4h</button>
+              <button type="button" data-interval="1d">1d</button>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="klineCanvas"></canvas>
+          </div>
+          <div class="chart-foot">
+            <p id="chartStatus">Loading chart...</p>
+            <span id="chartUpdatedAt">--</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="trade-right">
+        <section class="book-card">
+          <div class="book-head">
+            <div class="book-tabs">
+              <button id="tabOrderBook" type="button" class="active">Order Book</button>
+              <button id="tabRecentTrades" type="button">Recent Trades</button>
+            </div>
+            <p id="bookSource">Source: --</p>
+          </div>
+
+          <div id="panelOrderBook" class="book-panel">
+            <table class="book-table">
+              <thead>
+                <tr>
+                  <th>Price</th>
+                  <th>Qty</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody id="askRows"></tbody>
+            </table>
+
+            <p class="mid-price" id="midPrice">--</p>
+
+            <table class="book-table">
+              <tbody id="bidRows"></tbody>
+            </table>
+          </div>
+
+          <div id="panelTrades" class="book-panel hidden">
+            <table class="book-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Price</th>
+                  <th>Amount</th>
+                  <th>Side</th>
+                </tr>
+              </thead>
+              <tbody id="tradeRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="auth-box">
+          <a class="outline-cta" href="/p2p#p2pLoginCard">Login</a>
+          <a class="green-cta" href="/">Sign Up</a>
+        </section>
+      </aside>
+    </main>
+
+    <section class="order-footer">
+      <p>Active Orders <span>0</span></p>
+      <p>Conditional Orders <span>0</span></p>
+      <p>Order History</p>
+      <p>Trade History</p>
+    </section>
+
+    <script src="/trade.js"></script>
+  </body>
+</html>

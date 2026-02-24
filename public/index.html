@@ -3,104 +3,297 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TradeNova | Live Exchange</title>
+    <title>Bitegit | Crypto Exchange</title>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/coinflare.css" />
   </head>
-  <body class="landing bnx-page">
-    <section class="bnx-notice">
-      <p>
-        To see content specific to your location, we suggest <strong>India</strong> as your preferred country/region.
-      </p>
-      <button type="button" class="bnx-notice-btn">Continue</button>
-    </section>
+  <body class="coinflare-page">
+    <div class="cf-bg-grid" aria-hidden="true"></div>
 
-    <header class="topbar landing-topbar bnx-topbar">
-      <div class="bnx-nav-left">
-        <a href="/" class="brand bnx-brand">TRADENOVA</a>
-        <nav class="top-links">
-          <a href="/" class="active-link">Buy Crypto</a>
-          <a href="/">Markets</a>
-          <a href="/p2p">Trade</a>
-          <a href="/">Futures</a>
-          <a href="/">Earn</a>
-          <a href="/">More</a>
-        </nav>
-      </div>
-      <div class="bnx-top-actions">
-        <a class="bnx-search-icon" href="/p2p">Search</a>
-        <a class="login-link" href="/p2p#p2pLoginCard">Log In</a>
-        <button id="topSignupBtn" type="button" class="cta-mini">Sign Up</button>
+    <header class="cf-header">
+      <a href="/" class="cf-brand">BITEGIT</a>
+
+      <nav class="cf-nav">
+        <a href="/" class="active-link">Buy Crypto</a>
+        <a href="/">Markets</a>
+        <a href="/p2p">P2P</a>
+        <a href="/">Derivatives</a>
+        <a href="/">Earn</a>
+        <a href="/">Learn</a>
+      </nav>
+
+      <div class="cf-actions">
+        <a class="cf-login" href="/p2p#p2pLoginCard">Log In</a>
+        <button id="topSignupBtn" type="button" class="cf-signup">Sign Up</button>
       </div>
     </header>
 
-    <main class="bnx-shell">
-      <section class="bnx-left">
-        <h1>
-          <span id="heroUsers">309,497,423</span><br />
-          USERS<br />
-          TRUST US
-        </h1>
-        <p class="bnx-subtitle">The World&apos;s Leading Cryptocurrency Exchange</p>
+    <main>
+      <section class="cf-hero cf-reveal is-visible">
+        <div class="cf-hero-left">
+          <p class="cf-hero-kicker">Bitegit Next-Gen Exchange</p>
+          <h1>
+            <span id="heroUsers">309,497,423</span>
+            USERS
+            TRUST US
+          </h1>
+          <p class="cf-hero-subtitle">Trade spot, P2P and derivatives with lightning-fast execution and secure custody.</p>
 
-        <div class="bnx-awards">
-          <article>
-            <strong>No.1</strong>
-            <span>Customer Assets</span>
-          </article>
-          <article>
-            <strong>No.1</strong>
-            <span>Trading Volume</span>
-          </article>
+          <form id="leadForm" class="cf-lead-form" novalidate>
+            <input id="name" name="name" type="hidden" value="Bitegit Signup Lead" />
+            <input id="mobile" name="mobile" type="text" placeholder="Email or 10-digit mobile" required />
+            <button type="submit">Create Account</button>
+          </form>
+
+          <div id="otpRow" class="cf-otp-row hidden">
+            <input id="otpInput" type="text" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit code" />
+            <button id="verifyOtpBtn" type="button">Verify Code</button>
+          </div>
+
+          <p id="message" class="message"></p>
+
+          <div class="cf-social-row">
+            <span>Or continue with</span>
+            <a class="social-pill" href="https://www.google.com" target="_blank" rel="noopener noreferrer">G</a>
+            <a class="social-pill" href="https://www.apple.com" target="_blank" rel="noopener noreferrer">A</a>
+            <a class="social-pill" href="/p2p">QR</a>
+          </div>
         </div>
 
-        <form id="leadForm" class="bnx-lead-form" novalidate>
-          <input id="name" name="name" type="hidden" value="Website Lead" />
-          <input
-            id="mobile"
-            name="mobile"
-            type="text"
-            placeholder="Email/Phone number"
-            required
-          />
-          <button type="submit">Sign Up</button>
-        </form>
+        <div class="cf-hero-right">
+          <div class="cf-mini-head">
+            <h3>Live Market</h3>
+            <a href="/p2p">View all</a>
+          </div>
+          <div id="marketList" class="cf-mini-market-list">
+            <p class="bnx-loading">Loading markets...</p>
+          </div>
 
-        <div id="otpRow" class="bnx-otp-row hidden">
-          <input id="otpInput" type="text" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit code" />
-          <button id="verifyOtpBtn" type="button">Verify Code</button>
-        </div>
-        <p id="message" class="message"></p>
-
-        <div class="social-row">
-          <a class="social-pill" href="https://www.google.com" target="_blank" rel="noopener noreferrer">G</a>
-          <a class="social-pill" href="https://www.apple.com" target="_blank" rel="noopener noreferrer">A</a>
-          <a class="social-pill" href="/p2p">QR</a>
+          <div class="cf-hero-stats">
+            <article>
+              <strong>$1.4B+</strong>
+              <span>24H Volume</span>
+            </article>
+            <article>
+              <strong>220K+</strong>
+              <span>Active Traders</span>
+            </article>
+            <article>
+              <strong>99.99%</strong>
+              <span>Uptime</span>
+            </article>
+          </div>
         </div>
       </section>
 
-      <aside class="bnx-right">
-        <section class="bnx-card bnx-market-card">
-          <div class="bnx-card-head">
-            <div class="bnx-tabs">
-              <button type="button" class="bnx-tab active">Popular</button>
-              <button type="button" class="bnx-tab">New Listing</button>
-            </div>
-            <a href="/p2p" class="bnx-view-link">View All 350+ Coins</a>
-          </div>
-          <div id="marketList" class="bnx-market-list">
-            <p class="bnx-loading">Loading markets...</p>
-          </div>
-        </section>
+      <section class="cf-opportunities cf-reveal">
+        <h2>Today's <span>hottest opportunities</span></h2>
 
-        <section class="bnx-card bnx-news-card">
-          <div class="bnx-card-head">
-            <h3>News</h3>
-            <a href="/p2p" class="bnx-view-link">View All News</a>
+        <div class="cf-pairs-grid">
+          <article class="cf-pairs-card">
+            <h3>Spot Pairs</h3>
+            <div id="spotPairsList" class="cf-pairs-list">
+              <p class="bnx-loading">Loading spot pairs...</p>
+            </div>
+            <button type="button" class="cf-view-more">View more</button>
+          </article>
+
+          <article class="cf-pairs-card">
+            <h3>Derivatives Pairs</h3>
+            <div id="derivPairsList" class="cf-pairs-list">
+              <p class="bnx-loading">Loading derivatives...</p>
+            </div>
+            <button type="button" class="cf-view-more">View more</button>
+          </article>
+        </div>
+      </section>
+
+      <section class="cf-everyone cf-reveal">
+        <h2>Crypto <span>for everyone</span></h2>
+
+        <div class="cf-feature-grid">
+          <article class="cf-feature-card">
+            <h3>Instant Crypto Buy & Sell</h3>
+            <p>Fund your account or buy crypto in seconds with your card or local P2P rails.</p>
+            <div class="cf-object-stage">
+              <div class="cf-object cf-obj-cube"></div>
+            </div>
+          </article>
+
+          <article class="cf-feature-card">
+            <h3>Trade Top Coins with 0 Fees</h3>
+            <p>Dive into high-liquidity pairs and execute with ultra-low spreads.</p>
+            <div class="cf-object-stage">
+              <div class="cf-object cf-obj-candles">
+                <span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+          </article>
+
+          <article class="cf-feature-card">
+            <h3>Supercharge Your Trading</h3>
+            <p>Maximize potential with up to 100x leverage on perpetual swaps.</p>
+            <div class="cf-object-stage">
+              <div class="cf-object cf-obj-battery"></div>
+            </div>
+          </article>
+
+          <article class="cf-feature-card">
+            <h3>Turn Holding into Earning</h3>
+            <p>Grow your holdings with flexible earn products and daily rewards.</p>
+            <div class="cf-object-stage">
+              <div class="cf-object cf-obj-coins">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="cf-trading-exp cf-reveal">
+        <h2>Choose your <span>trading experience</span></h2>
+        <div class="cf-mode-switch" role="group" aria-label="Mode switch">
+          <button type="button" class="active">Flash</button>
+          <button type="button">Pro</button>
+        </div>
+
+        <div class="cf-terminal">
+          <div class="cf-terminal-top">
+            <p>BTCUSDT Perpetual</p>
+            <span>+4.50%</span>
           </div>
-          <ul id="newsList" class="bnx-news-list"></ul>
-        </section>
-      </aside>
+          <div class="cf-terminal-body">
+            <div class="cf-chart-mock">
+              <svg viewBox="0 0 680 280" preserveAspectRatio="none" aria-hidden="true">
+                <polyline
+                  fill="none"
+                  stroke="#84ff1f"
+                  stroke-width="3"
+                  points="0,230 40,210 80,220 120,180 160,195 200,150 240,172 280,120 320,152 360,100 400,125 440,80 480,120 520,92 560,70 600,90 640,40 680,64"
+                />
+              </svg>
+            </div>
+            <aside class="cf-order-box">
+              <h4>Long / Short</h4>
+              <p>Market Order</p>
+              <input type="text" value="100.00 USDT" readonly />
+              <button type="button">Long</button>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="cf-app-block cf-reveal">
+        <div class="cf-app-phone">
+          <div class="cf-phone-screen">
+            <p>BITEGIT APP</p>
+            <small>Buy | Convert | P2P | Earn</small>
+          </div>
+        </div>
+
+        <div class="cf-app-copy">
+          <h2>One space,<br /><span>unlimited possibilities</span></h2>
+          <div class="cf-qr"></div>
+          <p>Scan to download app<br />iOS and Android</p>
+          <div class="cf-store-row">
+            <button type="button">Google Play</button>
+            <button type="button">App Store</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="cf-testimonials cf-reveal">
+        <h2>Meet the <span>Bitegit traders</span></h2>
+
+        <div class="cf-testi-grid">
+          <article class="cf-testi-card">
+            <div class="cf-testi-head">
+              <span class="avatar">TM</span>
+              <div>
+                <h4>TheMoon</h4>
+                <p>@TheMoonCarl</p>
+              </div>
+            </div>
+            <blockquote>Crypto excitement is at an all-time high. This platform is clean and fast.</blockquote>
+            <strong>1.3M Followers</strong>
+          </article>
+
+          <article class="cf-testi-card">
+            <div class="cf-testi-head">
+              <span class="avatar">CK</span>
+              <div>
+                <h4>Crypto Kid</h4>
+                <p>@CryptoKidcom</p>
+              </div>
+            </div>
+            <blockquote>Monthly rewards, deep liquidity and no lag while trading.</blockquote>
+            <strong>41.6K Followers</strong>
+          </article>
+
+          <article class="cf-testi-card">
+            <div class="cf-testi-head">
+              <span class="avatar">CG</span>
+              <div>
+                <h4>iamcryptoguy</h4>
+                <p>@iamcryptoguy</p>
+              </div>
+            </div>
+            <blockquote>Easy UI, smooth withdrawals and all essential tools in one place.</blockquote>
+            <strong>950K Followers</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="cf-neon-strip cf-reveal">
+        <p>Bitegit</p>
+      </section>
+
+      <section class="cf-partners cf-reveal">
+        <p>TradingView</p>
+        <p>Chainalysis</p>
+        <p>Entrust</p>
+        <p>Alchemy Pay</p>
+        <p>CoinCover</p>
+      </section>
     </main>
+
+    <footer class="cf-footer cf-reveal">
+      <div class="cf-footer-cols">
+        <article>
+          <h4>About Bitegit</h4>
+          <a href="/">About Us</a>
+          <a href="/">All Partners</a>
+          <a href="/">Careers</a>
+          <a href="/">Privacy Policy</a>
+        </article>
+        <article>
+          <h4>Products</h4>
+          <a href="/">Buy Crypto</a>
+          <a href="/">Convert</a>
+          <a href="/">Spot</a>
+          <a href="/p2p">P2P</a>
+        </article>
+        <article>
+          <h4>Support</h4>
+          <a href="/">Help Center</a>
+          <a href="/">Blog</a>
+          <a href="/">Affiliates</a>
+          <a href="/">API Docs</a>
+        </article>
+        <article>
+          <h4>Trade</h4>
+          <a href="/">BTCUSDT</a>
+          <a href="/">ETHUSDT</a>
+          <a href="/">XRPUSDT</a>
+          <a href="/">BTCUSDT-P</a>
+        </article>
+        <article class="cf-footer-qr">
+          <div class="cf-qr"></div>
+          <p>Scan now to download</p>
+        </article>
+      </div>
+      <p class="cf-copyright">&copy; 2026 Bitegit. All rights reserved.</p>
+    </footer>
 
     <section id="chartModal" class="bnx-chart-modal hidden" aria-hidden="true">
       <div id="closeChartBackdrop" class="bnx-chart-backdrop"></div>

@@ -4,6 +4,8 @@ const topSignupBtn = document.getElementById('topSignupBtn');
 const heroUsers = document.getElementById('heroUsers');
 const marketList = document.getElementById('marketList');
 const newsList = document.getElementById('newsList');
+const spotPairsList = document.getElementById('spotPairsList');
+const derivPairsList = document.getElementById('derivPairsList');
 
 const otpRow = document.getElementById('otpRow');
 const otpInput = document.getElementById('otpInput');
@@ -23,20 +25,30 @@ const obAsksRows = document.getElementById('obAsksRows');
 const obBidsRows = document.getElementById('obBidsRows');
 const obTradesRows = document.getElementById('obTradesRows');
 
-const MARKET_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT'];
+const MARKET_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'ADAUSDT'];
 const COIN_NAMES = {
   BTCUSDT: 'Bitcoin',
   ETHUSDT: 'Ethereum',
   BNBUSDT: 'BNB',
   XRPUSDT: 'XRP',
-  SOLUSDT: 'Solana'
+  SOLUSDT: 'Solana',
+  ADAUSDT: 'Cardano'
+};
+
+const COIN_ICONS = {
+  BTC: '₿',
+  ETH: '◆',
+  BNB: '⬢',
+  XRP: '✕',
+  SOL: '◎',
+  ADA: '◉'
 };
 
 const NEWS_ITEMS = [
-  'Uganda to Acquire Stake in Kenya\'s Oil Pipeline via IPO',
-  'StanChart Announces Buyback Following CFO Departure',
-  'Empery Digital Shareholder Rejects Buyback Offer, Calls for CEO Resignation',
-  'Etihad Airways Expands Premium Services Amid Rising Demand'
+  'Bitcoin dominates market flows as spot demand rises across major venues.',
+  'Ether network activity rebounds after latest layer-2 upgrade cycle.',
+  'Global payment rails expand stablecoin settlement for cross-border transfers.',
+  'Institutional desks increase crypto allocation with tighter risk models.'
 ];
 
 let pendingContact = '';
@@ -83,6 +95,31 @@ function renderNews() {
   }
 
   newsList.innerHTML = NEWS_ITEMS.map((item) => `<li>${item}</li>`).join('');
+}
+
+function initScrollReveal() {
+  const nodes = document.querySelectorAll('.cf-reveal');
+  if (!nodes.length) {
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.2 }
+  );
+
+  nodes.forEach((node) => {
+    if (!node.classList.contains('is-visible')) {
+      observer.observe(node);
+    }
+  });
 }
 
 function formatPrice(value) {
@@ -233,7 +270,16 @@ function closeChart() {
   chartModal.setAttribute('aria-hidden', 'true');
 }
 
-function renderMarketRows(ticker) {
+function openTradePage(symbol, marketType = 'spot') {
+  const market = marketType === 'perp' ? 'perp' : 'spot';
+  const safeSymbol = String(symbol || 'BTCUSDT')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+  const finalSymbol = safeSymbol.endsWith('USDTP') ? safeSymbol.replace(/USDTP$/, 'USDT') : safeSymbol;
+  window.location.href = `/trade/${market}/${encodeURIComponent(finalSymbol || 'BTCUSDT')}`;
+}
+
+function renderMiniMarketRows(ticker) {
   if (!marketList) {
     return;
   }
@@ -244,6 +290,7 @@ function renderMarketRows(ticker) {
   }
 
   marketList.innerHTML = ticker
+    .slice(0, 5)
     .map((item) => {
       const change = Number(item.change24h || 0);
       const sign = change >= 0 ? '+' : '';
@@ -265,6 +312,66 @@ function renderMarketRows(ticker) {
     .join('');
 }
 
+function renderOpportunities(ticker) {
+  if ((!spotPairsList && !derivPairsList) || !Array.isArray(ticker)) {
+    return;
+  }
+
+  const top = ticker.slice(0, 5);
+
+  if (spotPairsList) {
+    if (top.length === 0) {
+      spotPairsList.innerHTML = '<p class="bnx-loading">Spot pairs unavailable.</p>';
+    } else {
+      spotPairsList.innerHTML = top
+        .map((item) => {
+          const base = item.symbol.replace('USDT', '');
+          const change = Number(item.change24h || 0);
+          const cls = change >= 0 ? 'up' : 'down';
+          const sign = change >= 0 ? '+' : '';
+
+          return `
+            <button type="button" class="cf-pair-row" data-market="spot" data-symbol="${item.symbol}">
+              <div class="cf-pair-main">
+                <span class="cf-pair-icon">${COIN_ICONS[base] || base.slice(0, 1)}</span>
+                <p>${base}/USDT</p>
+              </div>
+              <p class="cf-pair-price">${formatPrice(item.lastPrice)}</p>
+              <p class="cf-pair-change ${cls}">${sign}${change.toFixed(2)}%</p>
+            </button>
+          `;
+        })
+        .join('');
+    }
+  }
+
+  if (derivPairsList) {
+    if (top.length === 0) {
+      derivPairsList.innerHTML = '<p class="bnx-loading">Derivatives unavailable.</p>';
+    } else {
+      derivPairsList.innerHTML = top
+        .map((item) => {
+          const base = item.symbol.replace('USDT', '');
+          const change = Number(item.change24h || 0);
+          const cls = change >= 0 ? 'up' : 'down';
+          const sign = change >= 0 ? '+' : '';
+
+          return `
+            <button type="button" class="cf-pair-row" data-market="perp" data-symbol="${item.symbol}">
+              <div class="cf-pair-main">
+                <span class="cf-pair-icon">${COIN_ICONS[base] || base.slice(0, 1)}</span>
+                <p>${base}USDT-P</p>
+              </div>
+              <p class="cf-pair-price">${formatPrice(item.lastPrice)}</p>
+              <p class="cf-pair-change ${cls}">${sign}${change.toFixed(2)}%</p>
+            </button>
+          `;
+        })
+        .join('');
+    }
+  }
+}
+
 async function loadMarket() {
   try {
     const params = new URLSearchParams({
@@ -277,9 +384,11 @@ async function loadMarket() {
       throw new Error('Ticker unavailable');
     }
 
-    renderMarketRows(data.ticker);
+    renderMiniMarketRows(data.ticker);
+    renderOpportunities(data.ticker);
   } catch (error) {
-    renderMarketRows([]);
+    renderMiniMarketRows([]);
+    renderOpportunities([]);
   }
 }
 
@@ -390,13 +499,28 @@ if (topSignupBtn) {
 
 if (marketList) {
   marketList.addEventListener('click', (event) => {
-    const row = event.target.closest('.bnx-market-row');
-    if (!row) {
+    const row = event.target.closest('[data-symbol]');
+    if (!row?.dataset?.symbol) {
       return;
     }
     openChart(row.dataset.symbol);
   });
 }
+
+[spotPairsList, derivPairsList].forEach((container) => {
+  if (!container) {
+    return;
+  }
+
+  container.addEventListener('click', (event) => {
+    const row = event.target.closest('[data-symbol]');
+    if (!row?.dataset?.symbol) {
+      return;
+    }
+    const marketType = row.dataset.market === 'perp' ? 'perp' : 'spot';
+    openTradePage(row.dataset.symbol, marketType);
+  });
+});
 
 if (closeChartBtn) {
   closeChartBtn.addEventListener('click', closeChart);
@@ -407,5 +531,6 @@ if (closeChartBackdrop) {
 
 animateCounter(309497423);
 renderNews();
+initScrollReveal();
 loadMarket();
 setInterval(loadMarket, 12000);

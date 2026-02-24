@@ -184,6 +184,73 @@ function createFallbackOrderBook(symbol) {
   };
 }
 
+const KLINE_INTERVAL_MS = {
+  '1m': 60 * 1000,
+  '3m': 3 * 60 * 1000,
+  '5m': 5 * 60 * 1000,
+  '15m': 15 * 60 * 1000,
+  '30m': 30 * 60 * 1000,
+  '1h': 60 * 60 * 1000,
+  '4h': 4 * 60 * 60 * 1000,
+  '1d': 24 * 60 * 60 * 1000
+};
+
+function normalizeKlineInterval(rawInterval) {
+  const interval = String(rawInterval || '')
+    .trim()
+    .toLowerCase();
+  if (KLINE_INTERVAL_MS[interval]) {
+    return interval;
+  }
+  return '15m';
+}
+
+function normalizeKlineLimit(rawLimit) {
+  const parsed = Number.parseInt(rawLimit, 10);
+  if (!Number.isFinite(parsed)) {
+    return 120;
+  }
+  return Math.min(Math.max(parsed, 20), 500);
+}
+
+function createFallbackKlines(symbol, interval = '15m', limit = 120) {
+  const intervalMs = KLINE_INTERVAL_MS[interval] || KLINE_INTERVAL_MS['15m'];
+  const safeLimit = normalizeKlineLimit(limit);
+  const basePrice = DEFAULT_SYMBOL_PRICES[symbol] || 100;
+  const startTime = Date.now() - safeLimit * intervalMs;
+  const klines = [];
+
+  let prevClose = basePrice * (0.98 + Math.random() * 0.04);
+  for (let i = 0; i < safeLimit; i += 1) {
+    const openTime = startTime + i * intervalMs;
+    const open = prevClose;
+    const drift = (Math.sin(i / 7) + (Math.random() - 0.5) * 0.65) * basePrice * 0.0013;
+    const close = Math.max(0.000001, open + drift);
+    const high = Math.max(open, close) + Math.abs(drift) * 0.85 + basePrice * 0.00035;
+    const low = Math.max(0.000001, Math.min(open, close) - Math.abs(drift) * 0.85 - basePrice * 0.00035);
+    const volume = Math.abs(drift) * 2800 + basePrice * (0.08 + Math.random() * 0.2);
+
+    klines.push({
+      openTime,
+      closeTime: openTime + intervalMs - 1,
+      open: Number(open.toFixed(6)),
+      high: Number(high.toFixed(6)),
+      low: Number(low.toFixed(6)),
+      close: Number(close.toFixed(6)),
+      volume: Number(volume.toFixed(4))
+    });
+
+    prevClose = close;
+  }
+
+  return {
+    source: 'fallback',
+    symbol,
+    interval,
+    klines
+  };
+}
+
 function normalizeSignupContact(input) {
   const raw = String(input || '').trim();
   const digits = raw.replace(/\D/g, '');
@@ -848,6 +915,42 @@ app.get('/api/p2p/market-depth', async (req, res) => {
   }
 });
 
+app.get('/api/p2p/klines', async (req, res) => {
+  const symbol = normalizeMarketSymbol(req.query.symbol);
+  const interval = normalizeKlineInterval(req.query.interval);
+  const limit = normalizeKlineLimit(req.query.limit);
+
+  try {
+    const response = await fetch(
+      `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`
+    );
+    const raw = await response.json();
+
+    if (!response.ok || !Array.isArray(raw)) {
+      throw new Error('Binance kline API unavailable');
+    }
+
+    const klines = raw.map((row) => ({
+      openTime: Number(row[0]),
+      open: Number(row[1]),
+      high: Number(row[2]),
+      low: Number(row[3]),
+      close: Number(row[4]),
+      volume: Number(row[5]),
+      closeTime: Number(row[6])
+    }));
+
+    return res.json({
+      source: 'binance',
+      symbol,
+      interval,
+      klines
+    });
+  } catch (error) {
+    return res.json(createFallbackKlines(symbol, interval, limit));
+  }
+});
+
 app.post('/api/leads', (req, res) => {
   const { name, mobile } = req.body;
 
@@ -1341,6 +1444,20 @@ app.get('/admin', (req, res) => {
 
 app.get('/p2p', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'p2p.html'));
+});
+
+app.get('/trade', (req, res) => {
+  return res.redirect('/trade/spot/BTCUSDT');
+});
+
+app.get('/trade/:market/:symbol', (req, res) => {
+  const market = String(req.params.market || '')
+    .trim()
+    .toLowerCase();
+  if (!['spot', 'perp'].includes(market)) {
+    return res.redirect('/trade/spot/BTCUSDT');
+  }
+  return res.sendFile(path.join(__dirname, 'public', 'trade.html'));
 });
 
 app.get('/healthz', (req, res) => {
