@@ -14,6 +14,125 @@ const sessions = new Map();
 
 const dataDir = path.join(__dirname, 'data');
 const dataFile = path.join(dataDir, 'leads.json');
+const p2pOffers = [
+  {
+    id: 'ofr_1001',
+    side: 'buy',
+    asset: 'USDT',
+    advertiser: 'CryptoDeskPro',
+    price: 89.61,
+    available: 5250,
+    minLimit: 500,
+    maxLimit: 100000,
+    completionRate: 99.2,
+    orders: 1893,
+    payments: ['UPI', 'IMPS']
+  },
+  {
+    id: 'ofr_1002',
+    side: 'buy',
+    asset: 'USDT',
+    advertiser: 'SecureTrades',
+    price: 89.68,
+    available: 11800,
+    minLimit: 1000,
+    maxLimit: 200000,
+    completionRate: 98.5,
+    orders: 2144,
+    payments: ['Bank Transfer', 'NEFT']
+  },
+  {
+    id: 'ofr_1003',
+    side: 'buy',
+    asset: 'USDT',
+    advertiser: 'QuickUPIHub',
+    price: 89.72,
+    available: 3200,
+    minLimit: 300,
+    maxLimit: 50000,
+    completionRate: 97.8,
+    orders: 911,
+    payments: ['UPI', 'Paytm']
+  },
+  {
+    id: 'ofr_1004',
+    side: 'sell',
+    asset: 'USDT',
+    advertiser: 'AlphaBuyer',
+    price: 89.43,
+    available: 7100,
+    minLimit: 500,
+    maxLimit: 150000,
+    completionRate: 99.1,
+    orders: 1440,
+    payments: ['UPI', 'Bank Transfer']
+  },
+  {
+    id: 'ofr_1005',
+    side: 'sell',
+    asset: 'USDT',
+    advertiser: 'MarketMitra',
+    price: 89.38,
+    available: 4500,
+    minLimit: 1000,
+    maxLimit: 120000,
+    completionRate: 98.9,
+    orders: 1320,
+    payments: ['IMPS', 'NEFT']
+  },
+  {
+    id: 'ofr_1006',
+    side: 'buy',
+    asset: 'BTC',
+    advertiser: 'BTCSource',
+    price: 5790000,
+    available: 0.34,
+    minLimit: 1000,
+    maxLimit: 250000,
+    completionRate: 98.8,
+    orders: 542,
+    payments: ['Bank Transfer', 'UPI']
+  },
+  {
+    id: 'ofr_1007',
+    side: 'sell',
+    asset: 'BTC',
+    advertiser: 'CoinGateway',
+    price: 5762000,
+    available: 0.48,
+    minLimit: 5000,
+    maxLimit: 500000,
+    completionRate: 97.6,
+    orders: 392,
+    payments: ['Bank Transfer']
+  },
+  {
+    id: 'ofr_1008',
+    side: 'buy',
+    asset: 'ETH',
+    advertiser: 'ETHFlow',
+    price: 301200,
+    available: 4.2,
+    minLimit: 500,
+    maxLimit: 85000,
+    completionRate: 98.1,
+    orders: 688,
+    payments: ['UPI', 'NEFT']
+  },
+  {
+    id: 'ofr_1009',
+    side: 'sell',
+    asset: 'ETH',
+    advertiser: 'PrimePayDesk',
+    price: 299800,
+    available: 6.1,
+    minLimit: 1000,
+    maxLimit: 120000,
+    completionRate: 99.3,
+    orders: 904,
+    payments: ['Bank Transfer', 'Paytm']
+  }
+];
 
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -167,12 +286,62 @@ app.get('/api/leads', requiresAdminSession, (req, res) => {
   }
 });
 
+app.get('/api/p2p/offers', (req, res) => {
+  const side = String(req.query.side || 'buy').toLowerCase();
+  const asset = String(req.query.asset || 'USDT').toUpperCase();
+  const payment = String(req.query.payment || '').trim().toLowerCase();
+  const advertiser = String(req.query.advertiser || '').trim().toLowerCase();
+  const amount = Number(req.query.amount || 0);
+
+  const normalizedSide = side === 'sell' ? 'sell' : 'buy';
+
+  const filtered = p2pOffers
+    .filter((offer) => offer.side === normalizedSide)
+    .filter((offer) => offer.asset === asset)
+    .filter((offer) => {
+      if (!payment) {
+        return true;
+      }
+      return offer.payments.some((method) => method.toLowerCase().includes(payment));
+    })
+    .filter((offer) => {
+      if (!advertiser) {
+        return true;
+      }
+      return offer.advertiser.toLowerCase().includes(advertiser);
+    })
+    .filter((offer) => {
+      if (!amount || Number.isNaN(amount)) {
+        return true;
+      }
+      return amount >= offer.minLimit && amount <= offer.maxLimit;
+    })
+    .sort((a, b) => {
+      if (normalizedSide === 'buy') {
+        return a.price - b.price;
+      }
+      return b.price - a.price;
+    });
+
+  return res.json({
+    side: normalizedSide,
+    asset,
+    total: filtered.length,
+    updatedAt: new Date().toISOString(),
+    offers: filtered
+  });
+});
+
 app.get('/admin-login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-login.html'));
 });
 
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+app.get('/p2p', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'p2p.html'));
 });
 
 app.get('*', (req, res) => {

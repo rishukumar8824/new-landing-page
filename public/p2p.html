@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>P2P Market</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="p2p-page">
+    <header class="topbar p2p-topbar">
+      <div class="brand">TRADENOVA P2P</div>
+      <nav class="top-links">
+        <a href="/">Home</a>
+        <a href="/p2p" class="active-link">P2P</a>
+        <a href="/admin-login">Admin</a>
+      </nav>
+      <a class="cta-mini" href="/">Back to Landing</a>
+    </header>
+
+    <main class="p2p-shell">
+      <section class="p2p-head-card">
+        <h1>P2P Trading</h1>
+        <p>Buy or sell crypto directly with verified merchants. Fast settlement and flexible payment methods.</p>
+
+        <div class="p2p-tabs" id="sideTabs">
+          <button class="side-tab active" data-side="buy">Buy</button>
+          <button class="side-tab" data-side="sell">Sell</button>
+        </div>
+
+        <div class="p2p-filters">
+          <label>
+            Asset
+            <select id="assetFilter">
+              <option value="USDT">USDT</option>
+              <option value="BTC">BTC</option>
+              <option value="ETH">ETH</option>
+            </select>
+          </label>
+
+          <label>
+            Payment
+            <select id="paymentFilter">
+              <option value="">All</option>
+              <option value="UPI">UPI</option>
+              <option value="Bank">Bank Transfer</option>
+              <option value="Paytm">Paytm</option>
+              <option value="IMPS">IMPS</option>
+              <option value="NEFT">NEFT</option>
+            </select>
+          </label>
+
+          <label>
+            Amount (INR)
+            <input id="amountFilter" type="number" min="0" placeholder="e.g. 5000" />
+          </label>
+
+          <label>
+            Advertiser
+            <input id="advertiserFilter" type="text" placeholder="Search merchant" />
+          </label>
+
+          <button id="applyFilters" type="button">Apply</button>
+        </div>
+      </section>
+
+      <section class="p2p-table-card">
+        <div class="p2p-table-head">
+          <p id="p2pMeta">Loading offers...</p>
+          <button id="refreshOffers" type="button" class="secondary-btn">Refresh</button>
+        </div>
+
+        <div class="p2p-table-wrap">
+          <table class="p2p-table">
+            <thead>
+              <tr>
+                <th>Advertiser</th>
+                <th>Price</th>
+                <th>Available</th>
+                <th>Limits</th>
+                <th>Payment</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="p2pRows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="/p2p.js"></script>
+  </body>
+</html>

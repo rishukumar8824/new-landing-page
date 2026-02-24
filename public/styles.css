@@ -74,6 +74,10 @@ body {
   font-size: 13px;
 }
 
+.active-link {
+  color: #b3fff3 !important;
+}
+
 .ticker-strip {
   display: flex;
   gap: 18px;
@@ -285,6 +289,22 @@ button,
   text-decoration: none;
 }
 
+.p2p-link-btn {
+  margin-top: 4px;
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(61, 141, 255, 0.2);
+  border: 1px solid rgba(61, 141, 255, 0.55);
+  color: #d8ebff;
+  text-decoration: none;
+  text-align: center;
+  font-weight: 700;
+}
+
+.p2p-link-btn:hover {
+  background: rgba(61, 141, 255, 0.35);
+}
+
 button:hover,
 .secondary-btn:hover {
   background: var(--primary-hover);
@@ -364,6 +384,184 @@ button:hover,
   color: var(--danger) !important;
 }
 
+.p2p-page {
+  min-height: 100vh;
+  color: var(--text);
+  background: radial-gradient(1000px 650px at 12% -20%, #203a6a 0%, transparent 55%),
+    radial-gradient(900px 600px at 92% -20%, #144b4b 0%, transparent 52%),
+    linear-gradient(160deg, #050a14 0%, #0a1325 48%, #081123 100%);
+}
+
+.p2p-topbar {
+  position: sticky;
+  top: 0;
+}
+
+.p2p-shell {
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 24px 20px 36px;
+  display: grid;
+  gap: 14px;
+}
+
+.p2p-head-card,
+.p2p-table-card {
+  background: rgba(13, 23, 41, 0.82);
+  border: 1px solid rgba(89, 116, 168, 0.34);
+  border-radius: 16px;
+  padding: 16px;
+  backdrop-filter: blur(10px);
+}
+
+.p2p-head-card h1 {
+  margin: 0;
+  font-size: 32px;
+}
+
+.p2p-head-card p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.p2p-tabs {
+  margin-top: 16px;
+  display: inline-flex;
+  gap: 8px;
+  background: rgba(6, 14, 28, 0.8);
+  border: 1px solid rgba(89, 116, 168, 0.3);
+  padding: 6px;
+  border-radius: 10px;
+}
+
+.side-tab {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: 700;
+  color: #cde0ff;
+  background: transparent;
+  cursor: pointer;
+}
+
+.side-tab.active {
+  background: rgba(0, 210, 184, 0.2);
+  color: #b3fff3;
+}
+
+.p2p-filters {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.p2p-filters label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.p2p-filters select,
+.p2p-filters input {
+  width: 100%;
+  border: 1px solid rgba(89, 116, 168, 0.4);
+  border-radius: 10px;
+  padding: 10px;
+  color: #ebf3ff;
+  background: rgba(7, 14, 28, 0.9);
+}
+
+.p2p-filters button {
+  align-self: end;
+}
+
+.p2p-table-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.p2p-table-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.p2p-table-wrap {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
+.p2p-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.p2p-table th,
+.p2p-table td {
+  text-align: left;
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(89, 116, 168, 0.22);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.p2p-table th {
+  color: #8ba4cb;
+  font-weight: 600;
+}
+
+.p2p-table td {
+  color: #e6f1ff;
+}
+
+.adv-name {
+  margin: 0;
+  font-weight: 700;
+}
+
+.adv-meta {
+  margin: 5px 0 0;
+  color: #8ba4cb;
+  font-size: 11px;
+}
+
+.p2p-price {
+  font-weight: 800;
+  color: #b3fff3 !important;
+}
+
+.pay-chip {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(61, 141, 255, 0.2);
+  border: 1px solid rgba(61, 141, 255, 0.45);
+  color: #d8ebff;
+  font-size: 11px;
+}
+
+.buy-offer-btn,
+.sell-offer-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.buy-offer-btn {
+  background: #00c08b;
+}
+
+.sell-offer-btn {
+  background: #3d8dff;
+}
+
 .admin-container {
   min-height: 100vh;
   padding: 20px;
@@ -438,9 +636,12 @@ th {
     grid-template-columns: 1fr;
   }
 
-  #lineChart {
   #tvFrame {
     height: 240px;
+  }
+
+  .p2p-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -461,5 +662,20 @@ th {
   .market-card,
   .admin-card {
     padding: 14px;
+  }
+
+  .p2p-head-card,
+  .p2p-table-card {
+    padding: 14px;
+  }
+
+  .p2p-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .p2p-table th,
+  .p2p-table td {
+    font-size: 12px;
+    padding: 10px 8px;
   }
 }
