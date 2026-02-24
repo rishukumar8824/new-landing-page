@@ -141,6 +141,10 @@ function updateUserUi() {
   } else {
     setUserStatus('Login required to place or join P2P orders.');
   }
+
+  if (logoutBtn) {
+    logoutBtn.style.display = currentUser ? 'inline-flex' : 'none';
+  }
 }
 
 function setModalOpen(open) {
