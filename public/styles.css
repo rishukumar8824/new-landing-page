@@ -2788,3 +2788,89 @@ th {
     font-size: 12px;
   }
 }
+
+/* Final Compact Scale For P2P */
+.p2p-bybit {
+  font-size: 12px !important;
+}
+
+.p2p-bybit .p2p-title-row h1 {
+  font-size: 17px !important;
+  margin-bottom: 8px !important;
+}
+
+.p2p-bybit .p2p-promo p {
+  font-size: 13px !important;
+}
+
+.p2p-bybit .top-links a,
+.p2p-bybit .p2p-subnav a,
+.p2p-bybit .p2p-subnav-right a,
+.p2p-bybit .user-status,
+.p2p-bybit .asset-chip,
+.p2p-bybit .asset-support,
+.p2p-bybit .p2p-alert-row span,
+.p2p-bybit .p2p-live-head p {
+  font-size: 12px !important;
+}
+
+.p2p-bybit .side-tab {
+  font-size: 12px !important;
+  min-width: 78px !important;
+  padding: 6px 12px !important;
+}
+
+.p2p-bybit .p2p-filter-row input,
+.p2p-bybit .p2p-filter-row select,
+.p2p-bybit .p2p-filter-row button {
+  min-height: 34px !important;
+  font-size: 12px !important;
+}
+
+.p2p-bybit .p2p-table.light th,
+.p2p-bybit .p2p-table.light td {
+  padding: 8px 6px !important;
+  font-size: 12px !important;
+}
+
+.p2p-bybit .p2p-table.light th {
+  font-size: 11px !important;
+}
+
+.p2p-bybit .p2p-table.light .adv-name {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+}
+
+.p2p-bybit .p2p-table.light .adv-meta {
+  font-size: 11px !important;
+}
+
+.p2p-bybit .p2p-table.light .p2p-price {
+  font-size: 16px !important;
+  line-height: 1.1 !important;
+}
+
+.p2p-bybit .cell-main {
+  font-size: 12px !important;
+}
+
+.p2p-bybit .cell-sub {
+  font-size: 11px !important;
+}
+
+.p2p-bybit .pay-chip {
+  font-size: 11px !important;
+  padding: 4px 7px !important;
+}
+
+.p2p-bybit .offer-action-btn {
+  min-width: 92px !important;
+  min-height: 32px !important;
+  font-size: 12px !important;
+}
+
+.p2p-bybit .top-pick-label {
+  font-size: 10px !important;
+}
