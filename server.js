@@ -14,6 +14,8 @@ const sessions = new Map();
 
 const dataDir = path.join(__dirname, 'data');
 const dataFile = path.join(dataDir, 'leads.json');
+const P2P_ORDER_TTL_MS = 1000 * 60 * 15;
+const p2pOrders = new Map();
 const p2pOffers = [
   {
     id: 'ofr_1001',
@@ -133,6 +135,46 @@ const p2pOffers = [
     payments: ['Bank Transfer', 'Paytm']
   }
 ];
+
+function createOrderReference() {
+  const randomPart = Math.floor(1000 + Math.random() * 9000);
+  return `P2P-${Date.now().toString().slice(-6)}-${randomPart}`;
+}
+
+function findOfferById(offerId) {
+  return p2pOffers.find((offer) => offer.id === offerId) || null;
+}
+
+function normalizeOrderState(order) {
+  if (!order) {
+    return null;
+  }
+
+  if (order.status === 'OPEN' && Date.now() >= order.expiresAt) {
+    order.status = 'EXPIRED';
+    order.updatedAt = Date.now();
+  }
+
+  const remainingSeconds =
+    order.status === 'OPEN' ? Math.max(0, Math.floor((order.expiresAt - Date.now()) / 1000)) : 0;
+
+  return {
+    id: order.id,
+    reference: order.reference,
+    side: order.side,
+    asset: order.asset,
+    status: order.status,
+    advertiser: order.advertiser,
+    price: order.price,
+    amountInr: order.amountInr,
+    assetAmount: order.assetAmount,
+    paymentMethod: order.paymentMethod,
+    createdAt: new Date(order.createdAt).toISOString(),
+    expiresAt: new Date(order.expiresAt).toISOString(),
+    updatedAt: new Date(order.updatedAt).toISOString(),
+    remainingSeconds
+  };
+}
 
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -329,6 +371,175 @@ app.get('/api/p2p/offers', (req, res) => {
     total: filtered.length,
     updatedAt: new Date().toISOString(),
     offers: filtered
+  });
+});
+
+app.post('/api/p2p/orders', (req, res) => {
+  const offerId = String(req.body.offerId || '').trim();
+  const amountInr = Number(req.body.amountInr || 0);
+  const offer = findOfferById(offerId);
+
+  if (!offer) {
+    return res.status(404).json({ message: 'Offer not found.' });
+  }
+
+  const fallbackAmount = offer.minLimit;
+  const finalAmount = Number.isFinite(amountInr) && amountInr > 0 ? amountInr : fallbackAmount;
+
+  if (finalAmount < offer.minLimit || finalAmount > offer.maxLimit) {
+    return res.status(400).json({
+      message: `Amount must be between ₹${offer.minLimit.toLocaleString('en-IN')} and ₹${offer.maxLimit.toLocaleString('en-IN')}.`
+    });
+  }
+
+  const assetAmount = finalAmount / offer.price;
+  const createdAt = Date.now();
+  const order = {
+    id: `ord_${createdAt}_${Math.floor(Math.random() * 10000)}`,
+    reference: createOrderReference(),
+    offerId: offer.id,
+    side: offer.side,
+    asset: offer.asset,
+    advertiser: offer.advertiser,
+    paymentMethod: offer.payments[0],
+    price: offer.price,
+    amountInr: Number(finalAmount.toFixed(2)),
+    assetAmount: Number(assetAmount.toFixed(6)),
+    createdAt,
+    expiresAt: createdAt + P2P_ORDER_TTL_MS,
+    updatedAt: createdAt,
+    status: 'OPEN',
+    messages: [
+      {
+        id: `msg_${createdAt}_welcome`,
+        sender: 'System',
+        text: 'Order created. Complete payment before timer ends.',
+        createdAt
+      }
+    ]
+  };
+
+  p2pOrders.set(order.id, order);
+
+  return res.status(201).json({
+    message: 'Order created successfully.',
+    order: normalizeOrderState(order)
+  });
+});
+
+app.get('/api/p2p/orders/:orderId', (req, res) => {
+  const order = p2pOrders.get(req.params.orderId);
+
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found.' });
+  }
+
+  return res.json({
+    order: normalizeOrderState(order)
+  });
+});
+
+app.post('/api/p2p/orders/:orderId/status', (req, res) => {
+  const order = p2pOrders.get(req.params.orderId);
+  const action = String(req.body.action || '').trim().toLowerCase();
+
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found.' });
+  }
+
+  normalizeOrderState(order);
+
+  if (action === 'cancel' && order.status === 'OPEN') {
+    order.status = 'CANCELLED';
+  } else if (action === 'mark_paid' && order.status === 'OPEN') {
+    order.status = 'PAID';
+  } else if (action === 'release' && order.status === 'PAID') {
+    order.status = 'RELEASED';
+  } else {
+    return res.status(400).json({ message: 'Invalid action for current order status.' });
+  }
+
+  order.updatedAt = Date.now();
+  order.messages.push({
+    id: `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    sender: 'System',
+    text: `Order status changed to ${order.status}.`,
+    createdAt: Date.now()
+  });
+
+  return res.json({
+    message: 'Order updated.',
+    order: normalizeOrderState(order)
+  });
+});
+
+app.get('/api/p2p/orders/:orderId/messages', (req, res) => {
+  const order = p2pOrders.get(req.params.orderId);
+
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found.' });
+  }
+
+  normalizeOrderState(order);
+
+  return res.json({
+    messages: order.messages.map((msg) => ({
+      id: msg.id,
+      sender: msg.sender,
+      text: msg.text,
+      createdAt: new Date(msg.createdAt).toISOString()
+    }))
+  });
+});
+
+app.post('/api/p2p/orders/:orderId/messages', (req, res) => {
+  const order = p2pOrders.get(req.params.orderId);
+  const text = String(req.body.text || '').trim();
+
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found.' });
+  }
+
+  normalizeOrderState(order);
+
+  if (['RELEASED', 'CANCELLED', 'EXPIRED'].includes(order.status)) {
+    return res.status(400).json({ message: 'Order chat is closed for this status.' });
+  }
+
+  if (!text) {
+    return res.status(400).json({ message: 'Message text is required.' });
+  }
+
+  const now = Date.now();
+  order.messages.push({
+    id: `msg_${now}_${Math.floor(Math.random() * 1000)}`,
+    sender: 'You',
+    text,
+    createdAt: now
+  });
+
+  const merchantReply =
+    order.status === 'OPEN'
+      ? 'Payment details are valid. Please share screenshot once transferred.'
+      : 'Thanks, we are verifying and updating your order now.';
+
+  order.messages.push({
+    id: `msg_${now}_${Math.floor(Math.random() * 1000)}_merchant`,
+    sender: order.advertiser,
+    text: merchantReply,
+    createdAt: now + 1
+  });
+
+  order.updatedAt = now;
+
+  return res.status(201).json({
+    message: 'Message sent.',
+    messages: order.messages.map((msg) => ({
+      id: msg.id,
+      sender: msg.sender,
+      text: msg.text,
+      createdAt: new Date(msg.createdAt).toISOString()
+    }))
   });
 });
 

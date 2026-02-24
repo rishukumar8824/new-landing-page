@@ -20,7 +20,7 @@
     <main class="p2p-shell">
       <section class="p2p-head-card">
         <h1>P2P Trading</h1>
-        <p>Buy or sell crypto directly with verified merchants. Fast settlement and flexible payment methods.</p>
+        <p>Bybit-style P2P desk with verified advertisers, real-time order timer and in-order chat.</p>
 
         <div class="p2p-tabs" id="sideTabs">
           <button class="side-tab active" data-side="buy">Buy</button>
@@ -86,6 +86,45 @@
         </div>
       </section>
     </main>
+
+    <section id="orderModal" class="order-modal hidden" aria-hidden="true">
+      <div class="order-backdrop" id="closeModalBackdrop"></div>
+      <div class="order-panel" role="dialog" aria-modal="true" aria-labelledby="orderTitle">
+        <div class="order-header">
+          <h2 id="orderTitle">P2P Order Details</h2>
+          <button id="closeModalBtn" type="button" class="secondary-btn">Close</button>
+        </div>
+
+        <div class="order-summary-grid">
+          <article><span>Order ID</span><strong id="orderRef">--</strong></article>
+          <article><span>Status</span><strong id="orderStatus" class="status-pill">--</strong></article>
+          <article><span>Timer</span><strong id="orderTimer">--:--</strong></article>
+          <article><span>Merchant</span><strong id="orderMerchant">--</strong></article>
+          <article><span>Price</span><strong id="orderPrice">--</strong></article>
+          <article><span>Amount</span><strong id="orderAmount">--</strong></article>
+          <article><span>Crypto Qty</span><strong id="orderAssetAmount">--</strong></article>
+          <article><span>Payment</span><strong id="orderPayment">--</strong></article>
+        </div>
+
+        <div class="order-action-row">
+          <button id="markPaidBtn" type="button">Mark as Paid</button>
+          <button id="releaseBtn" type="button" class="secondary-btn">Release Crypto</button>
+          <button id="cancelOrderBtn" type="button" class="danger-btn">Cancel Order</button>
+        </div>
+
+        <section class="chat-box">
+          <div class="chat-head">
+            <p>Order Chat</p>
+            <span id="chatState">Waiting for messages...</span>
+          </div>
+          <div id="chatMessages" class="chat-messages"></div>
+          <form id="chatForm" class="chat-form">
+            <input id="chatInput" type="text" placeholder="Type a message..." maxlength="300" />
+            <button type="submit">Send</button>
+          </form>
+        </section>
+      </div>
+    </section>
 
     <script src="/p2p.js"></script>
   </body>
