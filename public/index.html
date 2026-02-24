@@ -106,16 +106,82 @@
       <div id="closeChartBackdrop" class="bnx-chart-backdrop"></div>
       <div class="bnx-chart-panel">
         <div class="bnx-chart-head">
-          <p id="chartModalTitle">BTC/USDT Chart</p>
+          <div class="bnx-chart-head-meta">
+            <p id="chartModalTitle">BTC/USDT Live Market</p>
+            <span id="orderbookSource">Source: --</span>
+          </div>
           <button id="closeChartBtn" type="button">Close</button>
         </div>
-        <iframe
-          id="chartModalFrame"
-          title="TradingView Pair Chart"
-          src="https://s.tradingview.com/widgetembed/?symbol=BINANCE:BTCUSDT&interval=60&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=111827&studies=[]&theme=dark&style=1&timezone=Etc/UTC&withdateranges=1&hideideas=1&hide_top_toolbar=1&hide_legend=1&locale=en"
-          frameborder="0"
-          scrolling="no"
-        ></iframe>
+
+        <section class="bnx-order-stats">
+          <article>
+            <span>Last Price</span>
+            <strong id="obLastPrice">--</strong>
+          </article>
+          <article>
+            <span>24h Change</span>
+            <strong id="obChange24h">--</strong>
+          </article>
+          <article>
+            <span>24h High</span>
+            <strong id="obHigh24h">--</strong>
+          </article>
+          <article>
+            <span>24h Low</span>
+            <strong id="obLow24h">--</strong>
+          </article>
+          <article>
+            <span>24h Volume</span>
+            <strong id="obVolume24h">--</strong>
+          </article>
+        </section>
+
+        <section class="bnx-order-grid">
+          <article class="bnx-order-table-card">
+            <h4>Asks (Sell)</h4>
+            <table class="bnx-order-table">
+              <thead>
+                <tr>
+                  <th>Price</th>
+                  <th>Amount</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody id="obAsksRows"></tbody>
+            </table>
+          </article>
+
+          <article class="bnx-order-table-card">
+            <h4>Bids (Buy)</h4>
+            <table class="bnx-order-table">
+              <thead>
+                <tr>
+                  <th>Price</th>
+                  <th>Amount</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody id="obBidsRows"></tbody>
+            </table>
+          </article>
+        </section>
+
+        <section class="bnx-trades-card">
+          <h4>Recent Trades</h4>
+          <div class="bnx-trades-wrap">
+            <table class="bnx-order-table bnx-trades-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Price</th>
+                  <th>Amount</th>
+                  <th>Side</th>
+                </tr>
+              </thead>
+              <tbody id="obTradesRows"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </section>
 

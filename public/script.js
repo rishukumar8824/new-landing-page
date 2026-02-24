@@ -11,9 +11,17 @@ const verifyOtpBtn = document.getElementById('verifyOtpBtn');
 
 const chartModal = document.getElementById('chartModal');
 const chartModalTitle = document.getElementById('chartModalTitle');
-const chartModalFrame = document.getElementById('chartModalFrame');
+const orderbookSource = document.getElementById('orderbookSource');
 const closeChartBtn = document.getElementById('closeChartBtn');
 const closeChartBackdrop = document.getElementById('closeChartBackdrop');
+const obLastPrice = document.getElementById('obLastPrice');
+const obChange24h = document.getElementById('obChange24h');
+const obHigh24h = document.getElementById('obHigh24h');
+const obLow24h = document.getElementById('obLow24h');
+const obVolume24h = document.getElementById('obVolume24h');
+const obAsksRows = document.getElementById('obAsksRows');
+const obBidsRows = document.getElementById('obBidsRows');
+const obTradesRows = document.getElementById('obTradesRows');
 
 const MARKET_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT'];
 const COIN_NAMES = {
@@ -33,6 +41,8 @@ const NEWS_ITEMS = [
 
 let pendingContact = '';
 let pendingName = 'Website Lead';
+let activeBookSymbol = '';
+let depthRefreshTimer = null;
 
 function setMessage(text, type = '') {
   if (!message) {
@@ -79,30 +89,145 @@ function formatPrice(value) {
   return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-function toTradingViewUrl(symbol) {
-  return (
-    `https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(`BINANCE:${symbol}`)}` +
-    '&interval=60&hidesidetoolbar=1&symboledit=0&saveimage=0' +
-    '&toolbarbg=111827&studies=[]&theme=dark&style=1&timezone=Etc/UTC' +
-    '&withdateranges=1&hideideas=1&hide_top_toolbar=1&hide_legend=1&locale=en'
+function formatLarge(value, digits = 2) {
+  return Number(value || 0).toLocaleString(undefined, {
+    maximumFractionDigits: digits
+  });
+}
+
+function formatTradeTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '--:--:--';
+  }
+  return date.toLocaleTimeString([], { hour12: false });
+}
+
+function setRows(target, rows, htmlFactory, colspan) {
+  if (!target) {
+    return;
+  }
+  if (!Array.isArray(rows) || rows.length === 0) {
+    target.innerHTML = `<tr><td colspan="${colspan}">No data</td></tr>`;
+    return;
+  }
+  target.innerHTML = rows.map(htmlFactory).join('');
+}
+
+function renderOrderBook(data) {
+  const ticker = data?.ticker || {};
+  const change = Number(ticker.change24h || 0);
+
+  if (orderbookSource) {
+    const sourceLabel = String(data?.source || 'fallback').toUpperCase();
+    orderbookSource.textContent = `Source: ${sourceLabel}`;
+  }
+  if (obLastPrice) {
+    obLastPrice.textContent = `$${formatLarge(ticker.lastPrice, 4)}`;
+  }
+  if (obHigh24h) {
+    obHigh24h.textContent = `$${formatLarge(ticker.high24h, 4)}`;
+  }
+  if (obLow24h) {
+    obLow24h.textContent = `$${formatLarge(ticker.low24h, 4)}`;
+  }
+  if (obVolume24h) {
+    obVolume24h.textContent = formatLarge(ticker.volume24h, 2);
+  }
+  if (obChange24h) {
+    obChange24h.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+    obChange24h.classList.remove('up', 'down');
+    obChange24h.classList.add(change >= 0 ? 'up' : 'down');
+  }
+
+  setRows(
+    obAsksRows,
+    data?.orderBook?.asks,
+    (row) => `
+      <tr>
+        <td class="price-down">${formatLarge(row.price, 4)}</td>
+        <td>${formatLarge(row.quantity, 5)}</td>
+        <td>${formatLarge(row.total, 2)}</td>
+      </tr>
+    `,
+    3
+  );
+
+  setRows(
+    obBidsRows,
+    data?.orderBook?.bids,
+    (row) => `
+      <tr>
+        <td class="price-up">${formatLarge(row.price, 4)}</td>
+        <td>${formatLarge(row.quantity, 5)}</td>
+        <td>${formatLarge(row.total, 2)}</td>
+      </tr>
+    `,
+    3
+  );
+
+  setRows(
+    obTradesRows,
+    data?.trades,
+    (trade) => `
+      <tr>
+        <td>${formatTradeTime(trade.time)}</td>
+        <td class="${trade.side === 'sell' ? 'price-down' : 'price-up'}">${formatLarge(trade.price, 4)}</td>
+        <td>${formatLarge(trade.quantity, 5)}</td>
+        <td>${trade.side === 'sell' ? 'Sell' : 'Buy'}</td>
+      </tr>
+    `,
+    4
   );
 }
 
-function openChart(symbol) {
-  if (!chartModal || !chartModalFrame || !chartModalTitle) {
+async function loadMarketDepth(symbol) {
+  const response = await fetch(`/api/p2p/market-depth?symbol=${encodeURIComponent(symbol)}`);
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Market feed unavailable');
+  }
+  renderOrderBook(data);
+}
+
+async function refreshDepth() {
+  if (!activeBookSymbol) {
     return;
   }
+  try {
+    await loadMarketDepth(activeBookSymbol);
+  } catch (error) {
+    if (orderbookSource) {
+      orderbookSource.textContent = error.message;
+    }
+  }
+}
 
+function openChart(symbol) {
+  if (!chartModal || !chartModalTitle) {
+    return;
+  }
   const pair = symbol.replace('USDT', '/USDT');
-  chartModalTitle.textContent = `${pair} Chart`;
-  chartModalFrame.src = toTradingViewUrl(symbol);
+  chartModalTitle.textContent = `${pair} Live Order Book`;
+  activeBookSymbol = symbol;
   chartModal.classList.remove('hidden');
   chartModal.setAttribute('aria-hidden', 'false');
+
+  if (depthRefreshTimer) {
+    clearInterval(depthRefreshTimer);
+  }
+  refreshDepth();
+  depthRefreshTimer = setInterval(refreshDepth, 3000);
 }
 
 function closeChart() {
   if (!chartModal) {
     return;
+  }
+  activeBookSymbol = '';
+  if (depthRefreshTimer) {
+    clearInterval(depthRefreshTimer);
+    depthRefreshTimer = null;
   }
   chartModal.classList.add('hidden');
   chartModal.setAttribute('aria-hidden', 'true');

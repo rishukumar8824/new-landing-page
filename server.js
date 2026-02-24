@@ -33,6 +33,14 @@ const signupOtps = new Map();
 const p2pOrders = new Map();
 const p2pOrderStreams = new Map();
 const DEFAULT_TICKER_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'];
+const DEFAULT_SYMBOL_PRICES = {
+  BTCUSDT: 63000,
+  ETHUSDT: 3200,
+  BNBUSDT: 590,
+  XRPUSDT: 0.62,
+  SOLUSDT: 145,
+  ADAUSDT: 0.78
+};
 
 const dataDir = path.join(__dirname, 'data');
 const dataFile = path.join(dataDir, 'leads.json');
@@ -109,6 +117,71 @@ function saveLeadRecord(name, contact, extra = {}) {
   leads.push(newLead);
   writeLeads(leads);
   return newLead;
+}
+
+function normalizeMarketSymbol(rawSymbol) {
+  const symbol = String(rawSymbol || '')
+    .trim()
+    .toUpperCase();
+  if (!/^[A-Z0-9]{5,12}$/.test(symbol)) {
+    return 'BTCUSDT';
+  }
+  return symbol;
+}
+
+function createFallbackOrderBook(symbol) {
+  const basePrice = DEFAULT_SYMBOL_PRICES[symbol] || 100;
+  const asks = [];
+  const bids = [];
+  const trades = [];
+  const now = Date.now();
+
+  for (let i = 0; i < 10; i += 1) {
+    const askPrice = Number((basePrice + i * (basePrice * 0.00045 + 0.01)).toFixed(6));
+    const bidPrice = Number((basePrice - i * (basePrice * 0.00045 + 0.01)).toFixed(6));
+    const askQty = Number((0.6 + i * 0.21).toFixed(5));
+    const bidQty = Number((0.65 + i * 0.19).toFixed(5));
+
+    asks.push({
+      price: askPrice,
+      quantity: askQty,
+      total: Number((askPrice * askQty).toFixed(2))
+    });
+    bids.push({
+      price: bidPrice,
+      quantity: bidQty,
+      total: Number((bidPrice * bidQty).toFixed(2))
+    });
+  }
+
+  for (let i = 0; i < 18; i += 1) {
+    const side = i % 2 === 0 ? 'buy' : 'sell';
+    const drift = (Math.random() - 0.5) * basePrice * 0.0012;
+    const price = Number((basePrice + drift).toFixed(6));
+    const quantity = Number((Math.random() * 1.2 + 0.05).toFixed(5));
+    trades.push({
+      id: `fallback_${i}`,
+      price,
+      quantity,
+      side,
+      time: now - i * 25000
+    });
+  }
+
+  return {
+    source: 'fallback',
+    symbol,
+    updatedAt: new Date().toISOString(),
+    ticker: {
+      lastPrice: basePrice,
+      change24h: 0,
+      high24h: Number((basePrice * 1.02).toFixed(6)),
+      low24h: Number((basePrice * 0.98).toFixed(6)),
+      volume24h: Number((basePrice * 500).toFixed(2))
+    },
+    orderBook: { asks, bids },
+    trades
+  };
 }
 
 function normalizeSignupContact(input) {
@@ -707,6 +780,71 @@ app.get('/api/p2p/exchange-ticker', async (req, res) => {
       updatedAt: new Date().toISOString(),
       ticker: symbols.map((symbol) => ({ symbol, lastPrice: 0, change24h: 0 }))
     });
+  }
+});
+
+app.get('/api/p2p/market-depth', async (req, res) => {
+  const symbol = normalizeMarketSymbol(req.query.symbol);
+
+  try {
+    const [tickerRes, depthRes, tradesRes] = await Promise.all([
+      fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`),
+      fetch(`https://api.binance.com/api/v3/depth?symbol=${encodeURIComponent(symbol)}&limit=12`),
+      fetch(`https://api.binance.com/api/v3/trades?symbol=${encodeURIComponent(symbol)}&limit=18`)
+    ]);
+
+    const [tickerRaw, depthRaw, tradesRaw] = await Promise.all([tickerRes.json(), depthRes.json(), tradesRes.json()]);
+
+    if (!tickerRes.ok || !depthRes.ok || !tradesRes.ok || !Array.isArray(depthRaw.bids) || !Array.isArray(depthRaw.asks)) {
+      throw new Error('Binance market depth unavailable');
+    }
+
+    const bids = depthRaw.bids.slice(0, 10).map(([price, quantity]) => {
+      const numericPrice = Number(price);
+      const numericQuantity = Number(quantity);
+      return {
+        price: numericPrice,
+        quantity: numericQuantity,
+        total: Number((numericPrice * numericQuantity).toFixed(2))
+      };
+    });
+
+    const asks = depthRaw.asks.slice(0, 10).map(([price, quantity]) => {
+      const numericPrice = Number(price);
+      const numericQuantity = Number(quantity);
+      return {
+        price: numericPrice,
+        quantity: numericQuantity,
+        total: Number((numericPrice * numericQuantity).toFixed(2))
+      };
+    });
+
+    const trades = Array.isArray(tradesRaw)
+      ? tradesRaw.slice(0, 18).map((trade) => ({
+          id: trade.id,
+          price: Number(trade.price),
+          quantity: Number(trade.qty),
+          side: trade.isBuyerMaker ? 'sell' : 'buy',
+          time: Number(trade.time)
+        }))
+      : [];
+
+    return res.json({
+      source: 'binance',
+      symbol,
+      updatedAt: new Date().toISOString(),
+      ticker: {
+        lastPrice: Number(tickerRaw.lastPrice || 0),
+        change24h: Number(tickerRaw.priceChangePercent || 0),
+        high24h: Number(tickerRaw.highPrice || 0),
+        low24h: Number(tickerRaw.lowPrice || 0),
+        volume24h: Number(tickerRaw.volume || 0)
+      },
+      orderBook: { bids, asks },
+      trades
+    });
+  } catch (error) {
+    return res.json(createFallbackOrderBook(symbol));
   }
 });
 

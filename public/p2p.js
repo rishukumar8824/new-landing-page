@@ -153,9 +153,11 @@ function setModalOpen(open) {
   }
 
   if (open) {
+    document.body.classList.add('p2p-order-open');
     orderModal.classList.remove('hidden');
     orderModal.setAttribute('aria-hidden', 'false');
   } else {
+    document.body.classList.remove('p2p-order-open');
     orderModal.classList.add('hidden');
     orderModal.setAttribute('aria-hidden', 'true');
   }
