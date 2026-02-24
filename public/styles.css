@@ -2874,3 +2874,34 @@ th {
 .p2p-bybit .top-pick-label {
   font-size: 10px !important;
 }
+
+/* Ultra Compact Text Override */
+.p2p-bybit .topbar *,
+.p2p-bybit .p2p-subnav-wrap *,
+.p2p-bybit .p2p-shell-light,
+.p2p-bybit .p2p-shell-light * {
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+}
+
+.p2p-bybit .p2p-title-row h1 {
+  font-size: 16px !important;
+}
+
+.p2p-bybit .p2p-promo p {
+  font-size: 12px !important;
+}
+
+.p2p-bybit .p2p-table.light .p2p-price {
+  font-size: 15px !important;
+}
+
+.p2p-bybit .offer-action-btn {
+  min-width: 88px !important;
+  min-height: 30px !important;
+  font-size: 11px !important;
+}
+
+.p2p-bybit .pay-chip {
+  font-size: 10px !important;
+}
