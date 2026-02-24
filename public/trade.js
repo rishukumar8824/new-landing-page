@@ -23,7 +23,8 @@ const routeSymbol = normalizeRouteSymbol(pathParts[2] || 'BTCUSDT');
 const state = {
   market: routeMarket,
   symbol: routeSymbol,
-  interval: '15m',
+  interval: '5m',
+  tradeSide: 'buy',
   klines: [],
   ticker: null,
   orderBook: null,
@@ -52,6 +53,12 @@ const intervalTabs = document.getElementById('intervalTabs');
 const flashModeBtn = document.getElementById('flashModeBtn');
 const proModeBtn = document.getElementById('proModeBtn');
 const canvas = document.getElementById('klineCanvas');
+const tradeSideSwitch = document.getElementById('tradeSideSwitch');
+const tradeOrderType = document.getElementById('tradeOrderType');
+const tradeAmountUsdt = document.getElementById('tradeAmountUsdt');
+const tradeEstimateQty = document.getElementById('tradeEstimateQty');
+const placeTradeBtn = document.getElementById('placeTradeBtn');
+const tradeActionMessage = document.getElementById('tradeActionMessage');
 
 let depthTimer = null;
 let klineTimer = null;
@@ -84,6 +91,52 @@ function setPairIdentity() {
     pairTitle.textContent = displayPair;
   }
   document.title = `${displayPair} | Bitegit Trade`;
+}
+
+function setTradeActionMessage(text, type = '') {
+  if (!tradeActionMessage) {
+    return;
+  }
+  tradeActionMessage.textContent = text;
+  tradeActionMessage.classList.remove('success', 'error');
+  if (type) {
+    tradeActionMessage.classList.add(type);
+  }
+}
+
+function renderEstimatedQty() {
+  if (!tradeEstimateQty) {
+    return;
+  }
+
+  const amountUsdt = Number(tradeAmountUsdt?.value || 0);
+  const lastPrice = Number(state.ticker?.lastPrice || 0);
+  if (!Number.isFinite(amountUsdt) || amountUsdt <= 0 || !Number.isFinite(lastPrice) || lastPrice <= 0) {
+    tradeEstimateQty.textContent = '--';
+    return;
+  }
+
+  const qty = amountUsdt / lastPrice;
+  tradeEstimateQty.textContent = `${qty.toFixed(8)} ${state.symbol.replace('USDT', '') || state.symbol}`;
+}
+
+function syncTradeActionButton() {
+  if (!placeTradeBtn) {
+    return;
+  }
+  placeTradeBtn.textContent = state.tradeSide === 'sell' ? 'Place Sell Order' : 'Place Buy Order';
+}
+
+function setTradeSide(side) {
+  state.tradeSide = side === 'sell' ? 'sell' : 'buy';
+  syncTradeActionButton();
+
+  if (!tradeSideSwitch) {
+    return;
+  }
+  tradeSideSwitch.querySelectorAll('button[data-side]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.side === state.tradeSide);
+  });
 }
 
 function setPriceChangeStyle(value) {
@@ -127,6 +180,7 @@ function renderTicker(ticker) {
   }
 
   setPriceChangeStyle(change);
+  renderEstimatedQty();
 }
 
 function renderOrderBook(orderBook) {
@@ -392,6 +446,51 @@ async function loadKlines() {
   }
 }
 
+async function placeTradeOrder() {
+  const amountUsdt = Number(tradeAmountUsdt?.value || 0);
+  if (!Number.isFinite(amountUsdt) || amountUsdt < 10) {
+    setTradeActionMessage('Minimum amount is 10 USDT.', 'error');
+    return;
+  }
+
+  if (!placeTradeBtn) {
+    return;
+  }
+
+  const previousText = placeTradeBtn.textContent;
+  placeTradeBtn.disabled = true;
+  placeTradeBtn.textContent = 'Placing...';
+
+  try {
+    const response = await fetch('/api/trade/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        market: state.market,
+        symbol: state.symbol,
+        side: state.tradeSide,
+        orderType: String(tradeOrderType?.value || 'market'),
+        amountUsdt
+      })
+    });
+    const data = await response.json();
+
+    if (!response.ok || !data.order) {
+      throw new Error(data.message || 'Unable to place order right now.');
+    }
+
+    setTradeActionMessage(
+      `Order ${data.order.id} filled at ${formatPrice(data.order.referencePrice, 6)} (${data.order.estimatedQty} ${state.symbol.replace('USDT', '')}).`,
+      'success'
+    );
+  } catch (error) {
+    setTradeActionMessage(error.message, 'error');
+  } finally {
+    placeTradeBtn.disabled = false;
+    placeTradeBtn.textContent = previousText;
+  }
+}
+
 function openBookPanel(mode) {
   const showTrades = mode === 'trades';
   panelOrderBook?.classList.toggle('hidden', showTrades);
@@ -427,6 +526,24 @@ function setupInteractions() {
     loadKlines();
   });
 
+  tradeSideSwitch?.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-side]');
+    if (!btn) {
+      return;
+    }
+    setTradeSide(btn.dataset.side);
+  });
+
+  tradeAmountUsdt?.addEventListener('input', () => {
+    renderEstimatedQty();
+  });
+
+  tradeOrderType?.addEventListener('change', () => {
+    setTradeActionMessage(`Order type set to ${(tradeOrderType.value || 'market').toUpperCase()}.`);
+  });
+
+  placeTradeBtn?.addEventListener('click', placeTradeOrder);
+
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => drawCandles(state.klines), 120);
@@ -436,6 +553,8 @@ function setupInteractions() {
 async function initTradePage() {
   setPairIdentity();
   setupInteractions();
+  setTradeSide(state.tradeSide);
+  renderEstimatedQty();
   openBookPanel('book');
 
   await Promise.all([loadDepth(), loadKlines()]);

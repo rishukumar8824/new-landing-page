@@ -120,8 +120,32 @@
         </section>
 
         <section class="auth-box">
-          <a class="outline-cta" href="/p2p#p2pLoginCard">Login</a>
-          <a class="green-cta" href="/">Sign Up</a>
+          <div id="tradeSideSwitch" class="trade-side-switch">
+            <button type="button" data-side="buy" class="active">Buy</button>
+            <button type="button" data-side="sell">Sell</button>
+          </div>
+
+          <label class="trade-field">
+            <span>Order Type</span>
+            <select id="tradeOrderType">
+              <option value="market">Market</option>
+              <option value="limit">Limit</option>
+            </select>
+          </label>
+
+          <label class="trade-field">
+            <span>Amount (USDT)</span>
+            <input id="tradeAmountUsdt" type="number" min="10" step="0.01" value="100" />
+          </label>
+
+          <p class="trade-estimate">Estimated Qty: <strong id="tradeEstimateQty">--</strong></p>
+          <button id="placeTradeBtn" type="button" class="trade-submit-btn">Place Buy Order</button>
+          <p id="tradeActionMessage" class="trade-action-message">Use minimum 10 USDT for order placement.</p>
+
+          <div class="trade-auth-links">
+            <a class="outline-cta" href="/p2p#p2pLoginCard">Login</a>
+            <a class="green-cta" href="/">Sign Up</a>
+          </div>
         </section>
       </aside>
     </main>

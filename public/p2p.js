@@ -9,6 +9,7 @@ const advertiserFilter = document.getElementById('advertiserFilter');
 const applyFilters = document.getElementById('applyFilters');
 const refreshOffers = document.getElementById('refreshOffers');
 const exchangeTicker = document.getElementById('exchangeTicker');
+const themeToggleBtn = document.getElementById('themeToggleBtn');
 
 const userStatus = document.getElementById('userStatus');
 const emailInput = document.getElementById('emailInput');
@@ -58,6 +59,7 @@ let pollingIntervalId = null;
 let countdownIntervalId = null;
 let orderStream = null;
 let remainingSeconds = 0;
+const P2P_THEME_STORAGE_KEY = 'p2p_theme_mode';
 
 function escapeHtml(text) {
   return String(text)
@@ -112,6 +114,38 @@ function setUserStatus(text, type = '') {
   if (type) {
     userStatus.classList.add(type);
   }
+}
+
+function applyTheme(mode, persist = true) {
+  const resolved = mode === 'light' ? 'light' : 'dark';
+  document.body.classList.toggle('p2p-theme-dark', resolved === 'dark');
+  document.body.classList.toggle('p2p-theme-light', resolved === 'light');
+
+  if (themeToggleBtn) {
+    themeToggleBtn.textContent = resolved === 'dark' ? 'Light Mode' : 'Dark Mode';
+  }
+
+  if (persist) {
+    try {
+      localStorage.setItem(P2P_THEME_STORAGE_KEY, resolved);
+    } catch (error) {
+      // Ignore storage errors.
+    }
+  }
+}
+
+function initTheme() {
+  let storedTheme = 'dark';
+  try {
+    const saved = localStorage.getItem(P2P_THEME_STORAGE_KEY);
+    if (saved === 'light' || saved === 'dark') {
+      storedTheme = saved;
+    }
+  } catch (error) {
+    storedTheme = 'dark';
+  }
+
+  applyTheme(storedTheme, false);
 }
 
 function setAuthModalOpen(open) {
@@ -816,7 +850,15 @@ if (chatForm) {
   });
 }
 
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener('click', () => {
+    const nextTheme = document.body.classList.contains('p2p-theme-dark') ? 'light' : 'dark';
+    applyTheme(nextTheme);
+  });
+}
+
 (async function init() {
+  initTheme();
   await loadCurrentUser();
   await loadOffers();
   await loadLiveOrders();

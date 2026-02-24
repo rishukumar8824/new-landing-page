@@ -32,6 +32,7 @@ const p2pCredentials = new Map();
 const signupOtps = new Map();
 const p2pOrders = new Map();
 const p2pOrderStreams = new Map();
+const tradeOrders = [];
 const DEFAULT_TICKER_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'];
 const DEFAULT_SYMBOL_PRICES = {
   BTCUSDT: 63000,
@@ -249,6 +250,45 @@ function createFallbackKlines(symbol, interval = '15m', limit = 120) {
     interval,
     klines
   };
+}
+
+function createStableSymbolDrift(symbol, minuteBucket = Math.floor(Date.now() / 60000)) {
+  const seed = String(symbol || '')
+    .split('')
+    .reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 3), 0);
+  const wave = Math.sin((minuteBucket + seed) / 13);
+  const micro = ((seed % 17) - 8) * 0.04;
+  return wave * 0.9 + micro;
+}
+
+function createFallbackTickerSnapshot(symbols) {
+  const safeSymbols = Array.isArray(symbols) && symbols.length ? symbols : DEFAULT_TICKER_SYMBOLS;
+  const nowBucket = Math.floor(Date.now() / 60000);
+
+  return safeSymbols.map((symbol) => {
+    const refPrice = DEFAULT_SYMBOL_PRICES[symbol] || 100;
+    const driftPercent = createStableSymbolDrift(symbol, nowBucket);
+    const priceFactor = 1 + driftPercent / 100;
+    const lastPrice = Number((refPrice * priceFactor).toFixed(6));
+
+    return {
+      symbol,
+      lastPrice,
+      change24h: Number(driftPercent.toFixed(2))
+    };
+  });
+}
+
+function normalizeTradeSide(rawSide) {
+  return String(rawSide || '').trim().toLowerCase() === 'sell' ? 'sell' : 'buy';
+}
+
+function normalizeTradeAmount(rawAmount) {
+  const amount = Number(rawAmount);
+  if (!Number.isFinite(amount)) {
+    return 0;
+  }
+  return Number(amount.toFixed(2));
 }
 
 function normalizeSignupContact(input) {
@@ -845,7 +885,7 @@ app.get('/api/p2p/exchange-ticker', async (req, res) => {
     return res.json({
       source: 'fallback',
       updatedAt: new Date().toISOString(),
-      ticker: symbols.map((symbol) => ({ symbol, lastPrice: 0, change24h: 0 }))
+      ticker: createFallbackTickerSnapshot(symbols)
     });
   }
 });
@@ -949,6 +989,79 @@ app.get('/api/p2p/klines', async (req, res) => {
   } catch (error) {
     return res.json(createFallbackKlines(symbol, interval, limit));
   }
+});
+
+app.post('/api/trade/orders', async (req, res) => {
+  const symbol = normalizeMarketSymbol(req.body.symbol);
+  const market = String(req.body.market || 'spot')
+    .trim()
+    .toLowerCase();
+  const side = normalizeTradeSide(req.body.side);
+  const amountUsdt = normalizeTradeAmount(req.body.amountUsdt);
+
+  if (!['spot', 'perp'].includes(market)) {
+    return res.status(400).json({ message: 'Market must be spot or perp.' });
+  }
+
+  if (!Number.isFinite(amountUsdt) || amountUsdt < 10 || amountUsdt > 1000000) {
+    return res.status(400).json({ message: 'Amount must be between 10 and 1,000,000 USDT.' });
+  }
+
+  let referencePrice = 0;
+  let priceSource = 'fallback';
+
+  try {
+    const tickerRes = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`);
+    const tickerRaw = await tickerRes.json();
+
+    if (tickerRes.ok && tickerRaw && Number(tickerRaw.lastPrice) > 0) {
+      referencePrice = Number(tickerRaw.lastPrice);
+      priceSource = 'binance';
+    }
+  } catch (error) {
+    // Fall through to generated snapshot price.
+  }
+
+  if (!referencePrice || !Number.isFinite(referencePrice)) {
+    const fallbackTicker = createFallbackTickerSnapshot([symbol])[0];
+    referencePrice = Number(fallbackTicker.lastPrice || 0);
+  }
+
+  if (!referencePrice || !Number.isFinite(referencePrice)) {
+    return res.status(503).json({ message: 'Unable to get market price right now.' });
+  }
+
+  const estimatedQty = Number((amountUsdt / referencePrice).toFixed(8));
+  const now = Date.now();
+  const order = {
+    id: `trd_${now}_${Math.floor(Math.random() * 10000)}`,
+    symbol,
+    market,
+    side,
+    amountUsdt,
+    referencePrice: Number(referencePrice.toFixed(6)),
+    estimatedQty,
+    status: 'FILLED',
+    source: priceSource,
+    createdAt: new Date(now).toISOString()
+  };
+
+  tradeOrders.unshift(order);
+  if (tradeOrders.length > 100) {
+    tradeOrders.length = 100;
+  }
+
+  return res.status(201).json({
+    message: `${side.toUpperCase()} order executed successfully.`,
+    order
+  });
+});
+
+app.get('/api/trade/orders', (req, res) => {
+  return res.json({
+    total: tradeOrders.length,
+    orders: tradeOrders.slice(0, 30)
+  });
 });
 
 app.post('/api/leads', (req, res) => {

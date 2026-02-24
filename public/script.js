@@ -503,7 +503,7 @@ if (marketList) {
     if (!row?.dataset?.symbol) {
       return;
     }
-    openChart(row.dataset.symbol);
+    openTradePage(row.dataset.symbol, 'spot');
   });
 }
 

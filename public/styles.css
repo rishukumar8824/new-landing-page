@@ -3077,3 +3077,103 @@ th {
   border: 0 !important;
   padding: 18px !important;
 }
+
+/* Final P2P Theme Toggle Override */
+.p2p-theme-toggle {
+  position: fixed;
+  left: 12px;
+  top: 72px;
+  z-index: 90;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(19, 27, 38, 0.95);
+  color: #e5ecf8;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.p2p-bybit.p2p-theme-light .p2p-theme-toggle {
+  background: #ffffff;
+  border-color: #d5dce8;
+  color: #1c2430;
+}
+
+.p2p-bybit.p2p-theme-dark {
+  background: #050a12 !important;
+  color: #dce5f3 !important;
+}
+
+.p2p-bybit.p2p-theme-dark .p2p-top-nav {
+  background: #090f17 !important;
+  border-bottom-color: #1a2331 !important;
+}
+
+.p2p-bybit.p2p-theme-dark .p2p-subnav-wrap,
+.p2p-bybit.p2p-theme-dark .p2p-shell-light {
+  background: #050a12 !important;
+}
+
+.p2p-bybit.p2p-theme-dark .p2p-board-card,
+.p2p-bybit.p2p-theme-dark .p2p-promo,
+.p2p-bybit.p2p-theme-dark .p2p-auth-panel {
+  background: #0d141e !important;
+  border-color: #1d2838 !important;
+}
+
+.p2p-bybit.p2p-theme-dark .p2p-title-row h1,
+.p2p-bybit.p2p-theme-dark .adv-name,
+.p2p-bybit.p2p-theme-dark .p2p-price,
+.p2p-bybit.p2p-theme-dark .cell-main,
+.p2p-bybit.p2p-theme-dark .cell-sub,
+.p2p-bybit.p2p-theme-dark .p2p-subnav a,
+.p2p-bybit.p2p-theme-dark .p2p-subnav-right a,
+.p2p-bybit.p2p-theme-dark .user-status {
+  color: #dce5f3 !important;
+}
+
+.p2p-bybit.p2p-theme-dark .p2p-table.light,
+.p2p-bybit.p2p-theme-dark .p2p-table.light th,
+.p2p-bybit.p2p-theme-dark .p2p-table.light td {
+  background: #0d141e !important;
+  border-color: #1d2838 !important;
+}
+
+.p2p-bybit.p2p-theme-dark .p2p-table.light th {
+  color: #89a0bf !important;
+}
+
+.p2p-bybit.p2p-theme-dark .p2p-alert-row {
+  background: #0a111a !important;
+  border-top-color: #1c2635 !important;
+  border-bottom-color: #1c2635 !important;
+}
+
+.p2p-bybit.p2p-theme-dark .p2p-filter-row input,
+.p2p-bybit.p2p-theme-dark .p2p-filter-row select,
+.p2p-bybit.p2p-theme-dark .p2p-filter-row button,
+.p2p-bybit.p2p-theme-dark .p2p-search {
+  background: #0f1724 !important;
+  color: #dce5f3 !important;
+  border-color: #253348 !important;
+}
+
+.p2p-bybit.p2p-theme-dark .top-pick-row td {
+  background: #101a27 !important;
+}
+
+.p2p-bybit.p2p-theme-light {
+  background: #f3f4f7 !important;
+  color: #1d2430 !important;
+}
+
+@media (max-width: 980px) {
+  .p2p-theme-toggle {
+    left: 10px;
+    top: 64px;
+    min-height: 30px;
+    font-size: 11px;
+  }
+}
