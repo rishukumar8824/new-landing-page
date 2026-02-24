@@ -1222,6 +1222,7 @@ app.post('/api/p2p/offers', requiresP2PUser, (req, res) => {
 app.post('/api/p2p/orders', requiresP2PUser, (req, res) => {
   const offerId = String(req.body.offerId || '').trim();
   const amountInr = Number(req.body.amountInr || 0);
+  const selectedPaymentMethod = String(req.body.paymentMethod || '').trim();
   const offer = findOfferById(offerId);
 
   if (!offer) {
@@ -1240,6 +1241,12 @@ app.post('/api/p2p/orders', requiresP2PUser, (req, res) => {
       message: `Amount must be between ₹${offer.minLimit.toLocaleString('en-IN')} and ₹${offer.maxLimit.toLocaleString('en-IN')}.`
     });
   }
+
+  const exactPayment = offer.payments.find((method) => method.toLowerCase() === selectedPaymentMethod.toLowerCase());
+  if (selectedPaymentMethod && !exactPayment) {
+    return res.status(400).json({ message: 'Selected payment method is not available for this ad.' });
+  }
+  const paymentMethod = exactPayment || offer.payments[0];
 
   const assetAmount = finalAmount / offer.price;
   const now = Date.now();
@@ -1268,7 +1275,7 @@ app.post('/api/p2p/orders', requiresP2PUser, (req, res) => {
     side: offer.side,
     asset: offer.asset,
     advertiser: offer.advertiser,
-    paymentMethod: offer.payments[0],
+    paymentMethod,
     price: offer.price,
     amountInr: Number(finalAmount.toFixed(2)),
     assetAmount: Number(assetAmount.toFixed(6)),

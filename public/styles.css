@@ -3247,3 +3247,270 @@ th {
     max-width: 420px;
   }
 }
+
+/* P2P Deal Modal (Amount -> USDT -> Payment Mode) */
+.deal-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+}
+
+.deal-modal.hidden {
+  display: none !important;
+}
+
+.deal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 11, 16, 0.58);
+}
+
+.deal-panel {
+  position: relative;
+  width: min(900px, calc(100vw - 20px));
+  border-radius: 18px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #ffffff;
+  border: 1px solid #dfe5f0;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+}
+
+.deal-left {
+  padding: 18px;
+  background: #f4f5f7;
+}
+
+.deal-right {
+  padding: 18px;
+  background: #ffffff;
+}
+
+.deal-profile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.deal-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: #edd5a0;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deal-profile h3 {
+  margin: 0;
+  font-size: 33px;
+  line-height: 1.1;
+  color: #171d27;
+}
+
+.deal-profile p {
+  margin: 3px 0 0;
+  color: #666f81;
+  font-size: 12px;
+}
+
+.deal-time {
+  color: #8e96a4 !important;
+  font-size: 11px !important;
+}
+
+.deal-verify {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.deal-verify span {
+  color: #28a762;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.deal-meta-list {
+  margin: 14px 0 0;
+  display: grid;
+  gap: 9px;
+}
+
+.deal-meta-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.deal-meta-list dt,
+.deal-meta-list dd {
+  margin: 0;
+  font-size: 14px;
+}
+
+.deal-meta-list dt {
+  color: #6b7485;
+}
+
+.deal-meta-list dd {
+  color: #151b25;
+  font-weight: 600;
+}
+
+.deal-terms {
+  margin: 14px 0 0;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #e0e5ef;
+  background: #ffffff;
+  font-size: 12px;
+  color: #616b7d;
+  line-height: 1.45;
+}
+
+.deal-price-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deal-price-row span {
+  color: #232a36;
+  font-size: 16px;
+}
+
+.deal-price-row strong {
+  color: #27b46b;
+  font-size: 32px;
+}
+
+.deal-price-row small {
+  color: #7a8394;
+  font-size: 16px;
+}
+
+.deal-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.deal-field span {
+  color: #343d4a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.deal-input-wrap {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  border: 1px solid #e2e6ee;
+  border-radius: 10px;
+  background: #f6f8fb;
+  min-height: 56px;
+  padding: 0 12px;
+}
+
+.deal-input-wrap input {
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 28px;
+  font-weight: 700;
+  color: #10161f;
+  width: 100%;
+}
+
+.deal-input-wrap b {
+  color: #2b3240;
+  font-size: 15px;
+}
+
+#dealPaymentSelect {
+  min-height: 50px;
+  border-radius: 10px;
+  border: 1px solid #e2e6ee;
+  background: #f6f8fb;
+  color: #1a202b;
+  font-size: 15px;
+  padding: 0 12px;
+}
+
+.deal-hint {
+  margin: 12px 0 0;
+  color: #647185;
+  font-size: 12px;
+  min-height: 18px;
+}
+
+.deal-hint.success {
+  color: #26a961;
+}
+
+.deal-hint.error {
+  color: #e24d5f;
+}
+
+.deal-actions {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.deal-confirm-btn,
+.deal-cancel-btn {
+  min-height: 44px;
+  border-radius: 999px;
+  border: none;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.deal-confirm-btn {
+  background: #f3a635;
+  color: #10161f;
+}
+
+.deal-confirm-btn.is-sell {
+  background: #ef4b55;
+  color: #ffffff;
+}
+
+.deal-cancel-btn {
+  background: #ffffff;
+  color: #2a313d;
+  border: 1px solid #cfd7e3;
+}
+
+.p2p-bybit.p2p-theme-dark .deal-panel {
+  background: #ffffff !important;
+}
+
+@media (max-width: 980px) {
+  .deal-panel {
+    grid-template-columns: 1fr;
+    max-height: calc(100vh - 20px);
+    overflow: auto;
+  }
+
+  .deal-profile h3 {
+    font-size: 26px;
+  }
+
+  .deal-input-wrap input {
+    font-size: 22px;
+  }
+}

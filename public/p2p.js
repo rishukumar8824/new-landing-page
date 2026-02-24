@@ -49,10 +49,29 @@ const chatMessages = document.getElementById('chatMessages');
 const chatForm = document.getElementById('chatForm');
 const chatInput = document.getElementById('chatInput');
 
+const dealModal = document.getElementById('dealModal');
+const dealBackdrop = document.getElementById('dealBackdrop');
+const dealAvatar = document.getElementById('dealAvatar');
+const dealTitle = document.getElementById('dealTitle');
+const dealAdvertiserMeta = document.getElementById('dealAdvertiserMeta');
+const dealAvailable = document.getElementById('dealAvailable');
+const dealLimits = document.getElementById('dealLimits');
+const dealDuration = document.getElementById('dealDuration');
+const dealPaymentPreview = document.getElementById('dealPaymentPreview');
+const dealPrice = document.getElementById('dealPrice');
+const dealPayAmount = document.getElementById('dealPayAmount');
+const dealReceiveAmount = document.getElementById('dealReceiveAmount');
+const dealPaymentSelect = document.getElementById('dealPaymentSelect');
+const dealHint = document.getElementById('dealHint');
+const dealConfirmBtn = document.getElementById('dealConfirmBtn');
+const dealCancelBtn = document.getElementById('dealCancelBtn');
+
 let currentSide = 'buy';
 let currentAsset = 'USDT';
 let offersMap = new Map();
 let currentUser = null;
+let activeDealOffer = null;
+let dealSyncLock = false;
 
 let activeOrderId = null;
 let pollingIntervalId = null;
@@ -113,6 +132,167 @@ function setUserStatus(text, type = '') {
   userStatus.className = 'user-status';
   if (type) {
     userStatus.classList.add(type);
+  }
+}
+
+function setDealModalOpen(open) {
+  if (!dealModal) {
+    return;
+  }
+
+  if (open) {
+    document.body.classList.add('p2p-deal-open');
+    dealModal.classList.remove('hidden');
+    dealModal.setAttribute('aria-hidden', 'false');
+  } else {
+    document.body.classList.remove('p2p-deal-open');
+    dealModal.classList.add('hidden');
+    dealModal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function setDealHint(text, type = '') {
+  if (!dealHint) {
+    return;
+  }
+  dealHint.textContent = text;
+  dealHint.className = 'deal-hint';
+  if (type) {
+    dealHint.classList.add(type);
+  }
+}
+
+function updateDealComputedFromPay() {
+  if (!activeDealOffer || !dealPayAmount || !dealReceiveAmount) {
+    return;
+  }
+
+  const price = Number(activeDealOffer.price || 0);
+  const payAmount = Number(dealPayAmount.value || 0);
+  if (!Number.isFinite(payAmount) || payAmount <= 0 || !Number.isFinite(price) || price <= 0) {
+    dealReceiveAmount.value = '';
+    return;
+  }
+
+  const receiveAmount = payAmount / price;
+  dealSyncLock = true;
+  dealReceiveAmount.value = receiveAmount.toFixed(6);
+  dealSyncLock = false;
+}
+
+function updateDealComputedFromReceive() {
+  if (!activeDealOffer || !dealPayAmount || !dealReceiveAmount) {
+    return;
+  }
+
+  const price = Number(activeDealOffer.price || 0);
+  const receiveAmount = Number(dealReceiveAmount.value || 0);
+  if (!Number.isFinite(receiveAmount) || receiveAmount <= 0 || !Number.isFinite(price) || price <= 0) {
+    dealPayAmount.value = '';
+    return;
+  }
+
+  const payAmount = receiveAmount * price;
+  dealSyncLock = true;
+  dealPayAmount.value = payAmount.toFixed(2);
+  dealSyncLock = false;
+}
+
+function refreshDealValidation() {
+  if (!activeDealOffer || !dealPayAmount || !dealPaymentSelect) {
+    return false;
+  }
+
+  const amountInr = Number(dealPayAmount.value || 0);
+  const minLimit = Number(activeDealOffer.minLimit || 0);
+  const maxLimit = Number(activeDealOffer.maxLimit || 0);
+  const action = currentSide === 'sell' ? 'Sell' : 'Buy';
+
+  if (!Number.isFinite(amountInr) || amountInr <= 0) {
+    setDealHint('Enter INR amount first.');
+    return false;
+  }
+
+  if (amountInr < minLimit || amountInr > maxLimit) {
+    setDealHint(`Amount must be between ₹${formatNumber(minLimit)} and ₹${formatNumber(maxLimit)}.`, 'error');
+    return false;
+  }
+
+  const paymentMethod = String(dealPaymentSelect.value || '').trim();
+  if (!paymentMethod) {
+    setDealHint('Select payment mode to continue.', 'error');
+    return false;
+  }
+
+  setDealHint(`${action} ready: ₹${formatNumber(amountInr)} via ${paymentMethod}.`, 'success');
+  return true;
+}
+
+function fillDealModal(offer) {
+  if (!offer) {
+    return;
+  }
+
+  activeDealOffer = offer;
+  const action = currentSide === 'sell' ? 'Sell' : 'Buy';
+  const avatarText = String(offer.advertiser || 'U').trim().slice(0, 1).toUpperCase() || 'U';
+
+  if (dealAvatar) {
+    dealAvatar.textContent = avatarText;
+  }
+  if (dealTitle) {
+    dealTitle.textContent = offer.advertiser;
+  }
+  if (dealAdvertiserMeta) {
+    dealAdvertiserMeta.textContent = `${offer.orders} Order(s) | ${offer.completionRate}%`;
+  }
+  if (dealAvailable) {
+    dealAvailable.textContent = `${formatNumber(offer.available)} ${offer.asset}`;
+  }
+  if (dealLimits) {
+    dealLimits.textContent = `₹${formatNumber(offer.minLimit)} - ₹${formatNumber(offer.maxLimit)}`;
+  }
+  if (dealDuration) {
+    dealDuration.textContent = '15m';
+  }
+  if (dealPrice) {
+    dealPrice.textContent = `${formatNumber(offer.price)} INR`;
+  }
+  if (dealConfirmBtn) {
+    dealConfirmBtn.textContent = `${action} ${offer.asset}`;
+    dealConfirmBtn.classList.toggle('is-sell', currentSide === 'sell');
+  }
+
+  if (dealPaymentSelect) {
+    dealPaymentSelect.innerHTML = offer.payments
+      .map((method) => `<option value="${escapeHtml(method)}">${escapeHtml(method)}</option>`)
+      .join('');
+  }
+
+  if (dealPaymentPreview) {
+    dealPaymentPreview.textContent = offer.payments[0] || '--';
+  }
+
+  const amountInput = Number(amountFilter?.value || 0);
+  const defaultAmount = amountInput > 0 ? amountInput : Number(offer.minLimit || 0);
+  if (dealPayAmount) {
+    dealPayAmount.value = defaultAmount > 0 ? Number(defaultAmount).toFixed(2) : '';
+  }
+
+  updateDealComputedFromPay();
+  refreshDealValidation();
+  setDealModalOpen(true);
+  dealPayAmount?.focus();
+}
+
+function closeDealModal() {
+  setDealModalOpen(false);
+  activeDealOffer = null;
+  if (dealPayAmount) {
+    dealPayAmount.value = '';
+  }
+  if (dealReceiveAmount) {
+    dealReceiveAmount.value = '';
   }
 }
 
@@ -274,6 +454,7 @@ async function logoutUser() {
     await loadOffers();
     await loadLiveOrders();
     closeOrderModal();
+    closeDealModal();
   }
 }
 
@@ -395,26 +576,28 @@ async function loadOffers() {
   }
 }
 
-async function createOrder(offerId) {
+async function createOrder(offerId, options = {}) {
   if (!currentUser) {
     requireLoginNotice();
-    return;
+    throw new Error('Please login first.');
   }
 
   const offer = offersMap.get(offerId);
   if (!offer) {
     metaEl.textContent = 'Offer unavailable. Refresh and retry.';
-    return;
+    throw new Error('Offer unavailable.');
   }
 
-  const amountValue = Number(amountFilter?.value || 0);
+  const amountValue = Number(options.amountInr ?? (amountFilter?.value || 0));
   const amountInr = amountValue > 0 ? amountValue : Number(offer.minLimit);
+  const paymentMethod = String(options.paymentMethod || '').trim();
+  const openAfterCreate = options.openAfterCreate !== false;
 
   try {
     const response = await fetch('/api/p2p/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ offerId, amountInr })
+      body: JSON.stringify({ offerId, amountInr, paymentMethod })
     });
     const data = await response.json();
 
@@ -422,10 +605,67 @@ async function createOrder(offerId) {
       throw new Error(data.message || 'Unable to create order.');
     }
 
-    openOrder(data.order);
+    if (openAfterCreate) {
+      openOrder(data.order);
+    }
     await loadLiveOrders();
+    return data;
   } catch (error) {
     metaEl.textContent = error.message;
+    throw error;
+  }
+}
+
+function openDealForOffer(offerId) {
+  if (!currentUser) {
+    requireLoginNotice();
+    return;
+  }
+
+  const offer = offersMap.get(String(offerId || '').trim());
+  if (!offer) {
+    metaEl.textContent = 'Offer unavailable. Refresh and retry.';
+    return;
+  }
+
+  fillDealModal(offer);
+}
+
+async function submitDealOrder() {
+  if (!currentUser) {
+    requireLoginNotice();
+    return;
+  }
+
+  if (!activeDealOffer || !dealConfirmBtn || !dealPayAmount || !dealPaymentSelect) {
+    return;
+  }
+
+  if (!refreshDealValidation()) {
+    return;
+  }
+
+  const amountInr = Number(dealPayAmount.value || 0);
+  const paymentMethod = String(dealPaymentSelect.value || '').trim();
+
+  dealConfirmBtn.disabled = true;
+  const previousLabel = dealConfirmBtn.textContent;
+  dealConfirmBtn.textContent = 'Processing...';
+
+  try {
+    const data = await createOrder(activeDealOffer.id, { amountInr, paymentMethod, openAfterCreate: false });
+    if (!data?.order) {
+      throw new Error('Unable to create order.');
+    }
+
+    setDealHint(`${data.message} Ref: ${data.order.reference}`, 'success');
+    closeDealModal();
+    openOrder(data.order);
+  } catch (error) {
+    setDealHint(error.message || 'Unable to create order.', 'error');
+  } finally {
+    dealConfirmBtn.disabled = false;
+    dealConfirmBtn.textContent = previousLabel;
   }
 }
 
@@ -696,7 +936,7 @@ if (rowsEl) {
     if (!actionBtn) {
       return;
     }
-    createOrder(actionBtn.dataset.offerId);
+    openDealForOffer(actionBtn.dataset.offerId);
   });
 }
 
@@ -721,6 +961,7 @@ if (sideTabs) {
     sideTabs.querySelectorAll('.side-tab').forEach((btn) => {
       btn.classList.toggle('active', btn === tab);
     });
+    closeDealModal();
     loadOffers();
     loadLiveOrders();
   });
@@ -742,6 +983,7 @@ if (assetChipRow) {
       btn.classList.toggle('active', btn === chip);
     });
 
+    closeDealModal();
     loadOffers();
     loadLiveOrders();
   });
@@ -793,6 +1035,53 @@ if (passwordInput) {
     }
   });
 }
+
+if (dealPayAmount) {
+  dealPayAmount.addEventListener('input', () => {
+    if (dealSyncLock) {
+      return;
+    }
+    updateDealComputedFromPay();
+    refreshDealValidation();
+  });
+}
+
+if (dealReceiveAmount) {
+  dealReceiveAmount.addEventListener('input', () => {
+    if (dealSyncLock) {
+      return;
+    }
+    updateDealComputedFromReceive();
+    refreshDealValidation();
+  });
+}
+
+if (dealPaymentSelect) {
+  dealPaymentSelect.addEventListener('change', () => {
+    if (dealPaymentPreview) {
+      dealPaymentPreview.textContent = dealPaymentSelect.value || '--';
+    }
+    refreshDealValidation();
+  });
+}
+
+if (dealConfirmBtn) {
+  dealConfirmBtn.addEventListener('click', submitDealOrder);
+}
+
+if (dealCancelBtn) {
+  dealCancelBtn.addEventListener('click', closeDealModal);
+}
+
+if (dealBackdrop) {
+  dealBackdrop.addEventListener('click', closeDealModal);
+}
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && dealModal && !dealModal.classList.contains('hidden')) {
+    closeDealModal();
+  }
+});
 
 if (joinByRefBtn) {
   joinByRefBtn.addEventListener('click', joinOrderByReference);

@@ -137,6 +137,75 @@
 
     </main>
 
+    <section id="dealModal" class="deal-modal hidden" aria-hidden="true">
+      <div id="dealBackdrop" class="deal-backdrop"></div>
+      <div class="deal-panel" role="dialog" aria-modal="true" aria-labelledby="dealTitle">
+        <article class="deal-left">
+          <div class="deal-profile">
+            <div id="dealAvatar" class="deal-avatar">A</div>
+            <div>
+              <h3 id="dealTitle">Merchant</h3>
+              <p id="dealAdvertiserMeta">0 Orders | 0%</p>
+              <p class="deal-time">1 minute ago</p>
+            </div>
+          </div>
+
+          <div class="deal-verify">
+            <span>Email</span>
+            <span>SMS</span>
+            <span>Identity Verification</span>
+          </div>
+
+          <dl class="deal-meta-list">
+            <div><dt>Available</dt><dd id="dealAvailable">--</dd></div>
+            <div><dt>Limits</dt><dd id="dealLimits">--</dd></div>
+            <div><dt>Payment Duration</dt><dd id="dealDuration">15m</dd></div>
+            <div><dt>Payment Method</dt><dd id="dealPaymentPreview">--</dd></div>
+          </dl>
+
+          <p class="deal-terms">
+            Merchant terms may include additional instructions. Verify payment details carefully before confirming.
+          </p>
+        </article>
+
+        <article class="deal-right">
+          <div class="deal-price-row">
+            <span>Price</span>
+            <strong id="dealPrice">--</strong>
+            <small>INR</small>
+          </div>
+
+          <label class="deal-field">
+            <span>I will pay</span>
+            <div class="deal-input-wrap">
+              <input id="dealPayAmount" type="number" min="0" step="0.01" placeholder="Enter INR amount" />
+              <b>INR</b>
+            </div>
+          </label>
+
+          <label class="deal-field">
+            <span>I will receive</span>
+            <div class="deal-input-wrap">
+              <input id="dealReceiveAmount" type="number" min="0" step="0.000001" placeholder="Auto USDT amount" />
+              <b>USDT</b>
+            </div>
+          </label>
+
+          <label class="deal-field">
+            <span>Payment Mode</span>
+            <select id="dealPaymentSelect"></select>
+          </label>
+
+          <p id="dealHint" class="deal-hint">Enter amount to continue.</p>
+
+          <div class="deal-actions">
+            <button id="dealConfirmBtn" type="button" class="deal-confirm-btn">Buy</button>
+            <button id="dealCancelBtn" type="button" class="deal-cancel-btn">Cancel</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <section id="authModal" class="p2p-auth-modal hidden" aria-hidden="true">
       <div id="authBackdrop" class="p2p-auth-backdrop"></div>
       <div class="p2p-auth-panel" role="dialog" aria-modal="true" aria-labelledby="authTitle">
