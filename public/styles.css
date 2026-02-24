@@ -3177,3 +3177,73 @@ th {
     font-size: 11px;
   }
 }
+
+/* Right Corner Quick Links */
+.p2p-side-links {
+  position: fixed;
+  right: 12px;
+  top: 88px;
+  z-index: 90;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(11, 16, 25, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.p2p-side-links a {
+  text-decoration: none;
+  color: #dce5f3;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.p2p-side-links a:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.p2p-bybit.p2p-theme-light .p2p-side-links {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: #d5dce8;
+}
+
+.p2p-bybit.p2p-theme-light .p2p-side-links a {
+  color: #1c2430;
+}
+
+/* Sell Red Like Reference */
+.p2p-bybit .side-tab[data-side='buy'].active {
+  background: #1eb66d !important;
+  color: #ffffff !important;
+}
+
+.p2p-bybit .side-tab[data-side='sell'].active {
+  background: #ef4b55 !important;
+  color: #ffffff !important;
+}
+
+.p2p-bybit .sell-offer-btn {
+  background: #ef4b55 !important;
+  border: 1px solid #ef4b55 !important;
+  color: #ffffff !important;
+}
+
+.p2p-bybit .sell-offer-btn:hover {
+  background: #df3b46 !important;
+  border-color: #df3b46 !important;
+}
+
+@media (max-width: 980px) {
+  .p2p-side-links {
+    right: 8px;
+    top: auto;
+    bottom: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: calc(100vw - 16px);
+    max-width: 420px;
+  }
+}
