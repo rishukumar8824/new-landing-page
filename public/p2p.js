@@ -394,6 +394,10 @@ async function createOrder(offerId) {
 }
 
 function renderLiveOrders(orders) {
+  if (!liveOrdersRows) {
+    return;
+  }
+
   if (!Array.isArray(orders) || orders.length === 0) {
     liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">No live orders available.</td></tr>';
     return;
@@ -420,6 +424,10 @@ function renderLiveOrders(orders) {
 }
 
 async function loadLiveOrders() {
+  if (!liveOrdersRows || !liveOrdersMeta) {
+    return;
+  }
+
   if (!currentUser) {
     liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Login to view live orders.</td></tr>';
     liveOrdersMeta.textContent = 'Live Orders: login required';
@@ -571,6 +579,10 @@ function openOrder(order) {
 }
 
 async function joinOrderById(orderId) {
+  if (!liveOrdersMeta) {
+    return;
+  }
+
   if (!currentUser) {
     requireLoginNotice();
     return;
@@ -590,6 +602,10 @@ async function joinOrderById(orderId) {
 }
 
 async function joinOrderByReference() {
+  if (!liveOrdersMeta) {
+    return;
+  }
+
   if (!currentUser) {
     requireLoginNotice();
     return;
@@ -806,7 +822,7 @@ if (chatForm) {
 })();
 
 setInterval(() => {
-  if (currentUser && !activeOrderId) {
+  if (currentUser && !activeOrderId && liveOrdersRows && liveOrdersMeta) {
     loadLiveOrders();
   }
 }, 9000);
