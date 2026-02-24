@@ -1,244 +1,286 @@
 const form = document.getElementById('leadForm');
 const message = document.getElementById('message');
-const whatsappBtn = document.getElementById('whatsappBtn');
+const topSignupBtn = document.getElementById('topSignupBtn');
+const heroUsers = document.getElementById('heroUsers');
+const marketList = document.getElementById('marketList');
+const newsList = document.getElementById('newsList');
 
-const statVolume = document.getElementById('statVolume');
-const statTraders = document.getElementById('statTraders');
-const statUptime = document.getElementById('statUptime');
+const otpRow = document.getElementById('otpRow');
+const otpInput = document.getElementById('otpInput');
+const verifyOtpBtn = document.getElementById('verifyOtpBtn');
 
-const marketRows = document.getElementById('marketRows');
-const marketStatus = document.getElementById('marketStatus');
-const tickerStrip = document.getElementById('tickerStrip');
+const chartModal = document.getElementById('chartModal');
+const chartModalTitle = document.getElementById('chartModalTitle');
+const chartModalFrame = document.getElementById('chartModalFrame');
+const closeChartBtn = document.getElementById('closeChartBtn');
+const closeChartBackdrop = document.getElementById('closeChartBackdrop');
 
-const chartPair = document.getElementById('chartPair');
-const chartPrice = document.getElementById('chartPrice');
-const chartStatus = document.getElementById('chartStatus');
-const pairSwitch = document.getElementById('pairSwitch');
-const tvFrame = document.getElementById('tvFrame');
+const MARKET_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT'];
+const COIN_NAMES = {
+  BTCUSDT: 'Bitcoin',
+  ETHUSDT: 'Ethereum',
+  BNBUSDT: 'BNB',
+  XRPUSDT: 'XRP',
+  SOLUSDT: 'Solana'
+};
 
-const WHATSAPP_NUMBER = '918003993930';
-const MARKET_IDS = 'bitcoin,ethereum,binancecoin,solana,ripple';
-let activeCoin = { id: 'bitcoin', symbol: 'BTC' };
+const NEWS_ITEMS = [
+  'Uganda to Acquire Stake in Kenya\'s Oil Pipeline via IPO',
+  'StanChart Announces Buyback Following CFO Departure',
+  'Empery Digital Shareholder Rejects Buyback Offer, Calls for CEO Resignation',
+  'Etihad Airways Expands Premium Services Amid Rising Demand'
+];
 
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
+let pendingContact = '';
+let pendingName = 'Website Lead';
 
-  const name = document.getElementById('name').value.trim();
-  const mobile = document.getElementById('mobile').value.trim();
-
-  message.textContent = '';
+function setMessage(text, type = '') {
+  if (!message) {
+    return;
+  }
+  message.textContent = text;
   message.className = 'message';
+  if (type) {
+    message.classList.add(type);
+  }
+}
 
-  if (name.length < 2) {
-    message.textContent = 'Please enter a valid name.';
-    message.classList.add('error');
+function animateCounter(targetValue) {
+  if (!heroUsers) {
     return;
   }
 
-  if (!/^\d{10}$/.test(mobile)) {
-    message.textContent = 'Please enter a valid 10-digit mobile number.';
-    message.classList.add('error');
-    return;
-  }
-
-  try {
-    const response = await fetch('/api/leads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, mobile })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Something went wrong.');
-    }
-
-    message.textContent = data.message;
-    message.classList.add('success');
-    form.reset();
-  } catch (err) {
-    message.textContent = err.message;
-    message.classList.add('error');
-  }
-});
-
-whatsappBtn.addEventListener('click', () => {
-  const name = document.getElementById('name').value.trim();
-  const mobile = document.getElementById('mobile').value.trim();
-  const details = [];
-
-  if (name) {
-    details.push(`Name: ${name}`);
-  }
-  if (mobile) {
-    details.push(`Mobile: ${mobile}`);
-  }
-
-  const text = details.length
-    ? `Hi, I want to connect.\n${details.join('\n')}`
-    : 'Hi, I want to connect.';
-
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
-  window.open(url, '_blank');
-});
-
-function animateValue(element, start, end, duration, formatter) {
-  if (!element) {
-    return;
-  }
-
+  const start = 300000000;
+  const end = targetValue;
+  const duration = 1600;
   const startTime = performance.now();
 
-  function step(currentTime) {
-    const progress = Math.min((currentTime - startTime) / duration, 1);
-    const value = start + (end - start) * progress;
-    element.textContent = formatter(value);
-
+  function tick(now) {
+    const progress = Math.min((now - startTime) / duration, 1);
+    const value = Math.floor(start + (end - start) * progress);
+    heroUsers.textContent = value.toLocaleString('en-US');
     if (progress < 1) {
-      requestAnimationFrame(step);
+      requestAnimationFrame(tick);
     }
   }
 
-  requestAnimationFrame(step);
+  requestAnimationFrame(tick);
 }
 
-function initLiveStats() {
-  animateValue(statVolume, 0, 1.4, 1600, (v) => `$${v.toFixed(1)}B+`);
-  animateValue(statTraders, 0, 220, 1700, (v) => `${Math.round(v)}K+`);
-
-  if (statUptime) {
-    let toggle = false;
-    setInterval(() => {
-      toggle = !toggle;
-      statUptime.textContent = toggle ? '99.99%' : '99.98%';
-    }, 1500);
-  }
-}
-
-async function loadChart(coinId, symbol) {
-  if (chartStatus) {
-    chartStatus.textContent = 'Loading TradingView chart...';
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=1&interval=hourly`
-    );
-    const data = await response.json();
-
-    if (!response.ok || !Array.isArray(data.prices)) {
-      throw new Error('Chart API error');
-    }
-
-    const latest = data.prices[data.prices.length - 1][1];
-    chartPair.textContent = `${symbol}/USDT`;
-    chartPrice.textContent = `$${latest.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-
-    if (tvFrame) {
-      const tvSymbol = `BINANCE:${symbol}USDT`;
-      tvFrame.src =
-        `https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSymbol)}` +
-        '&interval=60&hidesidetoolbar=1&symboledit=0&saveimage=0' +
-        '&toolbarbg=131722&studies=[]&theme=dark&style=1&timezone=Etc/UTC' +
-        '&withdateranges=1&hideideas=1&hide_top_toolbar=1&hide_legend=1&locale=en';
-    }
-
-    if (chartStatus) {
-      chartStatus.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
-    }
-  } catch (error) {
-    if (chartStatus) {
-      chartStatus.textContent = 'Chart unavailable right now';
-    }
-  }
-}
-
-function renderMarketRows(coins) {
-  if (!marketRows) {
+function renderNews() {
+  if (!newsList) {
     return;
   }
 
-  marketRows.innerHTML = coins
-    .map((coin) => {
-      const up = coin.price_change_percentage_24h >= 0;
-      const pair = `${coin.symbol.toUpperCase()}/USDT`;
-      const change = `${up ? '+' : ''}${coin.price_change_percentage_24h.toFixed(2)}%`;
+  newsList.innerHTML = NEWS_ITEMS.map((item) => `<li>${item}</li>`).join('');
+}
 
+function formatPrice(value) {
+  return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function toTradingViewUrl(symbol) {
+  return (
+    `https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(`BINANCE:${symbol}`)}` +
+    '&interval=60&hidesidetoolbar=1&symboledit=0&saveimage=0' +
+    '&toolbarbg=111827&studies=[]&theme=dark&style=1&timezone=Etc/UTC' +
+    '&withdateranges=1&hideideas=1&hide_top_toolbar=1&hide_legend=1&locale=en'
+  );
+}
+
+function openChart(symbol) {
+  if (!chartModal || !chartModalFrame || !chartModalTitle) {
+    return;
+  }
+
+  const pair = symbol.replace('USDT', '/USDT');
+  chartModalTitle.textContent = `${pair} Chart`;
+  chartModalFrame.src = toTradingViewUrl(symbol);
+  chartModal.classList.remove('hidden');
+  chartModal.setAttribute('aria-hidden', 'false');
+}
+
+function closeChart() {
+  if (!chartModal) {
+    return;
+  }
+  chartModal.classList.add('hidden');
+  chartModal.setAttribute('aria-hidden', 'true');
+}
+
+function renderMarketRows(ticker) {
+  if (!marketList) {
+    return;
+  }
+
+  if (!Array.isArray(ticker) || ticker.length === 0) {
+    marketList.innerHTML = '<p class="bnx-loading">Market feed unavailable.</p>';
+    return;
+  }
+
+  marketList.innerHTML = ticker
+    .map((item) => {
+      const change = Number(item.change24h || 0);
+      const sign = change >= 0 ? '+' : '';
+      const cls = change >= 0 ? 'up' : 'down';
+      const symbol = item.symbol;
+      const base = symbol.replace('USDT', '');
+      const name = COIN_NAMES[symbol] || base;
       return `
-        <tr>
-          <td>${pair}</td>
-          <td>$${coin.current_price.toLocaleString()}</td>
-          <td class="${up ? 'up' : 'down'}">${change}</td>
-        </tr>
+        <button type="button" class="bnx-market-row" data-symbol="${symbol}">
+          <div class="bnx-market-symbol">
+            <span class="bnx-coin-dot">${base.slice(0, 1)}</span>
+            <p>${base} <small>${name}</small></p>
+          </div>
+          <p class="bnx-market-price">$${formatPrice(item.lastPrice)}</p>
+          <p class="bnx-market-change ${cls}">${sign}${change.toFixed(2)}%</p>
+        </button>
       `;
     })
     .join('');
 }
 
-function renderTicker(coins) {
-  if (!tickerStrip) {
-    return;
-  }
-
-  tickerStrip.innerHTML = coins
-    .map((coin) => {
-      const up = coin.price_change_percentage_24h >= 0;
-      const pair = `${coin.symbol.toUpperCase()}/USDT`;
-      const price = `$${coin.current_price.toLocaleString()}`;
-      const change = `${up ? '+' : ''}${coin.price_change_percentage_24h.toFixed(2)}%`;
-      return `<span class="${up ? 'up' : 'down'}">${pair} ${price} ${change}</span>`;
-    })
-    .join('');
-}
-
 async function loadMarket() {
-  if (marketStatus) {
-    marketStatus.textContent = 'Updating...';
-  }
-
   try {
-    const response = await fetch(
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${MARKET_IDS}&order=market_cap_desc&per_page=5&page=1&sparkline=false&price_change_percentage=24h`
-    );
+    const params = new URLSearchParams({
+      symbols: MARKET_SYMBOLS.join(',')
+    });
+    const response = await fetch(`/api/p2p/exchange-ticker?${params.toString()}`);
     const data = await response.json();
 
-    if (!response.ok || !Array.isArray(data)) {
-      throw new Error('Market API error');
+    if (!response.ok || !Array.isArray(data.ticker)) {
+      throw new Error('Ticker unavailable');
     }
 
-    renderMarketRows(data);
-    renderTicker(data);
-
-    if (marketStatus) {
-      marketStatus.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
-    }
+    renderMarketRows(data.ticker);
   } catch (error) {
-    if (marketRows) {
-      marketRows.innerHTML = '<tr><td colspan="3" class="down">Market temporarily unavailable.</td></tr>';
-    }
-    if (marketStatus) {
-      marketStatus.textContent = 'Update failed';
-    }
+    renderMarketRows([]);
   }
 }
 
-pairSwitch.addEventListener('click', (event) => {
-  const target = event.target.closest('.pair-btn');
-  if (!target) {
-    return;
+function normalizeContact(rawValue) {
+  const raw = String(rawValue || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  const isPhone = /^\d{10}$/.test(digits);
+  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw);
+
+  if (isPhone) {
+    return digits;
   }
+  if (isEmail) {
+    return raw.toLowerCase();
+  }
+  return '';
+}
 
-  pairSwitch.querySelectorAll('.pair-btn').forEach((btn) => btn.classList.remove('active'));
-  target.classList.add('active');
+async function sendOtp(contact, name) {
+  const response = await fetch('/api/signup/send-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contact, name })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Unable to send verification code.');
+  }
+  return data;
+}
 
-  activeCoin = { id: target.dataset.id, symbol: target.dataset.symbol };
-  loadChart(activeCoin.id, activeCoin.symbol);
-});
+async function verifyOtp(contact, name, code) {
+  const response = await fetch('/api/signup/verify-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contact, name, code })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Verification failed.');
+  }
+  return data;
+}
 
-initLiveStats();
+if (form) {
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const name = String(document.getElementById('name')?.value || 'Website Lead').trim() || 'Website Lead';
+    const contactInput = String(document.getElementById('mobile')?.value || '').trim();
+    const contact = normalizeContact(contactInput);
+
+    if (!contact) {
+      setMessage('Please enter a valid email or 10-digit mobile number.', 'error');
+      return;
+    }
+
+    try {
+      const data = await sendOtp(contact, name);
+      pendingContact = contact;
+      pendingName = name;
+      otpRow?.classList.remove('hidden');
+      setMessage(data.message, 'success');
+
+      if (data.devCode) {
+        setMessage(`${data.message} Demo code: ${data.devCode}`, 'success');
+      }
+    } catch (error) {
+      setMessage(error.message, 'error');
+    }
+  });
+}
+
+if (verifyOtpBtn) {
+  verifyOtpBtn.addEventListener('click', async () => {
+    const code = String(otpInput?.value || '').trim();
+
+    if (!pendingContact) {
+      setMessage('Please request verification code first.', 'error');
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      setMessage('Please enter valid 6-digit code.', 'error');
+      return;
+    }
+
+    try {
+      const data = await verifyOtp(pendingContact, pendingName, code);
+      setMessage(data.message, 'success');
+      form?.reset();
+      if (otpInput) {
+        otpInput.value = '';
+      }
+      otpRow?.classList.add('hidden');
+      pendingContact = '';
+      pendingName = 'Website Lead';
+    } catch (error) {
+      setMessage(error.message, 'error');
+    }
+  });
+}
+
+if (topSignupBtn) {
+  topSignupBtn.addEventListener('click', () => {
+    form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+
+if (marketList) {
+  marketList.addEventListener('click', (event) => {
+    const row = event.target.closest('.bnx-market-row');
+    if (!row) {
+      return;
+    }
+    openChart(row.dataset.symbol);
+  });
+}
+
+if (closeChartBtn) {
+  closeChartBtn.addEventListener('click', closeChart);
+}
+if (closeChartBackdrop) {
+  closeChartBackdrop.addEventListener('click', closeChart);
+}
+
+animateCounter(309497423);
+renderNews();
 loadMarket();
-loadChart(activeCoin.id, activeCoin.symbol);
-
-setInterval(loadMarket, 20000);
-setInterval(() => loadChart(activeCoin.id, activeCoin.symbol), 30000);
+setInterval(loadMarket, 12000);

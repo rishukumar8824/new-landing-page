@@ -6,142 +6,69 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const ADMIN_USERNAME = 'admin';
-const ADMIN_PASSWORD = 'admin123';
+const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || 'admin')
+  .trim()
+  .toLowerCase();
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || 'admin123').trim();
 const SESSION_COOKIE_NAME = 'admin_session';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 
 const P2P_USER_COOKIE_NAME = 'p2p_user_session';
 const P2P_USER_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const P2P_ORDER_TTL_MS = 1000 * 60 * 15;
+const SIGNUP_OTP_TTL_MS = 1000 * 60 * 10;
 
 const sessions = new Map();
 const p2pUsers = new Map();
+const p2pCredentials = new Map();
+const signupOtps = new Map();
 const p2pOrders = new Map();
 const p2pOrderStreams = new Map();
+const DEFAULT_TICKER_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'];
 
 const dataDir = path.join(__dirname, 'data');
 const dataFile = path.join(dataDir, 'leads.json');
-let p2pOffers = [
-  {
-    id: 'ofr_1001',
-    side: 'buy',
-    asset: 'USDT',
-    advertiser: 'CryptoDeskPro',
-    price: 89.61,
-    available: 5250,
-    minLimit: 500,
-    maxLimit: 100000,
-    completionRate: 99.2,
-    orders: 1893,
-    payments: ['UPI', 'IMPS']
-  },
-  {
-    id: 'ofr_1002',
-    side: 'buy',
-    asset: 'USDT',
-    advertiser: 'SecureTrades',
-    price: 89.68,
-    available: 11800,
-    minLimit: 1000,
-    maxLimit: 200000,
-    completionRate: 98.5,
-    orders: 2144,
-    payments: ['Bank Transfer', 'NEFT']
-  },
-  {
-    id: 'ofr_1003',
-    side: 'buy',
-    asset: 'USDT',
-    advertiser: 'QuickUPIHub',
-    price: 89.72,
-    available: 3200,
-    minLimit: 300,
-    maxLimit: 50000,
-    completionRate: 97.8,
-    orders: 911,
-    payments: ['UPI', 'Paytm']
-  },
-  {
-    id: 'ofr_1004',
-    side: 'sell',
-    asset: 'USDT',
-    advertiser: 'AlphaBuyer',
-    price: 89.43,
-    available: 7100,
-    minLimit: 500,
-    maxLimit: 150000,
-    completionRate: 99.1,
-    orders: 1440,
-    payments: ['UPI', 'Bank Transfer']
-  },
-  {
-    id: 'ofr_1005',
-    side: 'sell',
-    asset: 'USDT',
-    advertiser: 'MarketMitra',
-    price: 89.38,
-    available: 4500,
-    minLimit: 1000,
-    maxLimit: 120000,
-    completionRate: 98.9,
-    orders: 1320,
-    payments: ['IMPS', 'NEFT']
-  },
-  {
-    id: 'ofr_1006',
-    side: 'buy',
-    asset: 'BTC',
-    advertiser: 'BTCSource',
-    price: 5790000,
-    available: 0.34,
-    minLimit: 1000,
-    maxLimit: 250000,
-    completionRate: 98.8,
-    orders: 542,
-    payments: ['Bank Transfer', 'UPI']
-  },
-  {
-    id: 'ofr_1007',
-    side: 'sell',
-    asset: 'BTC',
-    advertiser: 'CoinGateway',
-    price: 5762000,
-    available: 0.48,
-    minLimit: 5000,
-    maxLimit: 500000,
-    completionRate: 97.6,
-    orders: 392,
-    payments: ['Bank Transfer']
-  },
-  {
-    id: 'ofr_1008',
-    side: 'buy',
-    asset: 'ETH',
-    advertiser: 'ETHFlow',
-    price: 301200,
-    available: 4.2,
-    minLimit: 500,
-    maxLimit: 85000,
-    completionRate: 98.1,
-    orders: 688,
-    payments: ['UPI', 'NEFT']
-  },
-  {
-    id: 'ofr_1009',
-    side: 'sell',
-    asset: 'ETH',
-    advertiser: 'PrimePayDesk',
-    price: 299800,
-    available: 6.1,
-    minLimit: 1000,
-    maxLimit: 120000,
-    completionRate: 99.3,
-    orders: 904,
-    payments: ['Bank Transfer', 'Paytm']
-  }
+const seedBuyOffers = [
+  { advertiser: 'TecnoSeller', price: 98.19, available: 213.9145, minLimit: 1900, maxLimit: 21004, completionRate: 100, orders: 756, payments: ['Digital eRupee'] },
+  { advertiser: 'suraj12', price: 96.1, available: 87.8692, minLimit: 8400, maxLimit: 8444, completionRate: 100, orders: 1, payments: ['UPI'] },
+  { advertiser: 'lamohitverma786', price: 96.2, available: 790, minLimit: 70000, maxLimit: 73000, completionRate: 100, orders: 105, payments: ['Cash Deposit', 'Bank'] },
+  { advertiser: 'CryptoDeskPro', price: 96.32, available: 5250, minLimit: 500, maxLimit: 100000, completionRate: 99.2, orders: 1893, payments: ['UPI', 'IMPS'] },
+  { advertiser: 'SecureTrades', price: 96.38, available: 11800, minLimit: 1000, maxLimit: 200000, completionRate: 98.5, orders: 2144, payments: ['Bank Transfer', 'NEFT'] },
+  { advertiser: 'QuickUPIHub', price: 96.42, available: 3200, minLimit: 300, maxLimit: 50000, completionRate: 97.8, orders: 911, payments: ['UPI', 'Paytm'] },
+  { advertiser: 'INRMerchantOne', price: 96.48, available: 6450, minLimit: 1500, maxLimit: 95000, completionRate: 98.2, orders: 804, payments: ['UPI', 'IMPS'] },
+  { advertiser: 'FastBankDesk', price: 96.55, available: 9200, minLimit: 2000, maxLimit: 130000, completionRate: 99.1, orders: 1488, payments: ['Bank Transfer', 'NEFT'] },
+  { advertiser: 'UPIPrimeHub', price: 96.63, available: 2750, minLimit: 500, maxLimit: 45000, completionRate: 97.9, orders: 506, payments: ['UPI'] },
+  { advertiser: 'TrustP2PIndia', price: 96.71, available: 15800, minLimit: 2500, maxLimit: 250000, completionRate: 99.4, orders: 2871, payments: ['UPI', 'RTGS', 'NEFT'] }
 ];
-let p2pOfferAutoId = 1010;
+
+const seedSellOffers = [
+  { advertiser: 'AlphaBuyer', price: 95.9, available: 7100, minLimit: 500, maxLimit: 150000, completionRate: 99.1, orders: 1440, payments: ['UPI', 'Bank Transfer'] },
+  { advertiser: 'MarketMitra', price: 95.84, available: 4500, minLimit: 1000, maxLimit: 120000, completionRate: 98.9, orders: 1320, payments: ['IMPS', 'NEFT'] },
+  { advertiser: 'SellNowDesk', price: 95.8, available: 8800, minLimit: 1200, maxLimit: 98000, completionRate: 98.7, orders: 1218, payments: ['UPI', 'IMPS'] },
+  { advertiser: 'INRBridgePro', price: 95.76, available: 11200, minLimit: 5000, maxLimit: 180000, completionRate: 99.2, orders: 1642, payments: ['Bank Transfer', 'NEFT'] },
+  { advertiser: 'QuickSettlement', price: 95.72, available: 2600, minLimit: 700, maxLimit: 60000, completionRate: 97.5, orders: 412, payments: ['UPI', 'Paytm'] },
+  { advertiser: 'PrimeCashflow', price: 95.68, available: 3900, minLimit: 1000, maxLimit: 74000, completionRate: 98.8, orders: 879, payments: ['UPI'] },
+  { advertiser: 'NeonExchangeIN', price: 95.64, available: 6200, minLimit: 2000, maxLimit: 90000, completionRate: 98.1, orders: 953, payments: ['IMPS', 'NEFT'] },
+  { advertiser: 'USDTLiquidDesk', price: 95.58, available: 10300, minLimit: 1500, maxLimit: 170000, completionRate: 99, orders: 1701, payments: ['Bank Transfer', 'RTGS'] },
+  { advertiser: 'RupeeRouteX', price: 95.53, available: 5100, minLimit: 900, maxLimit: 85000, completionRate: 97.6, orders: 693, payments: ['UPI', 'IMPS'] },
+  { advertiser: 'BharatP2PLine', price: 95.48, available: 7400, minLimit: 1200, maxLimit: 115000, completionRate: 98.4, orders: 1182, payments: ['UPI', 'NEFT'] }
+];
+
+let p2pOffers = [
+  ...seedBuyOffers.map((offer, index) => ({
+    id: `ofr_${1001 + index}`,
+    side: 'buy',
+    asset: 'USDT',
+    ...offer
+  })),
+  ...seedSellOffers.map((offer, index) => ({
+    id: `ofr_${1011 + index}`,
+    side: 'sell',
+    asset: 'USDT',
+    ...offer
+  }))
+];
+let p2pOfferAutoId = 1001 + p2pOffers.length;
 
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -155,6 +82,81 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 function readLeads() {
   return JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+}
+
+function writeLeads(leads) {
+  fs.writeFileSync(dataFile, JSON.stringify(leads, null, 2), 'utf8');
+}
+
+function saveLeadRecord(name, contact, extra = {}) {
+  const leads = readLeads();
+  const newLead = {
+    id: Date.now(),
+    name,
+    mobile: contact,
+    createdAt: new Date().toISOString(),
+    ...extra
+  };
+
+  leads.push(newLead);
+  writeLeads(leads);
+  return newLead;
+}
+
+function normalizeSignupContact(input) {
+  const raw = String(input || '').trim();
+  const digits = raw.replace(/\D/g, '');
+
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+    return { type: 'email', value: raw.toLowerCase() };
+  }
+  if (/^\d{10}$/.test(digits)) {
+    return { type: 'phone', value: digits };
+  }
+  return null;
+}
+
+function createOtpCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function removeExpiredSignupOtps() {
+  const now = Date.now();
+  for (const [contact, otp] of signupOtps.entries()) {
+    if (!otp || otp.expiresAt < now) {
+      signupOtps.delete(contact);
+    }
+  }
+}
+
+async function trySendSignupEmailOtp(email, code) {
+  const apiKey = String(process.env.RESEND_API_KEY || '').trim();
+  const fromEmail = String(process.env.RESEND_FROM_EMAIL || '').trim();
+
+  if (!apiKey || !fromEmail) {
+    return { delivered: false, reason: 'missing_email_provider_config' };
+  }
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: [email],
+      subject: 'Your TradeNova verification code',
+      html: `<p>Your verification code is <strong>${code}</strong>.</p><p>This code expires in 10 minutes.</p>`
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    return { delivered: false, reason: `provider_error:${errorText}` };
+  }
+
+  return { delivered: true, reason: 'sent_via_resend' };
 }
 
 function parseCookies(req) {
@@ -235,12 +237,16 @@ function removeExpiredP2PUsers() {
   }
 }
 
-function createP2PUserSession(username) {
+function createP2PUserSession(email) {
   const token = createToken();
-  const normalizedUsername = username.toLowerCase();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const baseName = normalizedEmail.split('@')[0] || 'trader';
+  const username = baseName.replace(/[^a-z0-9_]/gi, '_').slice(0, 20) || 'trader';
+  const userHash = crypto.createHash('sha1').update(normalizedEmail).digest('hex').slice(0, 16);
   const user = {
-    id: `usr_${normalizedUsername}`,
+    id: `usr_${userHash}`,
     username,
+    email: normalizedEmail,
     expiresAt: Date.now() + P2P_USER_TTL_MS
   };
 
@@ -419,22 +425,136 @@ app.post('/api/admin/logout', (req, res) => {
 });
 
 app.post('/api/p2p/login', (req, res) => {
-  const username = String(req.body.username || '').trim();
+  const email = String(req.body.email || '')
+    .trim()
+    .toLowerCase();
+  const password = String(req.body.password || '').trim();
 
-  if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-    return res.status(400).json({ message: 'Username must be 3-20 chars (letters, numbers, underscore).' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ message: 'Enter a valid email address.' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters.' });
   }
 
-  const { token, user } = createP2PUserSession(username);
+  if (p2pCredentials.has(email) && p2pCredentials.get(email) !== password) {
+    return res.status(401).json({ message: 'Invalid email or password.' });
+  }
+
+  if (!p2pCredentials.has(email)) {
+    p2pCredentials.set(email, password);
+  }
+
+  const { token, user } = createP2PUserSession(email);
   setCookie(res, P2P_USER_COOKIE_NAME, token, P2P_USER_TTL_MS / 1000);
 
   return res.json({
-    message: 'P2P user logged in.',
+    message: 'P2P login successful.',
     user: {
       id: user.id,
-      username: user.username
+      username: user.username,
+      email: user.email
     }
   });
+});
+
+app.post('/api/signup/send-code', async (req, res) => {
+  removeExpiredSignupOtps();
+
+  const contactInfo = normalizeSignupContact(req.body.contact);
+  if (!contactInfo) {
+    return res.status(400).json({ message: 'Enter a valid email or 10-digit mobile number.' });
+  }
+
+  const code = createOtpCode();
+  const otpState = {
+    code,
+    type: contactInfo.type,
+    expiresAt: Date.now() + SIGNUP_OTP_TTL_MS,
+    attempts: 0
+  };
+
+  signupOtps.set(contactInfo.value, otpState);
+
+  let delivery = 'simulated';
+  let deliveryMessage = 'Verification code generated.';
+
+  if (contactInfo.type === 'email') {
+    const sendResult = await trySendSignupEmailOtp(contactInfo.value, code);
+    if (sendResult.delivered) {
+      delivery = 'email';
+      deliveryMessage = 'Verification code sent to your email.';
+    } else {
+      delivery = 'simulated';
+      deliveryMessage = 'Email provider not configured, using demo verification code.';
+    }
+  } else {
+    deliveryMessage = 'SMS provider not configured, using demo verification code.';
+  }
+
+  const payload = {
+    message: deliveryMessage,
+    contactType: contactInfo.type,
+    expiresInSeconds: Math.floor(SIGNUP_OTP_TTL_MS / 1000),
+    delivery
+  };
+
+  if (delivery !== 'email') {
+    payload.devCode = code;
+  }
+
+  return res.json(payload);
+});
+
+app.post('/api/signup/verify-code', (req, res) => {
+  removeExpiredSignupOtps();
+
+  const contactInfo = normalizeSignupContact(req.body.contact);
+  const code = String(req.body.code || '').trim();
+  const name = String(req.body.name || 'Website Lead').trim() || 'Website Lead';
+
+  if (!contactInfo) {
+    return res.status(400).json({ message: 'Enter a valid email or 10-digit mobile number.' });
+  }
+  if (!/^\d{6}$/.test(code)) {
+    return res.status(400).json({ message: 'Enter a valid 6-digit verification code.' });
+  }
+  if (name.length < 2) {
+    return res.status(400).json({ message: 'Name must be at least 2 characters.' });
+  }
+
+  const otpState = signupOtps.get(contactInfo.value);
+  if (!otpState) {
+    return res.status(400).json({ message: 'Verification code expired. Please request a new code.' });
+  }
+
+  if (otpState.expiresAt < Date.now()) {
+    signupOtps.delete(contactInfo.value);
+    return res.status(400).json({ message: 'Verification code expired. Please request a new code.' });
+  }
+
+  if (otpState.code !== code) {
+    otpState.attempts += 1;
+    if (otpState.attempts >= 5) {
+      signupOtps.delete(contactInfo.value);
+      return res.status(400).json({ message: 'Too many failed attempts. Request a new code.' });
+    }
+    signupOtps.set(contactInfo.value, otpState);
+    return res.status(400).json({ message: 'Invalid verification code.' });
+  }
+
+  signupOtps.delete(contactInfo.value);
+
+  try {
+    saveLeadRecord(name, contactInfo.value, {
+      verified: true,
+      verificationMethod: contactInfo.type,
+      source: 'signup_otp'
+    });
+    return res.status(201).json({ message: 'Signup verified successfully.' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while saving signup.' });
+  }
 });
 
 app.post('/api/p2p/logout', (req, res) => {
@@ -459,13 +579,19 @@ app.get('/api/p2p/me', (req, res) => {
     loggedIn: true,
     user: {
       id: user.id,
-      username: user.username
+      username: user.username,
+      email: user.email
     }
   });
 });
 
 app.get('/api/p2p/exchange-ticker', async (req, res) => {
-  const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
+  const requestedSymbols = String(req.query.symbols || '')
+    .split(',')
+    .map((item) => item.trim().toUpperCase())
+    .filter((item) => /^[A-Z0-9]{5,12}$/.test(item))
+    .slice(0, 10);
+  const symbols = requestedSymbols.length > 0 ? requestedSymbols : DEFAULT_TICKER_SYMBOLS;
   const encodedSymbols = encodeURIComponent(JSON.stringify(symbols));
 
   try {
@@ -493,13 +619,7 @@ app.get('/api/p2p/exchange-ticker', async (req, res) => {
     return res.json({
       source: 'fallback',
       updatedAt: new Date().toISOString(),
-      ticker: [
-        { symbol: 'BTCUSDT', lastPrice: 0, change24h: 0 },
-        { symbol: 'ETHUSDT', lastPrice: 0, change24h: 0 },
-        { symbol: 'BNBUSDT', lastPrice: 0, change24h: 0 },
-        { symbol: 'SOLUSDT', lastPrice: 0, change24h: 0 },
-        { symbol: 'XRPUSDT', lastPrice: 0, change24h: 0 }
-      ]
+      ticker: symbols.map((symbol) => ({ symbol, lastPrice: 0, change24h: 0 }))
     });
   }
 });
@@ -508,31 +628,28 @@ app.post('/api/leads', (req, res) => {
   const { name, mobile } = req.body;
 
   if (!name || !mobile) {
-    return res.status(400).json({ message: 'Name and mobile are required.' });
+    return res.status(400).json({ message: 'Name and contact are required.' });
   }
 
   const cleanedName = String(name).trim();
-  const cleanedMobile = String(mobile).replace(/\D/g, '');
+  const rawContact = String(mobile).trim();
+  const cleanedMobile = rawContact.replace(/\D/g, '');
+  const isPhone = /^\d{10}$/.test(cleanedMobile);
+  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawContact);
 
   if (cleanedName.length < 2) {
     return res.status(400).json({ message: 'Name must be at least 2 characters.' });
   }
 
-  if (!/^\d{10}$/.test(cleanedMobile)) {
-    return res.status(400).json({ message: 'Mobile must be a valid 10-digit number.' });
+  if (!isPhone && !isEmail) {
+    return res.status(400).json({ message: 'Enter a valid 10-digit mobile number or email.' });
   }
 
-  const newLead = {
-    id: Date.now(),
-    name: cleanedName,
-    mobile: cleanedMobile,
-    createdAt: new Date().toISOString()
-  };
-
   try {
-    const leads = readLeads();
-    leads.push(newLead);
-    fs.writeFileSync(dataFile, JSON.stringify(leads, null, 2), 'utf8');
+    saveLeadRecord(cleanedName, isPhone ? cleanedMobile : rawContact.toLowerCase(), {
+      verified: false,
+      source: 'direct_form'
+    });
     return res.status(201).json({ message: 'Lead saved successfully.' });
   } catch (error) {
     return res.status(500).json({ message: 'Server error while saving lead.' });
@@ -1000,6 +1117,10 @@ app.get('/admin', (req, res) => {
 
 app.get('/p2p', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'p2p.html'));
+});
+
+app.get('/healthz', (req, res) => {
+  return res.status(200).json({ status: 'ok' });
 });
 
 app.get('*', (req, res) => {

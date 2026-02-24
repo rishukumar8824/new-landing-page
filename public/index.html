@@ -3,119 +3,121 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Trade Desk | Fast Markets</title>
+    <title>TradeNova | Live Exchange</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body class="landing">
-    <header class="topbar">
-      <div class="brand">TRADENOVA</div>
-      <nav class="top-links">
-        <a href="/">Markets</a>
-        <a href="/p2p">P2P</a>
-        <a href="#">Futures</a>
-        <a href="#">Copy Trade</a>
-      </nav>
-      <a class="cta-mini" href="#leadForm">Start Now</a>
-    </header>
-
-    <section class="ticker-strip" id="tickerStrip">
-      <span>BTC/USDT --</span>
-      <span>ETH/USDT --</span>
-      <span>BNB/USDT --</span>
-      <span>SOL/USDT --</span>
-      <span>XRP/USDT --</span>
+  <body class="landing bnx-page">
+    <section class="bnx-notice">
+      <p>
+        To see content specific to your location, we suggest <strong>India</strong> as your preferred country/region.
+      </p>
+      <button type="button" class="bnx-notice-btn">Continue</button>
     </section>
 
-    <main class="exchange-shell">
-      <section class="left-pane">
-        <p class="eyebrow">PRO EXCHANGE EXPERIENCE</p>
-        <h1>Trade Crypto In Real Time With Institutional Speed.</h1>
-        <p class="hero-sub">
-          Bitget-inspired modern interface with live prices, smooth chart rendering,
-          and fast lead onboarding.
-        </p>
+    <header class="topbar landing-topbar bnx-topbar">
+      <div class="bnx-nav-left">
+        <a href="/" class="brand bnx-brand">TRADENOVA</a>
+        <nav class="top-links">
+          <a href="/" class="active-link">Buy Crypto</a>
+          <a href="/">Markets</a>
+          <a href="/p2p">Trade</a>
+          <a href="/">Futures</a>
+          <a href="/">Earn</a>
+          <a href="/">More</a>
+        </nav>
+      </div>
+      <div class="bnx-top-actions">
+        <a class="bnx-search-icon" href="/p2p">Search</a>
+        <a class="login-link" href="/p2p#p2pLoginCard">Log In</a>
+        <button id="topSignupBtn" type="button" class="cta-mini">Sign Up</button>
+      </div>
+    </header>
 
-        <div class="quick-stats">
+    <main class="bnx-shell">
+      <section class="bnx-left">
+        <h1>
+          <span id="heroUsers">309,497,423</span><br />
+          USERS<br />
+          TRUST US
+        </h1>
+        <p class="bnx-subtitle">The World&apos;s Leading Cryptocurrency Exchange</p>
+
+        <div class="bnx-awards">
           <article>
-            <span>24H Volume</span>
-            <strong id="statVolume">$0.0B+</strong>
+            <strong>No.1</strong>
+            <span>Customer Assets</span>
           </article>
           <article>
-            <span>Active Traders</span>
-            <strong id="statTraders">0K+</strong>
-          </article>
-          <article>
-            <span>Uptime</span>
-            <strong id="statUptime">99.90%</strong>
+            <strong>No.1</strong>
+            <span>Trading Volume</span>
           </article>
         </div>
 
-        <section class="chart-card">
-          <div class="chart-head">
-            <div>
-              <p class="pair" id="chartPair">BTC/USDT</p>
-              <p class="price" id="chartPrice">$0</p>
-            </div>
-            <div class="pair-switch" id="pairSwitch">
-              <button class="pair-btn active" data-id="bitcoin" data-symbol="BTC">BTC</button>
-              <button class="pair-btn" data-id="ethereum" data-symbol="ETH">ETH</button>
-              <button class="pair-btn" data-id="binancecoin" data-symbol="BNB">BNB</button>
-              <button class="pair-btn" data-id="solana" data-symbol="SOL">SOL</button>
-              <button class="pair-btn" data-id="ripple" data-symbol="XRP">XRP</button>
-            </div>
-          </div>
+        <form id="leadForm" class="bnx-lead-form" novalidate>
+          <input id="name" name="name" type="hidden" value="Website Lead" />
+          <input
+            id="mobile"
+            name="mobile"
+            type="text"
+            placeholder="Email/Phone number"
+            required
+          />
+          <button type="submit">Sign Up</button>
+        </form>
 
-          <div class="chart-wrap">
-            <iframe
-              id="tvFrame"
-              title="TradingView Chart"
-              src="https://s.tradingview.com/widgetembed/?symbol=BINANCE:BTCUSDT&interval=60&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=131722&studies=[]&theme=dark&style=1&timezone=Etc/UTC&withdateranges=1&hideideas=1&hide_top_toolbar=1&hide_legend=1&locale=en"
-              frameborder="0"
-              allowtransparency="true"
-              scrolling="no"
-            ></iframe>
-            <p class="chart-status" id="chartStatus">Loading live chart...</p>
-          </div>
-        </section>
+        <div id="otpRow" class="bnx-otp-row hidden">
+          <input id="otpInput" type="text" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit code" />
+          <button id="verifyOtpBtn" type="button">Verify Code</button>
+        </div>
+        <p id="message" class="message"></p>
+
+        <div class="social-row">
+          <a class="social-pill" href="https://www.google.com" target="_blank" rel="noopener noreferrer">G</a>
+          <a class="social-pill" href="https://www.apple.com" target="_blank" rel="noopener noreferrer">A</a>
+          <a class="social-pill" href="/p2p">QR</a>
+        </div>
       </section>
 
-      <aside class="right-pane">
-        <section class="form-card">
-          <h2>Create Account Lead</h2>
-          <p>Share your details and our desk will contact you quickly.</p>
-
-          <form id="leadForm" novalidate>
-            <label for="name">Name</label>
-            <input id="name" name="name" type="text" placeholder="Enter your name" required minlength="2" />
-
-            <label for="mobile">Mobile Number</label>
-            <input id="mobile" name="mobile" type="tel" placeholder="10-digit mobile number" required pattern="[0-9]{10}" maxlength="10" />
-
-            <button type="submit">Submit Details</button>
-            <button id="whatsappBtn" type="button" class="whatsapp-btn">Chat on WhatsApp</button>
-            <a class="p2p-link-btn" href="/p2p">Open P2P Market</a>
-            <p id="message" class="message"></p>
-          </form>
+      <aside class="bnx-right">
+        <section class="bnx-card bnx-market-card">
+          <div class="bnx-card-head">
+            <div class="bnx-tabs">
+              <button type="button" class="bnx-tab active">Popular</button>
+              <button type="button" class="bnx-tab">New Listing</button>
+            </div>
+            <a href="/p2p" class="bnx-view-link">View All 350+ Coins</a>
+          </div>
+          <div id="marketList" class="bnx-market-list">
+            <p class="bnx-loading">Loading markets...</p>
+          </div>
         </section>
 
-        <section class="market-card">
-          <div class="market-top">
-            <p>Top Movers</p>
-            <span id="marketStatus">Updating...</span>
+        <section class="bnx-card bnx-news-card">
+          <div class="bnx-card-head">
+            <h3>News</h3>
+            <a href="/p2p" class="bnx-view-link">View All News</a>
           </div>
-          <table class="market-table">
-            <thead>
-              <tr>
-                <th>Pair</th>
-                <th>Price</th>
-                <th>24h</th>
-              </tr>
-            </thead>
-            <tbody id="marketRows"></tbody>
-          </table>
+          <ul id="newsList" class="bnx-news-list"></ul>
         </section>
       </aside>
     </main>
+
+    <section id="chartModal" class="bnx-chart-modal hidden" aria-hidden="true">
+      <div id="closeChartBackdrop" class="bnx-chart-backdrop"></div>
+      <div class="bnx-chart-panel">
+        <div class="bnx-chart-head">
+          <p id="chartModalTitle">BTC/USDT Chart</p>
+          <button id="closeChartBtn" type="button">Close</button>
+        </div>
+        <iframe
+          id="chartModalFrame"
+          title="TradingView Pair Chart"
+          src="https://s.tradingview.com/widgetembed/?symbol=BINANCE:BTCUSDT&interval=60&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=111827&studies=[]&theme=dark&style=1&timezone=Etc/UTC&withdateranges=1&hideideas=1&hide_top_toolbar=1&hide_legend=1&locale=en"
+          frameborder="0"
+          scrolling="no"
+        ></iframe>
+      </div>
+    </section>
 
     <script src="/script.js"></script>
   </body>

@@ -3,148 +3,123 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>P2P Market</title>
+    <title>TradeNova P2P</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body class="p2p-page">
-    <header class="topbar p2p-topbar">
-      <div class="brand">TRADENOVA P2P</div>
-      <nav class="top-links">
-        <a href="/">Home</a>
-        <a href="/p2p" class="active-link">P2P</a>
-        <a href="/admin-login">Admin</a>
-      </nav>
-      <a class="cta-mini" href="/">Back to Landing</a>
+  <body class="p2p-page p2p-bybit">
+    <header class="topbar p2p-top-nav">
+      <div class="p2p-nav-left">
+        <a href="/" class="brand">TRADENOVA</a>
+        <nav class="top-links">
+          <a href="/" class="active-link">Buy Crypto</a>
+          <a href="/">Markets</a>
+          <a href="/p2p">Trade</a>
+          <a href="/">Tools</a>
+          <a href="/">Finance</a>
+          <a href="/">Learn</a>
+          <a href="/#statsSection">Rewards Hub</a>
+        </nav>
+      </div>
+
+      <div class="p2p-top-actions">
+        <input class="p2p-search" type="text" value="MNT/USDT" readonly />
+        <button id="openAuthBtn" class="login-link" type="button">Log In</button>
+        <a class="cta-mini" href="/">Sign Up</a>
+      </div>
     </header>
 
-    <main class="p2p-shell">
-      <section class="p2p-head-card">
-        <h1>P2P Trading</h1>
-        <p>Bybit-style P2P desk with verified advertisers, real-time order timer and in-order chat.</p>
-
-        <div class="exchange-live-box">
-          <p class="exchange-live-title">Exchange Feed (Binance)</p>
-          <div id="exchangeTicker" class="exchange-ticker">Loading exchange data...</div>
-        </div>
-
-        <div class="p2p-tabs" id="sideTabs">
-          <button class="side-tab active" data-side="buy">Buy</button>
-          <button class="side-tab" data-side="sell">Sell</button>
-        </div>
-
-        <div class="p2p-login-box">
-          <p id="userStatus" class="user-status">Not logged in. Login to start P2P orders.</p>
-          <div class="p2p-login-row">
-            <input id="usernameInput" type="text" placeholder="Enter username (e.g. trader_01)" maxlength="20" />
-            <button id="loginBtn" type="button">Login</button>
-            <button id="logoutBtn" type="button" class="secondary-btn">Logout</button>
-          </div>
-        </div>
-
-        <section class="create-ad-card">
-          <h3>Create Your P2P Ad</h3>
-          <p>Post your own sell/buy ad. Other logged-in users can place order against it.</p>
-          <div class="create-ad-grid">
-            <label>
-              Ad Type
-              <select id="adTypeSelect">
-                <option value="sell">Sell Ad (others buy)</option>
-                <option value="buy">Buy Ad (others sell)</option>
-              </select>
-            </label>
-
-            <label>
-              Asset
-              <select id="adAssetSelect">
-                <option value="USDT">USDT</option>
-                <option value="BTC">BTC</option>
-                <option value="ETH">ETH</option>
-              </select>
-            </label>
-
-            <label>
-              Price (INR)
-              <input id="adPriceInput" type="number" min="0" step="0.01" placeholder="e.g. 89.65" />
-            </label>
-
-            <label>
-              Available Qty
-              <input id="adAvailableInput" type="number" min="0" step="0.000001" placeholder="e.g. 1500" />
-            </label>
-
-            <label>
-              Min Limit (INR)
-              <input id="adMinLimitInput" type="number" min="0" placeholder="e.g. 1000" />
-            </label>
-
-            <label>
-              Max Limit (INR)
-              <input id="adMaxLimitInput" type="number" min="0" placeholder="e.g. 50000" />
-            </label>
-
-            <label class="full-span">
-              Payment Methods (comma separated)
-              <input id="adPaymentsInput" type="text" placeholder="UPI, IMPS, Bank Transfer" />
-            </label>
-          </div>
-          <div class="create-ad-actions">
-            <button id="createAdBtn" type="button">Create Ad</button>
-            <p id="createAdStatus" class="create-ad-status">Login required to create ad.</p>
-          </div>
+    <section class="p2p-subnav-wrap">
+      <div class="p2p-shell-light p2p-subnav-shell">
+        <section class="p2p-subnav">
+          <a href="/#leadSection">One-Click Buy</a>
+          <a href="/p2p" class="active">P2P</a>
+          <a href="/#leadSection">Block</a>
+          <a href="/#leadSection">Fiat Deposit</a>
+          <a href="/#leadSection">Recurring Buy</a>
+          <a href="/#leadSection">Card</a>
+          <a href="/#leadSection">Convert</a>
         </section>
 
-        <div class="p2p-filters">
-          <label>
-            Asset
-            <select id="assetFilter">
-              <option value="USDT">USDT</option>
-              <option value="BTC">BTC</option>
-              <option value="ETH">ETH</option>
-            </select>
-          </label>
+        <section class="p2p-subnav-right">
+          <a href="/p2p">User Guide</a>
+          <a href="/p2p">Ads</a>
+          <a href="/p2p">Orders</a>
+          <a href="/p2p">P2P User Center</a>
+        </section>
+      </div>
+    </section>
 
-          <label>
-            Payment
-            <select id="paymentFilter">
-              <option value="">All</option>
-              <option value="UPI">UPI</option>
-              <option value="Bank">Bank Transfer</option>
-              <option value="Paytm">Paytm</option>
-              <option value="IMPS">IMPS</option>
-              <option value="NEFT">NEFT</option>
-            </select>
-          </label>
-
-          <label>
-            Amount (INR)
-            <input id="amountFilter" type="number" min="0" placeholder="e.g. 5000" />
-          </label>
-
-          <label>
-            Advertiser
-            <input id="advertiserFilter" type="text" placeholder="Search merchant" />
-          </label>
-
-          <button id="applyFilters" type="button">Apply</button>
-        </div>
+    <main class="p2p-shell-light">
+      <section class="p2p-title-row">
+        <h1>Use P2P to buy USDT with INR</h1>
       </section>
 
-      <section class="p2p-table-card">
-        <div class="p2p-table-head">
+      <section class="p2p-promo">
+        <p>South Asia Exclusive Trading Showdown - Deposit, trade and win up to 300 USDT.</p>
+      </section>
+
+      <section class="p2p-board-card">
+        <div class="p2p-session-line">
+          <p id="userStatus" class="user-status">Login required to place or join P2P orders.</p>
+          <button id="logoutBtn" type="button" class="secondary-btn">Logout</button>
+        </div>
+
+        <div class="p2p-action-row">
+          <div id="sideTabs" class="p2p-tabs">
+            <button class="side-tab active" data-side="buy" type="button">Buy</button>
+            <button class="side-tab" data-side="sell" type="button">Sell</button>
+          </div>
+
+          <div id="assetChipRow" class="asset-chip-row">
+            <button class="asset-chip active" data-asset="USDT" type="button">USDT</button>
+            <button class="asset-chip" data-asset="BTC" type="button">BTC</button>
+            <button class="asset-chip" data-asset="ETH" type="button">ETH</button>
+            <button class="asset-chip" data-asset="USDT" type="button">USDC</button>
+            <button class="asset-chip" data-asset="USDT" type="button">SOL</button>
+            <button class="asset-chip" data-asset="USDT" type="button">BNB</button>
+            <span class="asset-support">Supports 300+ Cryptos</span>
+          </div>
+        </div>
+
+        <div class="p2p-filter-row">
+          <input id="amountFilter" type="number" min="0" placeholder="Enter Amount (INR)" />
+          <select id="paymentFilter">
+            <option value="">All Payment Methods</option>
+            <option value="UPI">UPI</option>
+            <option value="IMPS">IMPS</option>
+            <option value="NEFT">NEFT</option>
+            <option value="Bank">Bank Transfer</option>
+            <option value="Paytm">Paytm</option>
+          </select>
+          <button id="refreshOffers" type="button" class="secondary-btn">Refresh Settings</button>
+          <button id="applyFilters" type="button" class="filter-btn">Filter <span class="badge">1</span></button>
+        </div>
+
+        <input id="advertiserFilter" class="hidden-control" type="text" placeholder="Search advertiser" />
+        <select id="assetFilter" class="hidden-control" aria-hidden="true">
+          <option value="USDT">USDT</option>
+          <option value="BTC">BTC</option>
+          <option value="ETH">ETH</option>
+        </select>
+
+        <div class="p2p-feed-row">
           <p id="p2pMeta">Loading offers...</p>
-          <button id="refreshOffers" type="button" class="secondary-btn">Refresh</button>
+          <div id="exchangeTicker" class="exchange-ticker-light">Loading exchange data...</div>
+        </div>
+
+        <div class="p2p-alert-row">
+          <span>Do not share personal contact details. Always verify payment information independently.</span>
         </div>
 
         <div class="p2p-table-wrap">
-          <table class="p2p-table">
+          <table class="p2p-table light">
             <thead>
               <tr>
                 <th>Advertiser</th>
                 <th>Price</th>
-                <th>Available</th>
-                <th>Limits</th>
-                <th>Payment</th>
-                <th>Action</th>
+                <th>Available|Limits</th>
+                <th>Payment Method</th>
+                <th>Taker 0 Fees</th>
               </tr>
             </thead>
             <tbody id="p2pRows"></tbody>
@@ -152,17 +127,17 @@
         </div>
       </section>
 
-      <section class="p2p-table-card">
-        <div class="p2p-table-head">
+      <section class="p2p-board-card">
+        <div class="p2p-live-head">
           <p id="liveOrdersMeta">Live Orders: loading...</p>
           <div class="join-ref-row">
-            <input id="orderReferenceInput" type="text" placeholder="Enter Order Ref (e.g. P2P-123456-7890)" />
+            <input id="orderReferenceInput" type="text" placeholder="Enter order reference" />
             <button id="joinByRefBtn" type="button">Join by Ref</button>
           </div>
         </div>
 
         <div class="p2p-table-wrap">
-          <table class="p2p-table">
+          <table class="p2p-table light">
             <thead>
               <tr>
                 <th>Order Ref</th>
@@ -178,6 +153,20 @@
         </div>
       </section>
     </main>
+
+    <section id="authModal" class="p2p-auth-modal hidden" aria-hidden="true">
+      <div id="authBackdrop" class="p2p-auth-backdrop"></div>
+      <div class="p2p-auth-panel" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+        <h3 id="authTitle">P2P Login</h3>
+        <p>Enter your email and password to continue.</p>
+        <input id="emailInput" type="email" placeholder="Enter email" autocomplete="email" />
+        <input id="passwordInput" type="password" placeholder="Enter password" autocomplete="current-password" />
+        <div class="p2p-auth-actions">
+          <button id="loginBtn" type="button">Login</button>
+          <button id="closeAuthBtn" type="button" class="secondary-btn">Close</button>
+        </div>
+      </div>
+    </section>
 
     <section id="orderModal" class="order-modal hidden" aria-hidden="true">
       <div class="order-backdrop" id="closeModalBackdrop"></div>

@@ -1,17 +1,24 @@
 const rowsEl = document.getElementById('p2pRows');
 const metaEl = document.getElementById('p2pMeta');
 const sideTabs = document.getElementById('sideTabs');
+const assetChipRow = document.getElementById('assetChipRow');
 const assetFilter = document.getElementById('assetFilter');
 const paymentFilter = document.getElementById('paymentFilter');
 const amountFilter = document.getElementById('amountFilter');
 const advertiserFilter = document.getElementById('advertiserFilter');
 const applyFilters = document.getElementById('applyFilters');
 const refreshOffers = document.getElementById('refreshOffers');
+const exchangeTicker = document.getElementById('exchangeTicker');
 
 const userStatus = document.getElementById('userStatus');
-const usernameInput = document.getElementById('usernameInput');
+const emailInput = document.getElementById('emailInput');
+const passwordInput = document.getElementById('passwordInput');
 const loginBtn = document.getElementById('loginBtn');
 const logoutBtn = document.getElementById('logoutBtn');
+const openAuthBtn = document.getElementById('openAuthBtn');
+const closeAuthBtn = document.getElementById('closeAuthBtn');
+const authModal = document.getElementById('authModal');
+const authBackdrop = document.getElementById('authBackdrop');
 
 const liveOrdersMeta = document.getElementById('liveOrdersMeta');
 const liveOrdersRows = document.getElementById('liveOrdersRows');
@@ -40,31 +47,17 @@ const chatState = document.getElementById('chatState');
 const chatMessages = document.getElementById('chatMessages');
 const chatForm = document.getElementById('chatForm');
 const chatInput = document.getElementById('chatInput');
-const exchangeTicker = document.getElementById('exchangeTicker');
-
-const adTypeSelect = document.getElementById('adTypeSelect');
-const adAssetSelect = document.getElementById('adAssetSelect');
-const adPriceInput = document.getElementById('adPriceInput');
-const adAvailableInput = document.getElementById('adAvailableInput');
-const adMinLimitInput = document.getElementById('adMinLimitInput');
-const adMaxLimitInput = document.getElementById('adMaxLimitInput');
-const adPaymentsInput = document.getElementById('adPaymentsInput');
-const createAdBtn = document.getElementById('createAdBtn');
-const createAdStatus = document.getElementById('createAdStatus');
 
 let currentSide = 'buy';
 let currentAsset = 'USDT';
 let offersMap = new Map();
+let currentUser = null;
+
 let activeOrderId = null;
 let pollingIntervalId = null;
 let countdownIntervalId = null;
-let remainingSeconds = 0;
-let currentUser = null;
 let orderStream = null;
-
-function formatNumber(value) {
-  return Number(value).toLocaleString('en-IN');
-}
+let remainingSeconds = 0;
 
 function escapeHtml(text) {
   return String(text)
@@ -73,6 +66,12 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function formatNumber(value) {
+  return Number(value).toLocaleString('en-IN', {
+    maximumFractionDigits: 6
+  });
 }
 
 function formatTimer(seconds) {
@@ -104,7 +103,51 @@ function statusClass(status) {
   return map[status] || 'status-open';
 }
 
+function setUserStatus(text, type = '') {
+  if (!userStatus) {
+    return;
+  }
+  userStatus.textContent = text;
+  userStatus.className = 'user-status';
+  if (type) {
+    userStatus.classList.add(type);
+  }
+}
+
+function setAuthModalOpen(open) {
+  if (!authModal) {
+    return;
+  }
+
+  if (open) {
+    authModal.classList.remove('hidden');
+    authModal.setAttribute('aria-hidden', 'false');
+  } else {
+    authModal.classList.add('hidden');
+    authModal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function updateUserUi() {
+  if (currentUser) {
+    const displayIdentity = currentUser.email || currentUser.username || 'user';
+    setUserStatus(`Logged in as ${displayIdentity}`, 'user-online');
+    if (emailInput) {
+      emailInput.value = currentUser.email;
+    }
+    if (passwordInput) {
+      passwordInput.value = '';
+    }
+  } else {
+    setUserStatus('Login required to place or join P2P orders.');
+  }
+}
+
 function setModalOpen(open) {
+  if (!orderModal) {
+    return;
+  }
+
   if (open) {
     orderModal.classList.remove('hidden');
     orderModal.setAttribute('aria-hidden', 'false');
@@ -114,7 +157,7 @@ function setModalOpen(open) {
   }
 }
 
-function resetPolling() {
+function resetOrderWatch() {
   if (pollingIntervalId) {
     clearInterval(pollingIntervalId);
     pollingIntervalId = null;
@@ -132,29 +175,16 @@ function resetPolling() {
 function closeOrderModal() {
   setModalOpen(false);
   activeOrderId = null;
-  chatMessages.innerHTML = '';
-  chatInput.value = '';
-  chatInput.disabled = false;
-  chatState.textContent = 'Waiting for messages...';
-  resetPolling();
-}
-
-function updateUserUi() {
-  if (currentUser) {
-    userStatus.textContent = `Logged in as ${currentUser.username}`;
-    userStatus.className = 'user-status user-online';
-    usernameInput.value = currentUser.username;
-  } else {
-    userStatus.textContent = 'Not logged in. Login to start P2P orders.';
-    userStatus.className = 'user-status';
+  resetOrderWatch();
+  if (chatMessages) {
+    chatMessages.innerHTML = '';
   }
-
-  if (currentUser) {
-    createAdStatus.textContent = `You can create ad as ${currentUser.username}.`;
-    createAdStatus.className = 'create-ad-status create-ad-ok';
-  } else {
-    createAdStatus.textContent = 'Login required to create ad.';
-    createAdStatus.className = 'create-ad-status';
+  if (chatInput) {
+    chatInput.value = '';
+    chatInput.disabled = false;
+  }
+  if (chatState) {
+    chatState.textContent = 'Waiting for messages...';
   }
 }
 
@@ -162,27 +192,22 @@ async function loadCurrentUser() {
   try {
     const response = await fetch('/api/p2p/me');
     const data = await response.json();
-
-    if (data.loggedIn) {
-      currentUser = data.user;
-    } else {
-      currentUser = null;
-    }
+    currentUser = data.loggedIn ? data.user : null;
   } catch (error) {
     currentUser = null;
   }
-
   updateUserUi();
 }
 
 async function loginUser() {
-  const username = usernameInput.value.trim();
+  const email = String(emailInput?.value || '').trim();
+  const password = String(passwordInput?.value || '').trim();
 
   try {
     const response = await fetch('/api/p2p/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username })
+      body: JSON.stringify({ email, password })
     });
     const data = await response.json();
 
@@ -192,11 +217,11 @@ async function loginUser() {
 
     currentUser = data.user;
     updateUserUi();
+    setAuthModalOpen(false);
     await loadOffers();
     await loadLiveOrders();
   } catch (error) {
-    userStatus.textContent = error.message;
-    userStatus.className = 'user-status user-error';
+    setUserStatus(error.message, 'user-error');
   }
 }
 
@@ -207,15 +232,14 @@ async function logoutUser() {
     currentUser = null;
     updateUserUi();
     await loadOffers();
-    liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Login to see live orders.</td></tr>';
-    liveOrdersMeta.textContent = 'Live Orders: login required';
+    await loadLiveOrders();
     closeOrderModal();
   }
 }
 
 function requireLoginNotice() {
-  userStatus.textContent = 'Please login first to create/join order.';
-  userStatus.className = 'user-status user-error';
+  setUserStatus('Please login first using email and password.', 'user-error');
+  setAuthModalOpen(true);
 }
 
 async function loadExchangeTicker() {
@@ -224,7 +248,7 @@ async function loadExchangeTicker() {
   }
 
   try {
-    const response = await fetch('/api/p2p/exchange-ticker');
+    const response = await fetch('/api/p2p/exchange-ticker?symbols=BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT');
     const data = await response.json();
 
     if (!response.ok || !Array.isArray(data.ticker)) {
@@ -233,13 +257,11 @@ async function loadExchangeTicker() {
 
     exchangeTicker.innerHTML = data.ticker
       .map((item) => {
-        const up = item.change24h >= 0;
-        const cls = up ? 'up' : 'down';
-        const sign = up ? '+' : '';
+        const up = Number(item.change24h) >= 0;
         return `
-          <span class="${cls}">
-            ${item.symbol}: $${Number(item.lastPrice).toLocaleString(undefined, { maximumFractionDigits: 4 })}
-            (${sign}${Number(item.change24h).toFixed(2)}%)
+          <span class="${up ? 'up' : 'down'}">
+            ${item.symbol} $${formatNumber(item.lastPrice)}
+            (${up ? '+' : ''}${Number(item.change24h).toFixed(2)}%)
           </span>
         `;
       })
@@ -253,42 +275,43 @@ function renderOffers(data) {
   offersMap = new Map();
 
   if (!Array.isArray(data.offers) || data.offers.length === 0) {
-    rowsEl.innerHTML = '<tr><td colspan="6" class="empty-row">No offers found for selected filters.</td></tr>';
+    rowsEl.innerHTML = '<tr><td colspan="5" class="empty-row">No offers found for selected filters.</td></tr>';
     return;
   }
 
   rowsEl.innerHTML = data.offers
-    .map((offer) => {
+    .map((offer, index) => {
       offersMap.set(offer.id, offer);
 
-      const actionLabel = data.side === 'buy' ? 'Buy' : 'Sell';
-      const actionClass = data.side === 'buy' ? 'buy-offer-btn' : 'sell-offer-btn';
-      const availableLabel = `${formatNumber(offer.available)} ${offer.asset}`;
-      const limitsLabel = `₹${formatNumber(offer.minLimit)} - ₹${formatNumber(offer.maxLimit)}`;
-      const payments = offer.payments.map((method) => `<span class="pay-chip">${escapeHtml(method)}</span>`).join(' ');
+      const actionLabel = data.side === 'buy' ? 'Buy USDT' : 'Sell USDT';
       const isOwnAd = currentUser && offer.createdByUserId === currentUser.id;
-      const adBadge = offer.createdByUserId ? '<span class="adv-tag">User Ad</span>' : '<span class="adv-tag seed-ad">Verified</span>';
-      const buttonText = !currentUser ? 'Login First' : isOwnAd ? 'Your Ad' : actionLabel;
-      const buttonDisabled = isOwnAd ? 'disabled' : '';
+      const payments = offer.payments.map((method) => `<span class="pay-chip">${escapeHtml(method)}</span>`).join(' ');
+      const available = `${formatNumber(offer.available)} ${offer.asset}`;
+      const limits = `₹${formatNumber(offer.minLimit)} - ₹${formatNumber(offer.maxLimit)}`;
+      const rowClass = index === 0 ? 'top-pick-row' : '';
+      const topPickTag = index === 0 ? '<p class="top-pick-label">Top Picks for New Users</p>' : '';
 
       return `
-        <tr>
+        <tr class="${rowClass}">
           <td>
-            <p class="adv-name">${escapeHtml(offer.advertiser)} ${adBadge}</p>
-            <p class="adv-meta">${offer.orders} orders | ${offer.completionRate}%</p>
+            <p class="adv-name">${escapeHtml(offer.advertiser)}</p>
+            <p class="adv-meta">${offer.orders} Order(s) | ${offer.completionRate}%</p>
           </td>
           <td class="p2p-price">₹${formatNumber(offer.price)}</td>
-          <td>${availableLabel}</td>
-          <td>${limitsLabel}</td>
+          <td>
+            <p class="cell-main">${available}</p>
+            <p class="cell-sub">${limits}</p>
+          </td>
           <td>${payments}</td>
           <td>
+            ${topPickTag}
             <button
-              class="${actionClass} action-offer-btn"
               type="button"
+              class="offer-action-btn ${data.side === 'buy' ? 'buy-offer-btn' : 'sell-offer-btn'}"
               data-offer-id="${offer.id}"
-              ${buttonDisabled}
+              ${isOwnAd ? 'disabled' : ''}
             >
-              ${buttonText}
+              ${isOwnAd ? 'Your Ad' : currentUser ? actionLabel : 'Login First'}
             </button>
           </td>
         </tr>
@@ -300,35 +323,68 @@ function renderOffers(data) {
 async function loadOffers() {
   const params = new URLSearchParams({
     side: currentSide,
-    asset: assetFilter.value
+    asset: currentAsset
   });
 
-  if (paymentFilter.value) {
+  if (paymentFilter?.value) {
     params.set('payment', paymentFilter.value);
   }
-  if (amountFilter.value) {
+  if (amountFilter?.value) {
     params.set('amount', amountFilter.value);
   }
-  if (advertiserFilter.value.trim()) {
+  if (advertiserFilter?.value.trim()) {
     params.set('advertiser', advertiserFilter.value.trim());
   }
 
-  currentAsset = assetFilter.value;
   metaEl.textContent = 'Loading offers...';
 
   try {
     const response = await fetch(`/api/p2p/offers?${params.toString()}`);
     const data = await response.json();
-
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to fetch offers.');
+      throw new Error(data.message || 'Unable to load offers.');
     }
 
     renderOffers(data);
-    const sideLabel = data.side === 'buy' ? 'Buy' : 'Sell';
-    metaEl.textContent = `${sideLabel} ${data.asset} offers: ${data.total} | Updated ${new Date(data.updatedAt).toLocaleTimeString()}`;
+    metaEl.textContent = `${data.side.toUpperCase()} ${data.asset} offers: ${data.total} | Updated ${new Date(
+      data.updatedAt
+    ).toLocaleTimeString()}`;
   } catch (error) {
-    rowsEl.innerHTML = '<tr><td colspan="6" class="empty-row">Unable to load offers right now.</td></tr>';
+    rowsEl.innerHTML = '<tr><td colspan="5" class="empty-row">Unable to load offers right now.</td></tr>';
+    metaEl.textContent = error.message;
+  }
+}
+
+async function createOrder(offerId) {
+  if (!currentUser) {
+    requireLoginNotice();
+    return;
+  }
+
+  const offer = offersMap.get(offerId);
+  if (!offer) {
+    metaEl.textContent = 'Offer unavailable. Refresh and retry.';
+    return;
+  }
+
+  const amountValue = Number(amountFilter?.value || 0);
+  const amountInr = amountValue > 0 ? amountValue : Number(offer.minLimit);
+
+  try {
+    const response = await fetch('/api/p2p/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ offerId, amountInr })
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Unable to create order.');
+    }
+
+    openOrder(data.order);
+    await loadLiveOrders();
+  } catch (error) {
     metaEl.textContent = error.message;
   }
 }
@@ -341,7 +397,6 @@ function renderLiveOrders(orders) {
 
   liveOrdersRows.innerHTML = orders
     .map((order) => {
-      const actionText = order.isParticipant ? 'Open' : 'Join';
       return `
         <tr>
           <td>${order.reference}</td>
@@ -349,7 +404,11 @@ function renderLiveOrders(orders) {
           <td>₹${formatNumber(order.amountInr)}</td>
           <td><span class="status-pill ${statusClass(order.status)}">${statusLabel(order.status)}</span></td>
           <td>${escapeHtml(order.participantsLabel)}</td>
-          <td><button class="secondary-btn join-order-btn" data-order-id="${order.id}">${actionText}</button></td>
+          <td>
+            <button type="button" class="secondary-btn join-order-btn" data-order-id="${order.id}">
+              ${order.isParticipant ? 'Open' : 'Join'}
+            </button>
+          </td>
         </tr>
       `;
     })
@@ -358,7 +417,7 @@ function renderLiveOrders(orders) {
 
 async function loadLiveOrders() {
   if (!currentUser) {
-    liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Login to see live orders.</td></tr>';
+    liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Login to view live orders.</td></tr>';
     liveOrdersMeta.textContent = 'Live Orders: login required';
     return;
   }
@@ -368,12 +427,11 @@ async function loadLiveOrders() {
       side: currentSide,
       asset: currentAsset
     });
-
     const response = await fetch(`/api/p2p/orders/live?${params.toString()}`);
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to load live orders.');
+      throw new Error(data.message || 'Unable to load live orders.');
     }
 
     renderLiveOrders(data.orders);
@@ -386,15 +444,14 @@ async function loadLiveOrders() {
 
 function updateOrderUi(order) {
   orderRef.textContent = order.reference;
+  orderStatus.className = `status-pill ${statusClass(order.status)}`;
+  orderStatus.textContent = statusLabel(order.status);
   orderMerchant.textContent = order.advertiser;
   orderPrice.textContent = `₹${formatNumber(order.price)} / ${order.asset}`;
   orderAmount.textContent = `₹${formatNumber(order.amountInr)}`;
   orderAssetAmount.textContent = `${formatNumber(order.assetAmount)} ${order.asset}`;
   orderPayment.textContent = order.paymentMethod;
-  orderParticipants.textContent = order.participantsLabel || '--';
-
-  orderStatus.className = `status-pill ${statusClass(order.status)}`;
-  orderStatus.textContent = statusLabel(order.status);
+  orderParticipants.textContent = order.participantsLabel;
 
   remainingSeconds = Number(order.remainingSeconds || 0);
   orderTimer.textContent = formatTimer(remainingSeconds);
@@ -407,10 +464,6 @@ function updateOrderUi(order) {
   cancelOrderBtn.disabled = !isOpen;
   releaseBtn.disabled = !isPaid;
   chatInput.disabled = isClosed;
-
-  if (isClosed) {
-    chatState.textContent = `Order ${statusLabel(order.status)}.`;
-  }
 }
 
 function renderMessages(messages) {
@@ -469,11 +522,9 @@ async function loadOrderDetails() {
   try {
     const response = await fetch(`/api/p2p/orders/${activeOrderId}`);
     const data = await response.json();
-
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to fetch order.');
+      throw new Error(data.message || 'Failed to load order.');
     }
-
     updateOrderUi(data.order);
   } catch (error) {
     chatState.textContent = error.message;
@@ -486,7 +537,7 @@ function openOrder(order) {
   updateOrderUi(order);
   loadMessages();
 
-  resetPolling();
+  resetOrderWatch();
 
   pollingIntervalId = setInterval(() => {
     loadOrderDetails();
@@ -513,99 +564,6 @@ function openOrder(order) {
       chatState.textContent = `Messages: ${payload.messages.length}`;
     }
   });
-  orderStream.onerror = () => {
-    chatState.textContent = 'Realtime connection interrupted. Retrying...';
-  };
-}
-
-async function createOrder(offerId) {
-  if (!currentUser) {
-    requireLoginNotice();
-    return;
-  }
-
-  const offer = offersMap.get(offerId);
-  if (!offer) {
-    metaEl.textContent = 'Offer not available. Refresh list.';
-    return;
-  }
-
-  const enteredAmount = Number(amountFilter.value || 0);
-  const defaultAmount = enteredAmount > 0 ? enteredAmount : offer.minLimit;
-
-  try {
-    const response = await fetch('/api/p2p/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        offerId,
-        amountInr: defaultAmount
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Unable to create order.');
-    }
-
-    openOrder(data.order);
-    loadLiveOrders();
-  } catch (error) {
-    metaEl.textContent = error.message;
-  }
-}
-
-async function createAd() {
-  if (!currentUser) {
-    requireLoginNotice();
-    return;
-  }
-
-  const payload = {
-    adType: adTypeSelect.value,
-    asset: adAssetSelect.value,
-    price: Number(adPriceInput.value || 0),
-    available: Number(adAvailableInput.value || 0),
-    minLimit: Number(adMinLimitInput.value || 0),
-    maxLimit: Number(adMaxLimitInput.value || 0),
-    payments: adPaymentsInput.value
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean)
-  };
-
-  createAdStatus.textContent = 'Creating ad...';
-  createAdStatus.className = 'create-ad-status';
-
-  try {
-    const response = await fetch('/api/p2p/offers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to create ad.');
-    }
-
-    createAdStatus.textContent = `Ad created: ${data.offer.id}`;
-    createAdStatus.className = 'create-ad-status create-ad-ok';
-
-    currentSide = data.offer.side === 'buy' ? 'buy' : 'sell';
-    sideTabs.querySelectorAll('.side-tab').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.side === currentSide);
-    });
-    assetFilter.value = data.offer.asset;
-    currentAsset = data.offer.asset;
-
-    await loadOffers();
-    await loadLiveOrders();
-  } catch (error) {
-    createAdStatus.textContent = error.message;
-    createAdStatus.className = 'create-ad-status user-error';
-  }
 }
 
 async function joinOrderById(orderId) {
@@ -615,17 +573,13 @@ async function joinOrderById(orderId) {
   }
 
   try {
-    const response = await fetch(`/api/p2p/orders/${orderId}/join`, {
-      method: 'POST'
-    });
+    const response = await fetch(`/api/p2p/orders/${orderId}/join`, { method: 'POST' });
     const data = await response.json();
-
     if (!response.ok) {
       throw new Error(data.message || 'Unable to join order.');
     }
-
     openOrder(data.order);
-    loadLiveOrders();
+    await loadLiveOrders();
   } catch (error) {
     liveOrdersMeta.textContent = error.message;
   }
@@ -637,7 +591,7 @@ async function joinOrderByReference() {
     return;
   }
 
-  const reference = orderReferenceInput.value.trim();
+  const reference = String(orderReferenceInput?.value || '').trim();
   if (!reference) {
     liveOrdersMeta.textContent = 'Enter order reference first.';
     return;
@@ -646,11 +600,9 @@ async function joinOrderByReference() {
   try {
     const response = await fetch(`/api/p2p/orders/by-reference/${encodeURIComponent(reference)}`);
     const data = await response.json();
-
     if (!response.ok) {
-      throw new Error(data.message || 'Unable to join by reference.');
+      throw new Error(data.message || 'Unable to fetch order.');
     }
-
     openOrder(data.order);
     liveOrdersMeta.textContent = `Joined order ${data.order.reference}`;
   } catch (error) {
@@ -669,11 +621,9 @@ async function updateOrderStatus(action) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action })
     });
-
     const data = await response.json();
-
     if (!response.ok) {
-      throw new Error(data.message || 'Unable to update order status.');
+      throw new Error(data.message || 'Unable to update order.');
     }
 
     updateOrderUi(data.order);
@@ -684,102 +634,165 @@ async function updateOrderStatus(action) {
   }
 }
 
-rowsEl.addEventListener('click', (event) => {
-  const actionBtn = event.target.closest('.action-offer-btn');
-  if (!actionBtn) {
-    return;
-  }
+if (rowsEl) {
+  rowsEl.addEventListener('click', (event) => {
+    const actionBtn = event.target.closest('.offer-action-btn');
+    if (!actionBtn) {
+      return;
+    }
+    createOrder(actionBtn.dataset.offerId);
+  });
+}
 
-  createOrder(actionBtn.dataset.offerId);
-});
+if (liveOrdersRows) {
+  liveOrdersRows.addEventListener('click', (event) => {
+    const joinBtn = event.target.closest('.join-order-btn');
+    if (!joinBtn) {
+      return;
+    }
+    joinOrderById(joinBtn.dataset.orderId);
+  });
+}
 
-liveOrdersRows.addEventListener('click', (event) => {
-  const joinBtn = event.target.closest('.join-order-btn');
-  if (!joinBtn) {
-    return;
-  }
-
-  joinOrderById(joinBtn.dataset.orderId);
-});
-
-sideTabs.addEventListener('click', (event) => {
-  const target = event.target.closest('.side-tab');
-  if (!target) {
-    return;
-  }
-
-  sideTabs.querySelectorAll('.side-tab').forEach((btn) => btn.classList.remove('active'));
-  target.classList.add('active');
-
-  currentSide = target.dataset.side;
-  loadOffers();
-  loadLiveOrders();
-});
-
-applyFilters.addEventListener('click', () => {
-  loadOffers();
-  loadLiveOrders();
-});
-refreshOffers.addEventListener('click', () => {
-  loadOffers();
-  loadLiveOrders();
-});
-
-loginBtn.addEventListener('click', loginUser);
-logoutBtn.addEventListener('click', logoutUser);
-createAdBtn.addEventListener('click', createAd);
-joinByRefBtn.addEventListener('click', joinOrderByReference);
-
-usernameInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    loginUser();
-  }
-});
-
-orderReferenceInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    joinOrderByReference();
-  }
-});
-
-closeModalBtn.addEventListener('click', closeOrderModal);
-closeModalBackdrop.addEventListener('click', closeOrderModal);
-
-markPaidBtn.addEventListener('click', () => updateOrderStatus('mark_paid'));
-releaseBtn.addEventListener('click', () => updateOrderStatus('release'));
-cancelOrderBtn.addEventListener('click', () => updateOrderStatus('cancel'));
-
-chatForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-
-  if (!activeOrderId || !chatInput.value.trim()) {
-    return;
-  }
-
-  const text = chatInput.value.trim();
-  chatInput.value = '';
-
-  try {
-    const response = await fetch(`/api/p2p/orders/${activeOrderId}/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Unable to send message.');
+if (sideTabs) {
+  sideTabs.addEventListener('click', (event) => {
+    const tab = event.target.closest('.side-tab');
+    if (!tab) {
+      return;
     }
 
-    renderMessages(data.messages);
-    chatState.textContent = 'Message delivered';
-  } catch (error) {
-    chatState.textContent = error.message;
-  }
-});
+    currentSide = tab.dataset.side === 'sell' ? 'sell' : 'buy';
+    sideTabs.querySelectorAll('.side-tab').forEach((btn) => {
+      btn.classList.toggle('active', btn === tab);
+    });
+    loadOffers();
+    loadLiveOrders();
+  });
+}
+
+if (assetChipRow) {
+  assetChipRow.addEventListener('click', (event) => {
+    const chip = event.target.closest('.asset-chip');
+    if (!chip) {
+      return;
+    }
+
+    currentAsset = chip.dataset.asset;
+    if (assetFilter) {
+      assetFilter.value = currentAsset;
+    }
+
+    assetChipRow.querySelectorAll('.asset-chip').forEach((btn) => {
+      btn.classList.toggle('active', btn === chip);
+    });
+
+    loadOffers();
+    loadLiveOrders();
+  });
+}
+
+if (applyFilters) {
+  applyFilters.addEventListener('click', () => {
+    loadOffers();
+    loadLiveOrders();
+  });
+}
+
+if (refreshOffers) {
+  refreshOffers.addEventListener('click', () => {
+    loadOffers();
+    loadLiveOrders();
+    loadExchangeTicker();
+  });
+}
+
+if (loginBtn) {
+  loginBtn.addEventListener('click', loginUser);
+}
+if (logoutBtn) {
+  logoutBtn.addEventListener('click', logoutUser);
+}
+if (openAuthBtn) {
+  openAuthBtn.addEventListener('click', () => setAuthModalOpen(true));
+}
+if (closeAuthBtn) {
+  closeAuthBtn.addEventListener('click', () => setAuthModalOpen(false));
+}
+if (authBackdrop) {
+  authBackdrop.addEventListener('click', () => setAuthModalOpen(false));
+}
+if (emailInput) {
+  emailInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      loginUser();
+    }
+  });
+}
+if (passwordInput) {
+  passwordInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      loginUser();
+    }
+  });
+}
+
+if (joinByRefBtn) {
+  joinByRefBtn.addEventListener('click', joinOrderByReference);
+}
+if (orderReferenceInput) {
+  orderReferenceInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      joinOrderByReference();
+    }
+  });
+}
+
+if (closeModalBtn) {
+  closeModalBtn.addEventListener('click', closeOrderModal);
+}
+if (closeModalBackdrop) {
+  closeModalBackdrop.addEventListener('click', closeOrderModal);
+}
+if (markPaidBtn) {
+  markPaidBtn.addEventListener('click', () => updateOrderStatus('mark_paid'));
+}
+if (releaseBtn) {
+  releaseBtn.addEventListener('click', () => updateOrderStatus('release'));
+}
+if (cancelOrderBtn) {
+  cancelOrderBtn.addEventListener('click', () => updateOrderStatus('cancel'));
+}
+
+if (chatForm) {
+  chatForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!activeOrderId || !chatInput?.value.trim()) {
+      return;
+    }
+
+    const text = chatInput.value.trim();
+    chatInput.value = '';
+
+    try {
+      const response = await fetch(`/api/p2p/orders/${activeOrderId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Message failed.');
+      }
+      renderMessages(data.messages);
+      chatState.textContent = 'Message delivered';
+    } catch (error) {
+      chatState.textContent = error.message;
+    }
+  });
+}
 
 (async function init() {
   await loadCurrentUser();
@@ -792,6 +805,6 @@ setInterval(() => {
   if (currentUser && !activeOrderId) {
     loadLiveOrders();
   }
-}, 8000);
+}, 9000);
 
-setInterval(loadExchangeTicker, 5000);
+setInterval(loadExchangeTicker, 7000);
