@@ -1,4 +1,5 @@
 const rowsEl = document.getElementById('p2pRows');
+const cardsEl = document.getElementById('p2pCards');
 const metaEl = document.getElementById('p2pMeta');
 const sideTabs = document.getElementById('sideTabs');
 const assetChipRow = document.getElementById('assetChipRow');
@@ -17,12 +18,20 @@ const passwordInput = document.getElementById('passwordInput');
 const loginBtn = document.getElementById('loginBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 const openAuthBtn = document.getElementById('openAuthBtn');
+const openAuthBtnDrawer = document.getElementById('openAuthBtnDrawer');
 const closeAuthBtn = document.getElementById('closeAuthBtn');
 const authModal = document.getElementById('authModal');
 const authBackdrop = document.getElementById('authBackdrop');
 
+const p2pMenuToggle = document.getElementById('p2pMenuToggle');
+const p2pNavClose = document.getElementById('p2pNavClose');
+const p2pNavDrawer = document.getElementById('p2pNavDrawer');
+const p2pNavOverlay = document.getElementById('p2pNavOverlay');
+const p2pMobileBottomNav = document.querySelector('.p2p-mobile-bottom-nav');
+
 const liveOrdersMeta = document.getElementById('liveOrdersMeta');
 const liveOrdersRows = document.getElementById('liveOrdersRows');
+const liveOrdersCards = document.getElementById('liveOrdersCards');
 const orderReferenceInput = document.getElementById('orderReferenceInput');
 const joinByRefBtn = document.getElementById('joinByRefBtn');
 
@@ -126,6 +135,20 @@ function statusClass(status) {
     EXPIRED: 'status-expired'
   };
   return map[status] || 'status-open';
+}
+
+function setP2PNavOpen(open) {
+  if (!p2pNavDrawer || !p2pNavOverlay || !p2pMenuToggle) {
+    return;
+  }
+
+  const shouldOpen = Boolean(open);
+  document.body.classList.toggle('p2p-nav-open', shouldOpen);
+  p2pNavDrawer.classList.toggle('is-open', shouldOpen);
+  p2pNavOverlay.classList.toggle('hidden', !shouldOpen);
+  p2pNavDrawer.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  p2pNavOverlay.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  p2pMenuToggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
 }
 
 function setUserStatus(text, type = '') {
@@ -306,7 +329,7 @@ function applyTheme(mode, persist = true) {
   document.body.classList.toggle('p2p-theme-light', resolved === 'light');
 
   if (themeToggleBtn) {
-    themeToggleBtn.textContent = resolved === 'dark' ? 'Light Mode' : 'Dark Mode';
+    themeToggleBtn.textContent = resolved === 'dark' ? 'Light' : 'Dark';
   }
 
   if (persist) {
@@ -442,6 +465,7 @@ async function loginUser() {
     currentUser = data.user;
     updateUserUi();
     setAuthModalOpen(false);
+    setP2PNavOpen(false);
     await loadOffers();
     await loadLiveOrders();
   } catch (error) {
@@ -500,49 +524,113 @@ function renderOffers(data) {
   offersMap = new Map();
 
   if (!Array.isArray(data.offers) || data.offers.length === 0) {
-    rowsEl.innerHTML = '<tr><td colspan="5" class="empty-row">No offers found for selected filters.</td></tr>';
+    if (rowsEl) {
+      rowsEl.innerHTML = '<tr><td colspan="6" class="empty-row">No offers found for selected filters.</td></tr>';
+    }
+    if (cardsEl) {
+      cardsEl.innerHTML = '<article class="p2p-offer-card"><p class="empty-row">No offers found for selected filters.</p></article>';
+    }
     return;
   }
 
-  rowsEl.innerHTML = data.offers
-    .map((offer, index) => {
-      offersMap.set(offer.id, offer);
+  const rowsHtml = [];
+  const cardsHtml = [];
 
-      const actionLabel = data.side === 'buy' ? 'Buy USDT' : 'Sell USDT';
-      const isOwnAd = currentUser && offer.createdByUserId === currentUser.id;
-      const payments = offer.payments.map((method) => `<span class="pay-chip">${escapeHtml(method)}</span>`).join(' ');
-      const available = `${formatNumber(offer.available)} ${offer.asset}`;
-      const limits = `₹${formatNumber(offer.minLimit)} - ₹${formatNumber(offer.maxLimit)}`;
-      const rowClass = index === 0 ? 'top-pick-row' : '';
-      const topPickTag = index === 0 ? '<p class="top-pick-label">Top Picks for New Users</p>' : '';
+  data.offers.forEach((offer, index) => {
+    offersMap.set(offer.id, offer);
 
-      return `
-        <tr class="${rowClass}">
-          <td>
-            <p class="adv-name">${escapeHtml(offer.advertiser)}</p>
-            <p class="adv-meta">${offer.orders} Order(s) | ${offer.completionRate}%</p>
-          </td>
-          <td class="p2p-price">₹${formatNumber(offer.price)}</td>
-          <td>
-            <p class="cell-main">${available}</p>
-            <p class="cell-sub">${limits}</p>
-          </td>
-          <td>${payments}</td>
-          <td>
-            ${topPickTag}
-            <button
-              type="button"
-              class="offer-action-btn ${data.side === 'buy' ? 'buy-offer-btn' : 'sell-offer-btn'}"
-              data-offer-id="${offer.id}"
-              ${isOwnAd ? 'disabled' : ''}
-            >
-              ${isOwnAd ? 'Your Ad' : currentUser ? actionLabel : 'Login First'}
-            </button>
-          </td>
-        </tr>
-      `;
-    })
-    .join('');
+    const actionLabel = data.side === 'buy' ? 'Buy' : 'Sell';
+    const isOwnAd = currentUser && offer.createdByUserId === currentUser.id;
+    const payments = offer.payments
+      .map((method, paymentIndex) => `<span class="pay-chip pay-chip-${paymentIndex % 4}">${escapeHtml(method)}</span>`)
+      .join(' ');
+    const quantity = `${formatNumber(offer.available)} ${offer.asset}`;
+    const limits = `₹${formatNumber(offer.minLimit)} - ₹${formatNumber(offer.maxLimit)}`;
+    const rowClass = index === 0 ? 'top-pick-row offer-highlight' : '';
+    const topPickTag = index === 0 ? '<p class="top-pick-label">Top Picks for New Users</p>' : '';
+    const actionText = isOwnAd ? 'Your Ad' : currentUser ? actionLabel : 'Login';
+    const verificationBadge =
+      Number(offer.completionRate || 0) >= 95
+        ? '<span class="verification-badge" title="Verified">✔</span>'
+        : '<span class="verification-badge muted" title="Basic">•</span>';
+    const initial = String(offer.advertiser || 'U')
+      .trim()
+      .slice(0, 1)
+      .toUpperCase();
+
+    rowsHtml.push(`
+      <tr class="${rowClass}">
+        <td>
+          <div class="table-user-cell">
+            <span class="table-user-avatar">${escapeHtml(initial)}</span>
+            <div>
+              <p class="adv-name">${escapeHtml(offer.advertiser)} ${verificationBadge}</p>
+              <p class="adv-meta">${offer.orders} Orders | ${offer.completionRate}%</p>
+            </div>
+          </div>
+        </td>
+        <td class="p2p-price">₹${formatNumber(offer.price)}</td>
+        <td class="cell-main">${limits}</td>
+        <td class="cell-main">${quantity}</td>
+        <td><div class="payment-cell">${payments}</div></td>
+        <td class="table-action-cell">
+          ${topPickTag}
+          <button
+            type="button"
+            class="offer-action-btn ${data.side === 'buy' ? 'buy-offer-btn' : 'sell-offer-btn'}"
+            data-offer-id="${offer.id}"
+            ${isOwnAd ? 'disabled' : ''}
+          >
+            ${actionText}
+          </button>
+        </td>
+      </tr>
+    `);
+
+    cardsHtml.push(`
+      <article class="p2p-offer-card ${rowClass}">
+        <div class="p2p-card-top">
+          <div class="p2p-card-user">
+            <span class="card-avatar">${escapeHtml(initial)}</span>
+            <div>
+              <p class="p2p-card-title">${escapeHtml(offer.advertiser)} ${verificationBadge}</p>
+              <p class="p2p-card-time">⏱ 15m</p>
+            </div>
+          </div>
+          <div class="p2p-card-right">
+            <p class="p2p-card-order-meta">${offer.orders} Orders (${offer.completionRate}%)</p>
+            <p class="p2p-card-price"><span class="price-currency">₹</span>${formatNumber(offer.price)}</p>
+          </div>
+        </div>
+
+        ${topPickTag}
+
+        <div class="p2p-card-details">
+          <p><span>Limits</span><strong>${limits}</strong></p>
+          <p><span>Quantity</span><strong>${quantity}</strong></p>
+        </div>
+
+        <div class="p2p-card-footer">
+          <div class="card-payment-tags">${payments}</div>
+          <button
+            type="button"
+            class="offer-action-btn ${data.side === 'buy' ? 'buy-offer-btn' : 'sell-offer-btn'}"
+            data-offer-id="${offer.id}"
+            ${isOwnAd ? 'disabled' : ''}
+          >
+            ${actionText}
+          </button>
+        </div>
+      </article>
+    `);
+  });
+
+  if (rowsEl) {
+    rowsEl.innerHTML = rowsHtml.join('');
+  }
+  if (cardsEl) {
+    cardsEl.innerHTML = cardsHtml.join('');
+  }
 }
 
 async function loadOffers() {
@@ -561,7 +649,9 @@ async function loadOffers() {
     params.set('advertiser', advertiserFilter.value.trim());
   }
 
-  metaEl.textContent = 'Loading offers...';
+  if (metaEl) {
+    metaEl.textContent = 'Loading offers...';
+  }
 
   try {
     const response = await fetch(`/api/p2p/offers?${params.toString()}`);
@@ -571,12 +661,21 @@ async function loadOffers() {
     }
 
     renderOffers(data);
-    metaEl.textContent = `${data.side.toUpperCase()} ${data.asset} offers: ${data.total} | Updated ${new Date(
-      data.updatedAt
-    ).toLocaleTimeString()}`;
+    if (metaEl) {
+      metaEl.textContent = `${data.side.toUpperCase()} ${data.asset} offers: ${data.total} | Updated ${new Date(
+        data.updatedAt
+      ).toLocaleTimeString()}`;
+    }
   } catch (error) {
-    rowsEl.innerHTML = '<tr><td colspan="5" class="empty-row">Unable to load offers right now.</td></tr>';
-    metaEl.textContent = error.message;
+    if (rowsEl) {
+      rowsEl.innerHTML = '<tr><td colspan="6" class="empty-row">Unable to load offers right now.</td></tr>';
+    }
+    if (cardsEl) {
+      cardsEl.innerHTML = '<article class="p2p-offer-card"><p class="empty-row">Unable to load offers right now.</p></article>';
+    }
+    if (metaEl) {
+      metaEl.textContent = error.message;
+    }
   }
 }
 
@@ -588,7 +687,9 @@ async function createOrder(offerId, options = {}) {
 
   const offer = offersMap.get(offerId);
   if (!offer) {
-    metaEl.textContent = 'Offer unavailable. Refresh and retry.';
+    if (metaEl) {
+      metaEl.textContent = 'Offer unavailable. Refresh and retry.';
+    }
     throw new Error('Offer unavailable.');
   }
 
@@ -615,7 +716,9 @@ async function createOrder(offerId, options = {}) {
     await loadLiveOrders();
     return data;
   } catch (error) {
-    metaEl.textContent = error.message;
+    if (metaEl) {
+      metaEl.textContent = error.message;
+    }
     throw error;
   }
 }
@@ -628,7 +731,9 @@ function openDealForOffer(offerId) {
 
   const offer = offersMap.get(String(offerId || '').trim());
   if (!offer) {
-    metaEl.textContent = 'Offer unavailable. Refresh and retry.';
+    if (metaEl) {
+      metaEl.textContent = 'Offer unavailable. Refresh and retry.';
+    }
     return;
   }
 
@@ -674,42 +779,76 @@ async function submitDealOrder() {
 }
 
 function renderLiveOrders(orders) {
-  if (!liveOrdersRows) {
-    return;
-  }
-
   if (!Array.isArray(orders) || orders.length === 0) {
-    liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">No live orders available.</td></tr>';
+    if (liveOrdersRows) {
+      liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">No live orders available.</td></tr>';
+    }
+    if (liveOrdersCards) {
+      liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">No live orders available.</p></article>';
+    }
     return;
   }
 
-  liveOrdersRows.innerHTML = orders
-    .map((order) => {
-      return `
-        <tr>
-          <td>${order.reference}</td>
-          <td>${order.side.toUpperCase()} ${order.asset}</td>
-          <td>₹${formatNumber(order.amountInr)}</td>
-          <td><span class="status-pill ${statusClass(order.status)}">${statusLabel(order.status)}</span></td>
-          <td>${escapeHtml(order.participantsLabel)}</td>
-          <td>
-            <button type="button" class="secondary-btn join-order-btn" data-order-id="${order.id}">
-              ${order.isParticipant ? 'Open' : 'Join'}
-            </button>
-          </td>
-        </tr>
-      `;
-    })
-    .join('');
+  if (liveOrdersRows) {
+    liveOrdersRows.innerHTML = orders
+      .map((order) => {
+        return `
+          <tr>
+            <td>${order.reference}</td>
+            <td>${order.side.toUpperCase()} ${order.asset}</td>
+            <td>₹${formatNumber(order.amountInr)}</td>
+            <td><span class="status-pill ${statusClass(order.status)}">${statusLabel(order.status)}</span></td>
+            <td>${escapeHtml(order.participantsLabel)}</td>
+            <td>
+              <button type="button" class="secondary-btn join-order-btn" data-order-id="${order.id}">
+                ${order.isParticipant ? 'Open' : 'Join'}
+              </button>
+            </td>
+          </tr>
+        `;
+      })
+      .join('');
+  }
+
+  if (liveOrdersCards) {
+    liveOrdersCards.innerHTML = orders
+      .map(
+        (order) => `
+          <article class="p2p-live-order-card">
+            <div class="p2p-card-top">
+              <p class="p2p-card-title">${order.reference}</p>
+              <span class="status-pill ${statusClass(order.status)}">${statusLabel(order.status)}</span>
+            </div>
+            <div class="p2p-card-grid">
+              <p>Type<strong>${order.side.toUpperCase()} ${order.asset}</strong></p>
+              <p>Amount<strong>₹${formatNumber(order.amountInr)}</strong></p>
+              <p>Participants<strong>${escapeHtml(order.participantsLabel)}</strong></p>
+              <p>Merchant<strong>${escapeHtml(order.advertiser || '--')}</strong></p>
+            </div>
+            <div class="p2p-card-actions">
+              <button type="button" class="secondary-btn join-order-btn" data-order-id="${order.id}">
+                ${order.isParticipant ? 'Open' : 'Join'}
+              </button>
+            </div>
+          </article>
+        `
+      )
+      .join('');
+  }
 }
 
 async function loadLiveOrders() {
-  if (!liveOrdersRows || !liveOrdersMeta) {
+  if (!liveOrdersMeta) {
     return;
   }
 
   if (!currentUser) {
-    liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Login to view live orders.</td></tr>';
+    if (liveOrdersRows) {
+      liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Login to view live orders.</td></tr>';
+    }
+    if (liveOrdersCards) {
+      liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">Login to view live orders.</p></article>';
+    }
     liveOrdersMeta.textContent = 'Live Orders: login required';
     return;
   }
@@ -729,12 +868,21 @@ async function loadLiveOrders() {
     renderLiveOrders(data.orders);
     liveOrdersMeta.textContent = `Live Orders: ${data.total}`;
   } catch (error) {
-    liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Unable to load live orders.</td></tr>';
+    if (liveOrdersRows) {
+      liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Unable to load live orders.</td></tr>';
+    }
+    if (liveOrdersCards) {
+      liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">Unable to load live orders.</p></article>';
+    }
     liveOrdersMeta.textContent = error.message;
   }
 }
 
 function updateOrderUi(order) {
+  if (!order) {
+    return;
+  }
+
   orderRef.textContent = order.reference;
   orderStatus.className = `status-pill ${statusClass(order.status)}`;
   orderStatus.textContent = statusLabel(order.status);
@@ -934,8 +1082,12 @@ async function updateOrderStatus(action) {
   }
 }
 
-if (rowsEl) {
-  rowsEl.addEventListener('click', (event) => {
+function bindOfferActionDelegation(container) {
+  if (!container) {
+    return;
+  }
+
+  container.addEventListener('click', (event) => {
     const actionBtn = event.target.closest('.offer-action-btn');
     if (!actionBtn) {
       return;
@@ -944,8 +1096,15 @@ if (rowsEl) {
   });
 }
 
-if (liveOrdersRows) {
-  liveOrdersRows.addEventListener('click', (event) => {
+bindOfferActionDelegation(rowsEl);
+bindOfferActionDelegation(cardsEl);
+
+function bindJoinOrderDelegation(container) {
+  if (!container) {
+    return;
+  }
+
+  container.addEventListener('click', (event) => {
     const joinBtn = event.target.closest('.join-order-btn');
     if (!joinBtn) {
       return;
@@ -953,6 +1112,9 @@ if (liveOrdersRows) {
     joinOrderById(joinBtn.dataset.orderId);
   });
 }
+
+bindJoinOrderDelegation(liveOrdersRows);
+bindJoinOrderDelegation(liveOrdersCards);
 
 if (sideTabs) {
   sideTabs.addEventListener('click', (event) => {
@@ -993,6 +1155,22 @@ if (assetChipRow) {
   });
 }
 
+if (assetFilter) {
+  assetFilter.addEventListener('change', () => {
+    currentAsset = String(assetFilter.value || 'USDT').toUpperCase();
+
+    if (assetChipRow) {
+      assetChipRow.querySelectorAll('.asset-chip').forEach((btn) => {
+        btn.classList.toggle('active', String(btn.dataset.asset || '').toUpperCase() === currentAsset);
+      });
+    }
+
+    closeDealModal();
+    loadOffers();
+    loadLiveOrders();
+  });
+}
+
 if (applyFilters) {
   applyFilters.addEventListener('click', () => {
     loadOffers();
@@ -1016,6 +1194,12 @@ if (logoutBtn) {
 }
 if (openAuthBtn) {
   openAuthBtn.addEventListener('click', () => setAuthModalOpen(true));
+}
+if (openAuthBtnDrawer) {
+  openAuthBtnDrawer.addEventListener('click', () => {
+    setAuthModalOpen(true);
+    setP2PNavOpen(false);
+  });
 }
 if (closeAuthBtn) {
   closeAuthBtn.addEventListener('click', () => setAuthModalOpen(false));
@@ -1081,12 +1265,6 @@ if (dealBackdrop) {
   dealBackdrop.addEventListener('click', closeDealModal);
 }
 
-window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && dealModal && !dealModal.classList.contains('hidden')) {
-    closeDealModal();
-  }
-});
-
 if (joinByRefBtn) {
   joinByRefBtn.addEventListener('click', joinOrderByReference);
 }
@@ -1150,6 +1328,53 @@ if (themeToggleBtn) {
   });
 }
 
+p2pMenuToggle?.addEventListener('click', () => setP2PNavOpen(true));
+p2pNavClose?.addEventListener('click', () => setP2PNavOpen(false));
+p2pNavOverlay?.addEventListener('click', () => setP2PNavOpen(false));
+
+p2pNavDrawer?.addEventListener('click', (event) => {
+  const link = event.target.closest('a[href]');
+  if (link) {
+    setP2PNavOpen(false);
+  }
+});
+
+if (p2pMobileBottomNav) {
+  p2pMobileBottomNav.addEventListener('click', (event) => {
+    const targetLink = event.target.closest('a');
+    if (!targetLink) {
+      return;
+    }
+
+    p2pMobileBottomNav.querySelectorAll('a').forEach((link) => {
+      link.classList.toggle('active', link === targetLink);
+      if (link === targetLink) {
+        link.setAttribute('aria-current', 'page');
+      } else {
+        link.removeAttribute('aria-current');
+      }
+    });
+  });
+}
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    if (dealModal && !dealModal.classList.contains('hidden')) {
+      closeDealModal();
+      return;
+    }
+    if (orderModal && !orderModal.classList.contains('hidden')) {
+      closeOrderModal();
+      return;
+    }
+    if (authModal && !authModal.classList.contains('hidden')) {
+      setAuthModalOpen(false);
+      return;
+    }
+    setP2PNavOpen(false);
+  }
+});
+
 (async function init() {
   initTheme();
   await loadCurrentUser();
@@ -1159,7 +1384,7 @@ if (themeToggleBtn) {
 })();
 
 setInterval(() => {
-  if (currentUser && !activeOrderId && liveOrdersRows && liveOrdersMeta) {
+  if (currentUser && !activeOrderId && liveOrdersMeta) {
     loadLiveOrders();
   }
 }, 9000);

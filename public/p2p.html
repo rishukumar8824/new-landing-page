@@ -2,64 +2,81 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TradeNova P2P</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bitegit P2P</title>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/p2p.css" />
   </head>
-  <body class="p2p-page p2p-bybit p2p-theme-dark">
-    <button id="themeToggleBtn" type="button" class="p2p-theme-toggle">Light Mode</button>
-    <nav class="p2p-side-links" aria-label="P2P quick links">
-      <a href="/p2p">User Guide</a>
-      <a href="/p2p">Ads</a>
-      <a href="/p2p">Orders</a>
-      <a href="/p2p">P2P User Center</a>
-    </nav>
+  <body class="p2p-page p2p-theme-dark">
+    <header class="p2p-header" id="p2pHeader">
+      <div class="p2p-header-inner">
+        <div class="p2p-brand-wrap">
+          <button id="p2pMenuToggle" class="p2p-menu-btn" type="button" aria-label="Open menu" aria-controls="p2pNavDrawer" aria-expanded="false">☰</button>
+          <a href="/" class="p2p-brand">BITEGIT</a>
+        </div>
 
-    <header class="topbar p2p-top-nav">
-      <div class="p2p-nav-left">
-        <a href="/" class="brand">TRADENOVA</a>
-        <nav class="top-links">
-          <a href="/" class="active-link">Buy Crypto</a>
-          <a href="/">Markets</a>
-          <a href="/p2p">Trade</a>
-          <a href="/">Tools</a>
+        <nav class="p2p-main-nav" aria-label="Primary navigation">
+          <a href="/">Buy Crypto</a>
+          <a href="/trade/spot/BTCUSDT">Markets</a>
+          <a href="/p2p" class="active">P2P</a>
+          <a href="/trade/spot/BTCUSDT">Trade</a>
           <a href="/">Finance</a>
           <a href="/">Learn</a>
-          <a href="/#statsSection">Rewards Hub</a>
         </nav>
-      </div>
 
-      <div class="p2p-top-actions">
-        <input class="p2p-search" type="text" value="MNT/USDT" readonly />
-        <button id="openAuthBtn" class="login-link" type="button">Log In</button>
-        <a class="cta-mini" href="/">Sign Up</a>
+        <div class="p2p-header-actions">
+          <input class="p2p-search" type="text" value="BTC/USDT" readonly />
+          <button id="themeToggleBtn" type="button" class="p2p-theme-toggle">Light</button>
+          <button id="openAuthBtn" class="p2p-login-btn" type="button">Log In</button>
+          <a class="p2p-signup-btn" href="/">Sign Up</a>
+        </div>
       </div>
     </header>
 
-    <section class="p2p-subnav-wrap">
-      <div class="p2p-shell-light p2p-subnav-shell">
-        <section class="p2p-subnav">
-          <a href="/#leadSection">One-Click Buy</a>
-          <a href="/p2p" class="active">P2P</a>
-          <a href="/#leadSection">Block</a>
-          <a href="/#leadSection">Fiat Deposit</a>
-          <a href="/#leadSection">Recurring Buy</a>
-          <a href="/#leadSection">Card</a>
-          <a href="/#leadSection">Convert</a>
-        </section>
+    <div id="p2pNavOverlay" class="p2p-nav-overlay hidden" aria-hidden="true"></div>
+    <aside id="p2pNavDrawer" class="p2p-nav-drawer" aria-hidden="true">
+      <div class="p2p-drawer-head">
+        <strong>BITEGIT</strong>
+        <button id="p2pNavClose" type="button" aria-label="Close menu">✕</button>
+      </div>
+      <nav class="p2p-drawer-links" aria-label="Mobile navigation">
+        <a href="/">Buy Crypto</a>
+        <a href="/trade/spot/BTCUSDT">Markets</a>
+        <a href="/p2p">P2P</a>
+        <a href="/trade/spot/BTCUSDT">Trade</a>
+        <a href="/">Finance</a>
+        <a href="/">Learn</a>
+      </nav>
+      <div class="p2p-drawer-actions">
+        <button id="openAuthBtnDrawer" type="button">Log In</button>
+        <a href="/">Sign Up</a>
+      </div>
+    </aside>
 
-        <section class="p2p-subnav-right">
+    <section class="p2p-secondary-nav">
+      <div class="p2p-shell">
+        <div class="p2p-secondary-left">
+          <a href="/">One-Click Buy</a>
+          <a href="/p2p" class="active">P2P</a>
+          <a href="/">Block</a>
+          <a href="/">Fiat Deposit</a>
+          <a href="/">Recurring Buy</a>
+          <a href="/">Bybit Card</a>
+          <a href="/">Convert</a>
+        </div>
+        <div class="p2p-secondary-right">
           <a href="/p2p">User Guide</a>
           <a href="/p2p">Ads</a>
           <a href="/p2p">Orders</a>
           <a href="/p2p">P2P User Center</a>
-        </section>
+        </div>
       </div>
     </section>
 
-    <main class="p2p-shell-light">
-      <section class="p2p-title-row">
+    <main class="p2p-shell p2p-main">
+      <section class="p2p-hero-note">
         <h1>Use P2P to buy USDT with INR</h1>
+        <p>Secure order matching, escrow workflow, and real-time chat between buyer and seller.</p>
       </section>
 
       <section class="p2p-promo">
@@ -72,70 +89,126 @@
           <button id="logoutBtn" type="button" class="secondary-btn">Logout</button>
         </div>
 
-        <div class="p2p-action-row">
-          <div id="sideTabs" class="p2p-tabs">
-            <button class="side-tab active" data-side="buy" type="button">Buy</button>
-            <button class="side-tab" data-side="sell" type="button">Sell</button>
+        <div class="p2p-mobile-top">
+          <div class="p2p-action-row">
+            <div id="sideTabs" class="p2p-tabs sticky-toggle">
+              <button class="side-tab active" data-side="buy" type="button">Buy</button>
+              <button class="side-tab" data-side="sell" type="button">Sell</button>
+            </div>
+
+            <div id="assetChipRow" class="asset-chip-row desktop-only">
+              <button class="asset-chip active" data-asset="USDT" type="button">USDT</button>
+              <button class="asset-chip" data-asset="BTC" type="button">BTC</button>
+              <button class="asset-chip" data-asset="ETH" type="button">ETH</button>
+              <button class="asset-chip" data-asset="USDT" type="button">USDC</button>
+              <button class="asset-chip" data-asset="USDT" type="button">SOL</button>
+              <button class="asset-chip" data-asset="USDT" type="button">BNB</button>
+              <span class="asset-support">Supports 300+ Cryptos</span>
+            </div>
           </div>
 
-          <div id="assetChipRow" class="asset-chip-row">
-            <button class="asset-chip active" data-asset="USDT" type="button">USDT</button>
-            <button class="asset-chip" data-asset="BTC" type="button">BTC</button>
-            <button class="asset-chip" data-asset="ETH" type="button">ETH</button>
-            <button class="asset-chip" data-asset="USDT" type="button">USDC</button>
-            <button class="asset-chip" data-asset="USDT" type="button">SOL</button>
-            <button class="asset-chip" data-asset="USDT" type="button">BNB</button>
-            <span class="asset-support">Supports 300+ Cryptos</span>
+          <div class="p2p-filter-row sticky-filter-row">
+            <select id="assetFilter" aria-label="Asset">
+              <option value="USDT">USDT</option>
+              <option value="BTC">BTC</option>
+              <option value="ETH">ETH</option>
+            </select>
+            <input id="amountFilter" type="number" min="0" placeholder="Amount" />
+            <select id="paymentFilter" aria-label="Payment method">
+              <option value="">All Payment Methods</option>
+              <option value="UPI">UPI</option>
+              <option value="IMPS">IMPS</option>
+              <option value="NEFT">NEFT</option>
+              <option value="Bank">Bank Transfer</option>
+              <option value="Paytm">Paytm</option>
+            </select>
+            <select id="currencyFilter" class="currency-select" aria-label="Fiat currency">
+              <option value="INR" selected>INR</option>
+            </select>
+            <button id="refreshOffers" type="button" class="secondary-btn">Refresh</button>
+            <button id="applyFilters" type="button" class="filter-btn">Filter <span class="badge">1</span></button>
           </div>
-        </div>
-
-        <div class="p2p-filter-row">
-          <input id="amountFilter" type="number" min="0" placeholder="Enter Amount (INR)" />
-          <select id="paymentFilter">
-            <option value="">All Payment Methods</option>
-            <option value="UPI">UPI</option>
-            <option value="IMPS">IMPS</option>
-            <option value="NEFT">NEFT</option>
-            <option value="Bank">Bank Transfer</option>
-            <option value="Paytm">Paytm</option>
-          </select>
-          <button id="refreshOffers" type="button" class="secondary-btn">Refresh Settings</button>
-          <button id="applyFilters" type="button" class="filter-btn">Filter <span class="badge">1</span></button>
         </div>
 
         <input id="advertiserFilter" class="hidden-control" type="text" placeholder="Search advertiser" />
-        <select id="assetFilter" class="hidden-control" aria-hidden="true">
-          <option value="USDT">USDT</option>
-          <option value="BTC">BTC</option>
-          <option value="ETH">ETH</option>
-        </select>
 
         <div class="p2p-feed-row">
           <p id="p2pMeta">Loading offers...</p>
-          <div id="exchangeTicker" class="exchange-ticker-light">Loading exchange data...</div>
+          <div id="exchangeTicker" class="exchange-ticker">Loading exchange data...</div>
         </div>
 
         <div class="p2p-alert-row">
           <span>Do not share personal contact details. Always verify payment information independently.</span>
         </div>
 
-        <div class="p2p-table-wrap">
+        <div class="p2p-table-wrap desktop-only">
           <table class="p2p-table light">
             <thead>
               <tr>
-                <th>Advertiser</th>
+                <th>User</th>
                 <th>Price</th>
-                <th>Available|Limits</th>
-                <th>Payment Method</th>
-                <th>Taker 0 Fees</th>
+                <th>Limits</th>
+                <th>Quantity</th>
+                <th>Payment</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody id="p2pRows"></tbody>
           </table>
         </div>
+
+        <div id="p2pCards" class="p2p-cards mobile-only"></div>
       </section>
 
+      <section class="p2p-live-card">
+        <div class="p2p-live-head">
+          <h2>Live Orders</h2>
+          <p id="liveOrdersMeta">Loading live orders...</p>
+        </div>
+
+        <div class="p2p-live-controls">
+          <input id="orderReferenceInput" type="text" placeholder="Join by order reference" />
+          <button id="joinByRefBtn" type="button">Join by Ref</button>
+        </div>
+
+        <div class="p2p-live-table-wrap desktop-only">
+          <table class="p2p-table light">
+            <thead>
+              <tr>
+                <th>Order Ref</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Participants</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="liveOrdersRows"></tbody>
+          </table>
+        </div>
+
+        <div id="liveOrdersCards" class="p2p-cards mobile-only"></div>
+      </section>
     </main>
+
+    <nav class="p2p-mobile-bottom-nav mobile-only" aria-label="P2P bottom navigation">
+      <a href="/p2p" class="active" aria-current="page">
+        <span class="nav-icon">⌂</span>
+        <span>P2P</span>
+      </a>
+      <a href="/p2p#orders">
+        <span class="nav-icon">☰</span>
+        <span>Orders</span>
+      </a>
+      <a href="/p2p#ads">
+        <span class="nav-icon">↗</span>
+        <span>Ads</span>
+      </a>
+      <a href="/p2p#profile">
+        <span class="nav-icon">◉</span>
+        <span>Profile</span>
+      </a>
+    </nav>
 
     <section id="dealModal" class="deal-modal hidden" aria-hidden="true">
       <div id="dealBackdrop" class="deal-backdrop"></div>
@@ -163,9 +236,7 @@
             <div><dt>Payment Method</dt><dd id="dealPaymentPreview">--</dd></div>
           </dl>
 
-          <p class="deal-terms">
-            Merchant terms may include additional instructions. Verify payment details carefully before confirming.
-          </p>
+          <p class="deal-terms">Merchant terms may include additional instructions. Verify payment details carefully before confirming.</p>
         </article>
 
         <article class="deal-right">
