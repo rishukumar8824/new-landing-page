@@ -1,130 +1,114 @@
-# Landing Page (Name + Mobile)
+# Bitegit Web App
 
-Simple landing page with separate frontend and backend files.
+Express-based landing + P2P + trade app with MongoDB Atlas persistence.
 
-## Project Structure
+## What Is Persisted
 
-- `server.js` -> Backend (Express API + static hosting)
-- `public/index.html` -> Frontend HTML (lead form)
-- `public/admin-login.html` -> Admin login page
-- `public/admin.html` -> Admin panel (lead list)
-- `public/styles.css` -> Frontend CSS
-- `public/script.js` -> Frontend JS (form submit logic)
-- `public/admin-login.js` -> Admin login JS
-- `public/admin.js` -> Admin JS (fetch + render leads)
-- `data/leads.json` -> Saved leads data (auto-created)
-- `package.json` -> Dependencies and start script
+All dynamic/business data is stored in MongoDB:
 
-## Admin Security
+- Leads
+- Admin sessions
+- Signup OTP codes
+- P2P credentials and user sessions
+- P2P wallets (`balance`, `lockedBalance`)
+- P2P offers
+- P2P orders and chat messages
+- Trade orders
+- Migration/meta flags
 
-Admin panel uses session-based login.
+In-memory is used only for runtime SSE stream connections.
 
-Set environment variables before starting server:
+## Environment Variables
 
-```bash
-export ADMIN_USERNAME="your-username"
-export ADMIN_PASSWORD="your-strong-password"
-```
+Required:
 
-Then start app:
+- `MONGODB_URI` -> MongoDB Atlas connection string
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
 
-```bash
-npm start
-```
+Optional:
 
-Admin login URL:
+- `MONGODB_DB_NAME` -> default `bitegit`
+- `ALLOW_DEMO_OTP` -> default `true` in non-production
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM_EMAIL`
+- `SMTP_SECURE`
+- `GMAIL_USER`
+- `GMAIL_APP_PASSWORD`
+- `P2P_DEFAULT_USER_BALANCE` (default `10000`, for demo auto-wallet init)
+- `P2P_DEFAULT_SEED_WALLET_BALANCE` (default `1000000`)
 
-```
-http://localhost:3000/admin-login
-```
-
-## Run Locally
+## Local Run
 
 1. Install dependencies:
    ```bash
    npm install
    ```
-2. Set admin credentials:
+2. Set env:
    ```bash
-   export ADMIN_USERNAME="your-username"
-   export ADMIN_PASSWORD="your-strong-password"
+   export MONGODB_URI="mongodb+srv://<user>:<pass>@<cluster>/<db>?retryWrites=true&w=majority"
+   export MONGODB_DB_NAME="bitegit"
+   export ADMIN_USERNAME="your-admin-user"
+   export ADMIN_PASSWORD="your-admin-pass"
    ```
 3. Start server:
    ```bash
    npm start
    ```
-4. Open landing page:
-   ```
-   http://localhost:3000
-   ```
-5. Open admin login:
-   ```
-   http://localhost:3000/admin-login
-   ```
+4. Open:
+   - `http://localhost:3000`
+   - `http://localhost:3000/p2p`
+   - `http://localhost:3000/trade/spot/BTCUSDT`
+   - `http://localhost:3000/admin-login`
 
-## API
+## Startup Behavior
 
-### POST `/api/leads`
-Request body:
+On startup, server does:
 
-```json
-{
-  "name": "Rahul",
-  "mobile": "9876543210"
-}
-```
+1. Connect to MongoDB (fail-fast if connection/index setup fails)
+2. Ensure all indexes
+3. Run one-time migration from `data/leads.json` into Mongo (`app_meta` flag: `leads_migrated_v1`)
+4. Seed default P2P offers only if `p2p_offers` is empty
+5. Ensure wallets for seed advertisers
+6. Start HTTP server
 
-### GET `/api/leads`
-Returns all submitted leads (latest first). Requires admin session.
+## P2P Escrow States
 
-## Deploy (Render)
+Order status lifecycle:
 
-1. Push this folder to GitHub.
-2. In Render Web Service, set Environment Variables:
-   - `ADMIN_USERNAME` = your username
-   - `ADMIN_PASSWORD` = your strong password
-3. Deploy latest commit.
+- `PENDING` -> escrow locked from seller wallet
+- `PAID` -> buyer marked payment done
+- `RELEASED` -> seller released escrow to buyer wallet
+- `CANCELLED` -> escrow unlocked back to seller wallet
+- `DISPUTED` -> manual review state
+- `EXPIRED` -> auto-expired and escrow unlocked to seller
 
-Node version required: `18+`.
+Escrow safety rules:
 
-## Android APK (Bitegit)
+- One active order per seller (`PENDING`, `PAID`, `DISPUTED`)
+- Seller balance check before escrow lock
+- Release/cancel uses MongoDB transaction session
+- 15-minute auto-expiry sweep runs in background
 
-This project is now configured with Capacitor for Android.
+## Health Check
 
-Important files:
+`GET /healthz`
 
-- `capacitor.config.json` -> App ID, app name, live site URL
-- `android/` -> Native Android project
-- `resources/README.md` -> Icon setup instructions
+- Connected: `{"status":"ok","db":"connected"}`
+- Disconnected: HTTP `503` with `{"status":"error","db":"disconnected"}`
 
-### App details
+## Render Deploy
 
-- App Name: `Bitegit`
-- Package ID: `com.bitegit.app`
-- Live URL loaded in app: `https://new-landing-page-1hz9.onrender.com`
+Set these env vars in Render service:
 
-### Build APK (step-by-step)
+- `MONGODB_URI`
+- `MONGODB_DB_NAME` (optional, default `bitegit`)
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Put logo file:
-   - Save your logo as `resources/icon.png` (square PNG, 1024x1024 preferred).
-3. Generate Android icons:
-   ```bash
-   npm run mobile:icons
-   ```
-4. Sync web + native:
-   ```bash
-   npm run mobile:sync
-   ```
-5. Open Android Studio project:
-   ```bash
-   npm run mobile:open
-   ```
-6. In Android Studio:
-   - Wait for Gradle sync.
-   - Go to `Build > Build Bundle(s) / APK(s) > Build APK(s)`.
-7. Final APK path:
-   - `android/app/build/outputs/apk/debug/app-debug.apk`
+`render.yaml` already includes these keys.

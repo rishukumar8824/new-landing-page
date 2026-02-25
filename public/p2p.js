@@ -104,10 +104,12 @@ function formatTimer(seconds) {
 
 function statusLabel(status) {
   const map = {
+    PENDING: 'Pending',
     OPEN: 'Open',
     PAID: 'Paid',
     RELEASED: 'Released',
     CANCELLED: 'Cancelled',
+    DISPUTED: 'Disputed',
     EXPIRED: 'Expired'
   };
   return map[status] || status;
@@ -115,10 +117,12 @@ function statusLabel(status) {
 
 function statusClass(status) {
   const map = {
+    PENDING: 'status-open',
     OPEN: 'status-open',
     PAID: 'status-paid',
     RELEASED: 'status-released',
     CANCELLED: 'status-cancelled',
+    DISPUTED: 'status-paid',
     EXPIRED: 'status-expired'
   };
   return map[status] || 'status-open';
@@ -744,7 +748,7 @@ function updateOrderUi(order) {
   remainingSeconds = Number(order.remainingSeconds || 0);
   orderTimer.textContent = formatTimer(remainingSeconds);
 
-  const isOpen = order.status === 'OPEN';
+  const isOpen = order.status === 'PENDING' || order.status === 'OPEN';
   const isPaid = order.status === 'PAID';
   const isClosed = ['RELEASED', 'CANCELLED', 'EXPIRED'].includes(order.status);
 

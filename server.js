@@ -1,8 +1,10 @@
 const crypto = require('crypto');
 const express = require('express');
-const fs = require('fs');
 const nodemailer = require('nodemailer');
 const path = require('path');
+const { connectToMongo, getCollections, getMongoClient, getMongoConfig, isDbConnected } = require('./lib/db');
+const { createRepositories } = require('./lib/repositories');
+const { createWalletService, makeSeedUserId } = require('./lib/wallet-service');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,7 +19,9 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 const P2P_USER_COOKIE_NAME = 'p2p_user_session';
 const P2P_USER_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const P2P_ORDER_TTL_MS = 1000 * 60 * 15;
+const P2P_EXPIRY_SWEEP_INTERVAL_MS = 30 * 1000;
 const SIGNUP_OTP_TTL_MS = 1000 * 60 * 10;
+const P2P_ORDER_ACTIVE_STATUSES = ['PENDING', 'PAID', 'DISPUTED'];
 const IS_PRODUCTION = String(process.env.NODE_ENV || '')
   .trim()
   .toLowerCase() === 'production';
@@ -26,13 +30,7 @@ const ALLOW_DEMO_OTP =
     .trim()
     .toLowerCase() === 'true' || !IS_PRODUCTION;
 
-const sessions = new Map();
-const p2pUsers = new Map();
-const p2pCredentials = new Map();
-const signupOtps = new Map();
-const p2pOrders = new Map();
 const p2pOrderStreams = new Map();
-const tradeOrders = [];
 const DEFAULT_TICKER_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'];
 const DEFAULT_SYMBOL_PRICES = {
   BTCUSDT: 63000,
@@ -71,7 +69,7 @@ const seedSellOffers = [
   { advertiser: 'BharatP2PLine', price: 95.48, available: 7400, minLimit: 1200, maxLimit: 115000, completionRate: 98.4, orders: 1182, payments: ['UPI', 'NEFT'] }
 ];
 
-let p2pOffers = [
+const seedP2POffers = [
   ...seedBuyOffers.map((offer, index) => ({
     id: `ofr_${1001 + index}`,
     side: 'buy',
@@ -85,39 +83,26 @@ let p2pOffers = [
     ...offer
   }))
 ];
-let p2pOfferAutoId = 1001 + p2pOffers.length;
 
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-if (!fs.existsSync(dataFile)) {
-  fs.writeFileSync(dataFile, '[]', 'utf8');
-}
+let repos = null;
+let walletService = null;
+let persistenceReady = false;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 function readLeads() {
-  return JSON.parse(fs.readFileSync(dataFile, 'utf8'));
-}
-
-function writeLeads(leads) {
-  fs.writeFileSync(dataFile, JSON.stringify(leads, null, 2), 'utf8');
+  if (!repos) {
+    throw new Error('Persistence layer not initialized');
+  }
+  return repos.getLeadsLatest();
 }
 
 function saveLeadRecord(name, contact, extra = {}) {
-  const leads = readLeads();
-  const newLead = {
-    id: Date.now(),
-    name,
-    mobile: contact,
-    createdAt: new Date().toISOString(),
-    ...extra
-  };
-
-  leads.push(newLead);
-  writeLeads(leads);
-  return newLead;
+  if (!repos) {
+    throw new Error('Persistence layer not initialized');
+  }
+  return repos.saveLeadRecord(name, contact, extra);
 }
 
 function normalizeMarketSymbol(rawSymbol) {
@@ -308,15 +293,6 @@ function createOtpCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-function removeExpiredSignupOtps() {
-  const now = Date.now();
-  for (const [contact, otp] of signupOtps.entries()) {
-    if (!otp || otp.expiresAt < now) {
-      signupOtps.delete(contact);
-    }
-  }
-}
-
 async function trySendSignupEmailOtp(email, code) {
   const subject = 'Your TradeNova verification code';
   const text = `Your verification code is ${code}. This code expires in 10 minutes.`;
@@ -437,58 +413,47 @@ function createToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-function createSession() {
+async function createSession() {
   const token = createToken();
-  sessions.set(token, Date.now() + SESSION_TTL_MS);
+  await repos.createAdminSession(token, Date.now() + SESSION_TTL_MS);
   return token;
 }
 
-function removeExpiredAdminSessions() {
-  const now = Date.now();
-  for (const [token, expiry] of sessions.entries()) {
-    if (expiry < now) {
-      sessions.delete(token);
-    }
-  }
-}
-
-function isSessionValid(token) {
-  if (!token || !sessions.has(token)) {
+async function isSessionValid(token) {
+  if (!token) {
     return false;
   }
 
-  const expiry = sessions.get(token);
-  if (expiry < Date.now()) {
-    sessions.delete(token);
+  const session = await repos.getAdminSession(token);
+  if (!session || !session.expiresAt) {
     return false;
   }
 
-  sessions.set(token, Date.now() + SESSION_TTL_MS);
+  if (new Date(session.expiresAt).getTime() < Date.now()) {
+    await repos.deleteAdminSession(token);
+    return false;
+  }
+
+  await repos.refreshAdminSession(token, Date.now() + SESSION_TTL_MS);
   return true;
 }
 
-function requiresAdminSession(req, res, next) {
-  removeExpiredAdminSessions();
-  const cookies = parseCookies(req);
-  const token = cookies[SESSION_COOKIE_NAME];
+async function requiresAdminSession(req, res, next) {
+  try {
+    const cookies = parseCookies(req);
+    const token = cookies[SESSION_COOKIE_NAME];
 
-  if (!isSessionValid(token)) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-
-  return next();
-}
-
-function removeExpiredP2PUsers() {
-  const now = Date.now();
-  for (const [token, user] of p2pUsers.entries()) {
-    if (user.expiresAt < now) {
-      p2pUsers.delete(token);
+    if (!(await isSessionValid(token))) {
+      return res.status(401).json({ message: 'Unauthorized' });
     }
+
+    return next();
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while validating admin session.' });
   }
 }
 
-function createP2PUserSession(email) {
+async function createP2PUserSession(email) {
   const token = createToken();
   const normalizedEmail = String(email || '').trim().toLowerCase();
   const baseName = normalizedEmail.split('@')[0] || 'trader';
@@ -501,39 +466,51 @@ function createP2PUserSession(email) {
     expiresAt: Date.now() + P2P_USER_TTL_MS
   };
 
-  p2pUsers.set(token, user);
+  await repos.createP2PUserSession(token, user, user.expiresAt);
   return { token, user };
 }
 
-function getP2PUserFromRequest(req) {
-  removeExpiredP2PUsers();
+async function getP2PUserFromRequest(req) {
   const cookies = parseCookies(req);
   const token = cookies[P2P_USER_COOKIE_NAME];
 
-  if (!token || !p2pUsers.has(token)) {
+  if (!token) {
     return null;
   }
 
-  const user = p2pUsers.get(token);
-  if (!user || user.expiresAt < Date.now()) {
-    p2pUsers.delete(token);
+  const session = await repos.getP2PUserSession(token);
+  if (!session || !session.expiresAt) {
     return null;
   }
 
-  user.expiresAt = Date.now() + P2P_USER_TTL_MS;
-  p2pUsers.set(token, user);
+  if (new Date(session.expiresAt).getTime() < Date.now()) {
+    await repos.deleteP2PUserSession(token);
+    return null;
+  }
 
-  return user;
+  const expiresAt = Date.now() + P2P_USER_TTL_MS;
+  await repos.refreshP2PUserSession(token, expiresAt);
+
+  return {
+    id: session.userId,
+    username: session.username,
+    email: session.email,
+    expiresAt
+  };
 }
 
-function requiresP2PUser(req, res, next) {
-  const user = getP2PUserFromRequest(req);
-  if (!user) {
-    return res.status(401).json({ message: 'Please login to continue.' });
-  }
+async function requiresP2PUser(req, res, next) {
+  try {
+    const user = await getP2PUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ message: 'Please login to continue.' });
+    }
 
-  req.p2pUser = user;
-  return next();
+    req.p2pUser = user;
+    return next();
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while validating user session.' });
+  }
 }
 
 function createOrderReference() {
@@ -542,24 +519,41 @@ function createOrderReference() {
 }
 
 function findOfferById(offerId) {
-  return p2pOffers.find((offer) => offer.id === offerId) || null;
+  return repos.getOfferById(offerId);
 }
 
 function createOfferId() {
-  return `ofr_${p2pOfferAutoId++}`;
+  return repos.nextCounterValue('p2p_offer_seq').then((sequence) => `ofr_${sequence}`);
 }
 
 function findOrderByReference(reference) {
-  for (const order of p2pOrders.values()) {
-    if (order.reference === reference) {
-      return order;
-    }
-  }
-  return null;
+  return repos.getP2POrderByReference(reference);
+}
+
+function resolveOfferOwner(offer) {
+  const ownerId = String(offer?.createdByUserId || '').trim() || makeSeedUserId(offer?.advertiser);
+  const ownerUsername = String(offer?.createdByUsername || offer?.advertiser || ownerId).trim();
+  return {
+    id: ownerId,
+    username: ownerUsername
+  };
+}
+
+function buildOrderParticipants({ sellerId, sellerUsername, buyerId, buyerUsername }) {
+  return [
+    { id: buyerId, username: buyerUsername, role: 'buyer' },
+    { id: sellerId, username: sellerUsername, role: 'seller' }
+  ];
 }
 
 function getParticipantsText(order) {
-  return order.participants.map((participant) => participant.username).join(', ');
+  if (Array.isArray(order.participants) && order.participants.length > 0) {
+    return order.participants.map((participant) => participant.username).join(', ');
+  }
+
+  const sellerName = String(order.sellerUsername || 'seller').trim();
+  const buyerName = String(order.buyerUsername || 'buyer').trim();
+  return `${buyerName}, ${sellerName}`;
 }
 
 function normalizeOrderState(order) {
@@ -567,13 +561,10 @@ function normalizeOrderState(order) {
     return null;
   }
 
-  if (order.status === 'OPEN' && Date.now() >= order.expiresAt) {
-    order.status = 'EXPIRED';
-    order.updatedAt = Date.now();
-  }
-
   const remainingSeconds =
-    order.status === 'OPEN' ? Math.max(0, Math.floor((order.expiresAt - Date.now()) / 1000)) : 0;
+    P2P_ORDER_ACTIVE_STATUSES.includes(order.status) && Number(order.expiresAt) > Date.now()
+      ? Math.max(0, Math.floor((Number(order.expiresAt) - Date.now()) / 1000))
+      : 0;
 
   return {
     id: order.id,
@@ -588,6 +579,11 @@ function normalizeOrderState(order) {
     paymentMethod: order.paymentMethod,
     participants: order.participants,
     participantsLabel: getParticipantsText(order),
+    sellerUserId: order.sellerUserId,
+    sellerUsername: order.sellerUsername,
+    buyerUserId: order.buyerUserId,
+    buyerUsername: order.buyerUsername,
+    escrowAmount: order.escrowAmount,
     createdAt: new Date(order.createdAt).toISOString(),
     expiresAt: new Date(order.expiresAt).toISOString(),
     updatedAt: new Date(order.updatedAt).toISOString(),
@@ -596,20 +592,15 @@ function normalizeOrderState(order) {
 }
 
 function isParticipant(order, userId) {
-  return order.participants.some((participant) => participant.id === userId);
-}
-
-function getNextParticipantRole(order) {
-  const hasBuyer = order.participants.some((participant) => participant.role === 'buyer');
-  const hasSeller = order.participants.some((participant) => participant.role === 'seller');
-
-  if (!hasBuyer) {
-    return 'buyer';
+  if (!order || !userId) {
+    return false;
   }
-  if (!hasSeller) {
-    return 'seller';
+
+  if (Array.isArray(order.participants) && order.participants.some((participant) => participant.id === userId)) {
+    return true;
   }
-  return 'viewer';
+
+  return [order.sellerUserId, order.buyerUserId].includes(userId);
 }
 
 function addSystemMessage(order, text) {
@@ -650,32 +641,67 @@ function broadcastOrderEvent(orderId, eventName, payload) {
   }
 }
 
-app.post('/api/admin/login', (req, res) => {
+function cloneOrder(order) {
+  return JSON.parse(JSON.stringify(order));
+}
+
+async function withOrderMutation(orderId, mutator, maxRetries = 4) {
+  for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+    const current = await repos.getP2POrderById(orderId);
+    if (!current) {
+      return { error: 'not_found' };
+    }
+
+    const next = cloneOrder(current);
+    const mutatorResult = mutator(next, current);
+    if (mutatorResult?.error) {
+      return mutatorResult;
+    }
+
+    const updated = await repos.replaceP2POrderIfVersionMatches(orderId, current.updatedAt, next);
+    if (updated) {
+      return { order: next, meta: mutatorResult?.meta || {} };
+    }
+  }
+
+  return { error: 'conflict' };
+}
+
+app.post('/api/admin/login', async (req, res) => {
   const username = String(req.body.username || '').trim().toLowerCase();
   const password = String(req.body.password || '').trim();
 
-  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-    const token = createSession();
-    setCookie(res, SESSION_COOKIE_NAME, token, SESSION_TTL_MS / 1000);
-    return res.json({ message: 'Login successful' });
-  }
+  try {
+    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      const token = await createSession();
+      setCookie(res, SESSION_COOKIE_NAME, token, SESSION_TTL_MS / 1000);
+      return res.json({ message: 'Login successful' });
+    }
 
-  clearCookie(res, SESSION_COOKIE_NAME);
-  return res.status(401).json({ message: 'Invalid username or password' });
+    clearCookie(res, SESSION_COOKIE_NAME);
+    return res.status(401).json({ message: 'Invalid username or password' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while logging in.' });
+  }
 });
 
-app.post('/api/admin/logout', (req, res) => {
+app.post('/api/admin/logout', async (req, res) => {
   const cookies = parseCookies(req);
   const token = cookies[SESSION_COOKIE_NAME];
-  if (token) {
-    sessions.delete(token);
-  }
 
-  clearCookie(res, SESSION_COOKIE_NAME);
-  return res.json({ message: 'Logged out' });
+  try {
+    if (token) {
+      await repos.deleteAdminSession(token);
+    }
+
+    clearCookie(res, SESSION_COOKIE_NAME);
+    return res.json({ message: 'Logged out' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while logging out.' });
+  }
 });
 
-app.post('/api/p2p/login', (req, res) => {
+app.post('/api/p2p/login', async (req, res) => {
   const email = String(req.body.email || '')
     .trim()
     .toLowerCase();
@@ -688,30 +714,35 @@ app.post('/api/p2p/login', (req, res) => {
     return res.status(400).json({ message: 'Password must be at least 6 characters.' });
   }
 
-  if (p2pCredentials.has(email) && p2pCredentials.get(email) !== password) {
-    return res.status(401).json({ message: 'Invalid email or password.' });
-  }
-
-  if (!p2pCredentials.has(email)) {
-    p2pCredentials.set(email, password);
-  }
-
-  const { token, user } = createP2PUserSession(email);
-  setCookie(res, P2P_USER_COOKIE_NAME, token, P2P_USER_TTL_MS / 1000);
-
-  return res.json({
-    message: 'P2P login successful.',
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email
+  try {
+    const existingCredential = await repos.getP2PCredential(email);
+    if (existingCredential && !repos.verifyPassword(password, existingCredential.passwordHash)) {
+      return res.status(401).json({ message: 'Invalid email or password.' });
     }
-  });
+
+    if (!existingCredential) {
+      const hash = repos.hashPassword(password);
+      await repos.setP2PCredential(email, hash);
+    }
+
+    const { token, user } = await createP2PUserSession(email);
+    await walletService.ensureWallet(user.id, { username: user.username });
+    setCookie(res, P2P_USER_COOKIE_NAME, token, P2P_USER_TTL_MS / 1000);
+
+    return res.json({
+      message: 'P2P login successful.',
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while logging into P2P.' });
+  }
 });
 
 app.post('/api/signup/send-code', async (req, res) => {
-  removeExpiredSignupOtps();
-
   const contactInfo = normalizeSignupContact(req.body.contact);
   if (!contactInfo) {
     return res.status(400).json({ message: 'Enter a valid email or 10-digit mobile number.' });
@@ -725,7 +756,7 @@ app.post('/api/signup/send-code', async (req, res) => {
     attempts: 0
   };
 
-  signupOtps.set(contactInfo.value, otpState);
+  await repos.upsertSignupOtp(contactInfo.value, otpState);
 
   let delivery = 'simulated';
   let deliveryMessage = 'Verification code generated.';
@@ -737,7 +768,7 @@ app.post('/api/signup/send-code', async (req, res) => {
       deliveryMessage = 'Verification code sent to your email.';
     } else {
       if (!ALLOW_DEMO_OTP) {
-        signupOtps.delete(contactInfo.value);
+        await repos.deleteSignupOtp(contactInfo.value);
         return res.status(503).json({
           message:
             'Email OTP service is not configured. Set RESEND or SMTP env vars, then redeploy.',
@@ -749,7 +780,7 @@ app.post('/api/signup/send-code', async (req, res) => {
     }
   } else {
     if (!ALLOW_DEMO_OTP) {
-      signupOtps.delete(contactInfo.value);
+      await repos.deleteSignupOtp(contactInfo.value);
       return res.status(503).json({
         message: 'SMS OTP service is not configured.',
         reason: 'missing_sms_provider_config'
@@ -772,9 +803,7 @@ app.post('/api/signup/send-code', async (req, res) => {
   return res.json(payload);
 });
 
-app.post('/api/signup/verify-code', (req, res) => {
-  removeExpiredSignupOtps();
-
+app.post('/api/signup/verify-code', async (req, res) => {
   const contactInfo = normalizeSignupContact(req.body.contact);
   const code = String(req.body.code || '').trim();
   const name = String(req.body.name || 'Website Lead').trim() || 'Website Lead';
@@ -789,30 +818,34 @@ app.post('/api/signup/verify-code', (req, res) => {
     return res.status(400).json({ message: 'Name must be at least 2 characters.' });
   }
 
-  const otpState = signupOtps.get(contactInfo.value);
+  const otpState = await repos.getSignupOtp(contactInfo.value);
   if (!otpState) {
     return res.status(400).json({ message: 'Verification code expired. Please request a new code.' });
   }
 
-  if (otpState.expiresAt < Date.now()) {
-    signupOtps.delete(contactInfo.value);
+  if (new Date(otpState.expiresAt).getTime() < Date.now()) {
+    await repos.deleteSignupOtp(contactInfo.value);
     return res.status(400).json({ message: 'Verification code expired. Please request a new code.' });
   }
 
   if (otpState.code !== code) {
-    otpState.attempts += 1;
-    if (otpState.attempts >= 5) {
-      signupOtps.delete(contactInfo.value);
+    const attempts = Number(otpState.attempts || 0) + 1;
+    if (attempts >= 5) {
+      await repos.deleteSignupOtp(contactInfo.value);
       return res.status(400).json({ message: 'Too many failed attempts. Request a new code.' });
     }
-    signupOtps.set(contactInfo.value, otpState);
+    await repos.upsertSignupOtp(contactInfo.value, {
+      ...otpState,
+      attempts,
+      expiresAt: new Date(otpState.expiresAt).getTime()
+    });
     return res.status(400).json({ message: 'Invalid verification code.' });
   }
 
-  signupOtps.delete(contactInfo.value);
+  await repos.deleteSignupOtp(contactInfo.value);
 
   try {
-    saveLeadRecord(name, contactInfo.value, {
+    await saveLeadRecord(name, contactInfo.value, {
       verified: true,
       verificationMethod: contactInfo.type,
       source: 'signup_otp'
@@ -823,19 +856,24 @@ app.post('/api/signup/verify-code', (req, res) => {
   }
 });
 
-app.post('/api/p2p/logout', (req, res) => {
+app.post('/api/p2p/logout', async (req, res) => {
   const cookies = parseCookies(req);
   const token = cookies[P2P_USER_COOKIE_NAME];
-  if (token) {
-    p2pUsers.delete(token);
-  }
 
-  clearCookie(res, P2P_USER_COOKIE_NAME);
-  return res.json({ message: 'Logged out from P2P.' });
+  try {
+    if (token) {
+      await repos.deleteP2PUserSession(token);
+    }
+
+    clearCookie(res, P2P_USER_COOKIE_NAME);
+    return res.json({ message: 'Logged out from P2P.' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while logging out from P2P.' });
+  }
 });
 
-app.get('/api/p2p/me', (req, res) => {
-  const user = getP2PUserFromRequest(req);
+app.get('/api/p2p/me', async (req, res) => {
+  const user = await getP2PUserFromRequest(req);
 
   if (!user) {
     return res.json({ loggedIn: false, user: null });
@@ -849,6 +887,19 @@ app.get('/api/p2p/me', (req, res) => {
       email: user.email
     }
   });
+});
+
+app.get('/api/p2p/wallet', requiresP2PUser, async (req, res) => {
+  try {
+    const ensured = await walletService.ensureWallet(req.p2pUser.id, {
+      username: req.p2pUser.username
+    });
+    return res.json({
+      wallet: ensured
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while loading wallet.' });
+  }
 });
 
 app.get('/api/p2p/exchange-ticker', async (req, res) => {
@@ -965,20 +1016,34 @@ app.get('/api/p2p/klines', async (req, res) => {
       `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`
     );
     const raw = await response.json();
-
     if (!response.ok || !Array.isArray(raw)) {
       throw new Error('Binance kline API unavailable');
     }
 
-    const klines = raw.map((row) => ({
-      openTime: Number(row[0]),
-      open: Number(row[1]),
-      high: Number(row[2]),
-      low: Number(row[3]),
-      close: Number(row[4]),
-      volume: Number(row[5]),
-      closeTime: Number(row[6])
-    }));
+    const klines = raw
+      .map((entry) => ({
+        openTime: Number(entry[0]),
+        closeTime: Number(entry[6]),
+        open: Number(entry[1]),
+        high: Number(entry[2]),
+        low: Number(entry[3]),
+        close: Number(entry[4]),
+        volume: Number(entry[5])
+      }))
+      .filter(
+        (item) =>
+          Number.isFinite(item.openTime) &&
+          Number.isFinite(item.closeTime) &&
+          Number.isFinite(item.open) &&
+          Number.isFinite(item.high) &&
+          Number.isFinite(item.low) &&
+          Number.isFinite(item.close) &&
+          Number.isFinite(item.volume)
+      );
+
+    if (!klines.length) {
+      throw new Error('No klines returned');
+    }
 
     return res.json({
       source: 'binance',
@@ -1043,28 +1108,33 @@ app.post('/api/trade/orders', async (req, res) => {
     estimatedQty,
     status: 'FILLED',
     source: priceSource,
-    createdAt: new Date(now).toISOString()
+    createdAt: now
   };
 
-  tradeOrders.unshift(order);
-  if (tradeOrders.length > 100) {
-    tradeOrders.length = 100;
+  try {
+    const savedOrder = await repos.createTradeOrder(order);
+    return res.status(201).json({
+      message: `${side.toUpperCase()} order executed successfully.`,
+      order: savedOrder
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while saving trade order.' });
   }
-
-  return res.status(201).json({
-    message: `${side.toUpperCase()} order executed successfully.`,
-    order
-  });
 });
 
-app.get('/api/trade/orders', (req, res) => {
-  return res.json({
-    total: tradeOrders.length,
-    orders: tradeOrders.slice(0, 30)
-  });
+app.get('/api/trade/orders', async (req, res) => {
+  try {
+    const [orders, total] = await Promise.all([repos.listTradeOrders(30), repos.countTradeOrders()]);
+    return res.json({
+      total,
+      orders
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while fetching trade orders.' });
+  }
 });
 
-app.post('/api/leads', (req, res) => {
+app.post('/api/leads', async (req, res) => {
   const { name, mobile } = req.body;
 
   if (!name || !mobile) {
@@ -1086,7 +1156,7 @@ app.post('/api/leads', (req, res) => {
   }
 
   try {
-    saveLeadRecord(cleanedName, isPhone ? cleanedMobile : rawContact.toLowerCase(), {
+    await saveLeadRecord(cleanedName, isPhone ? cleanedMobile : rawContact.toLowerCase(), {
       verified: false,
       source: 'direct_form'
     });
@@ -1096,17 +1166,16 @@ app.post('/api/leads', (req, res) => {
   }
 });
 
-app.get('/api/leads', requiresAdminSession, (req, res) => {
+app.get('/api/leads', requiresAdminSession, async (req, res) => {
   try {
-    const leads = readLeads();
-    const sortedLeads = [...leads].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    return res.json(sortedLeads);
+    const leads = await readLeads();
+    return res.json(leads);
   } catch (error) {
     return res.status(500).json({ message: 'Server error while fetching leads.' });
   }
 });
 
-app.get('/api/p2p/offers', (req, res) => {
+app.get('/api/p2p/offers', async (req, res) => {
   const side = String(req.query.side || 'buy').toLowerCase();
   const asset = String(req.query.asset || 'USDT').toUpperCase();
   const payment = String(req.query.payment || '').trim().toLowerCase();
@@ -1115,44 +1184,47 @@ app.get('/api/p2p/offers', (req, res) => {
 
   const normalizedSide = side === 'sell' ? 'sell' : 'buy';
 
-  const filtered = p2pOffers
-    .filter((offer) => offer.side === normalizedSide)
-    .filter((offer) => offer.asset === asset)
-    .filter((offer) => {
-      if (!payment) {
-        return true;
-      }
-      return offer.payments.some((method) => method.toLowerCase().includes(payment));
-    })
-    .filter((offer) => {
-      if (!advertiser) {
-        return true;
-      }
-      return offer.advertiser.toLowerCase().includes(advertiser);
-    })
-    .filter((offer) => {
-      if (!amount || Number.isNaN(amount)) {
-        return true;
-      }
-      return amount >= offer.minLimit && amount <= offer.maxLimit;
-    })
-    .sort((a, b) => {
-      if (normalizedSide === 'buy') {
-        return a.price - b.price;
-      }
-      return b.price - a.price;
-    });
+  try {
+    const allOffers = await repos.listOffers({ side: normalizedSide, asset });
+    const filtered = allOffers
+      .filter((offer) => {
+        if (!payment) {
+          return true;
+        }
+        return offer.payments.some((method) => method.toLowerCase().includes(payment));
+      })
+      .filter((offer) => {
+        if (!advertiser) {
+          return true;
+        }
+        return offer.advertiser.toLowerCase().includes(advertiser);
+      })
+      .filter((offer) => {
+        if (!amount || Number.isNaN(amount)) {
+          return true;
+        }
+        return amount >= offer.minLimit && amount <= offer.maxLimit;
+      })
+      .sort((a, b) => {
+        if (normalizedSide === 'buy') {
+          return a.price - b.price;
+        }
+        return b.price - a.price;
+      });
 
-  return res.json({
-    side: normalizedSide,
-    asset,
-    total: filtered.length,
-    updatedAt: new Date().toISOString(),
-    offers: filtered
-  });
+    return res.json({
+      side: normalizedSide,
+      asset,
+      total: filtered.length,
+      updatedAt: new Date().toISOString(),
+      offers: filtered
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while fetching offers.' });
+  }
 });
 
-app.post('/api/p2p/offers', requiresP2PUser, (req, res) => {
+app.post('/api/p2p/offers', requiresP2PUser, async (req, res) => {
   const asset = String(req.body.asset || '').trim().toUpperCase();
   const adType = String(req.body.adType || 'sell').trim().toLowerCase();
   const price = Number(req.body.price || 0);
@@ -1194,36 +1266,41 @@ app.post('/api/p2p/offers', requiresP2PUser, (req, res) => {
   const normalizedPrice = Number(price.toFixed(asset === 'USDT' ? 2 : 0));
   const normalizedAvailable = Number(available.toFixed(asset === 'USDT' ? 2 : 6));
 
-  const newOffer = {
-    id: createOfferId(),
-    side: takerActionSide,
-    asset,
-    advertiser: req.p2pUser.username,
-    price: normalizedPrice,
-    available: normalizedAvailable,
-    minLimit: Math.floor(minLimit),
-    maxLimit: Math.floor(maxLimit),
-    completionRate: 100,
-    orders: 0,
-    payments,
-    createdByUserId: req.p2pUser.id,
-    createdByUsername: req.p2pUser.username,
-    adType
-  };
+  try {
+    const newOffer = {
+      id: await createOfferId(),
+      side: takerActionSide,
+      asset,
+      advertiser: req.p2pUser.username,
+      price: normalizedPrice,
+      available: normalizedAvailable,
+      minLimit: Math.floor(minLimit),
+      maxLimit: Math.floor(maxLimit),
+      completionRate: 100,
+      orders: 0,
+      payments,
+      createdByUserId: req.p2pUser.id,
+      createdByUsername: req.p2pUser.username,
+      adType
+    };
 
-  p2pOffers = [newOffer, ...p2pOffers];
+    const savedOffer = await repos.createOffer(newOffer);
 
-  return res.status(201).json({
-    message: 'Ad created successfully.',
-    offer: newOffer
-  });
+    return res.status(201).json({
+      message: 'Ad created successfully.',
+      offer: savedOffer
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while creating ad.' });
+  }
 });
 
-app.post('/api/p2p/orders', requiresP2PUser, (req, res) => {
+app.post('/api/p2p/orders', requiresP2PUser, async (req, res) => {
   const offerId = String(req.body.offerId || '').trim();
   const amountInr = Number(req.body.amountInr || 0);
   const selectedPaymentMethod = String(req.body.paymentMethod || '').trim();
-  const offer = findOfferById(offerId);
+
+  const offer = await findOfferById(offerId);
 
   if (!offer) {
     return res.status(404).json({ message: 'Offer not found.' });
@@ -1250,23 +1327,20 @@ app.post('/api/p2p/orders', requiresP2PUser, (req, res) => {
 
   const assetAmount = finalAmount / offer.price;
   const now = Date.now();
-  const creatorRole = offer.side === 'buy' ? 'buyer' : 'seller';
-  const counterpartyRole = creatorRole === 'buyer' ? 'seller' : 'buyer';
-  const participants = [
-    {
-      id: req.p2pUser.id,
-      username: req.p2pUser.username,
-      role: creatorRole
-    }
-  ];
+  const owner = resolveOfferOwner(offer);
+  const buyer = offer.side === 'buy' ? req.p2pUser : { id: owner.id, username: owner.username };
+  const seller = offer.side === 'buy' ? { id: owner.id, username: owner.username } : req.p2pUser;
 
-  if (offer.createdByUserId && offer.createdByUsername) {
-    participants.push({
-      id: offer.createdByUserId,
-      username: offer.createdByUsername,
-      role: counterpartyRole
-    });
+  if (buyer.id === seller.id) {
+    return res.status(400).json({ message: 'Buyer and seller cannot be same account.' });
   }
+
+  const participants = buildOrderParticipants({
+    sellerId: seller.id,
+    sellerUsername: seller.username,
+    buyerId: buyer.id,
+    buyerUsername: buyer.username
+  });
 
   const order = {
     id: `ord_${now}_${Math.floor(Math.random() * 10000)}`,
@@ -1279,279 +1353,287 @@ app.post('/api/p2p/orders', requiresP2PUser, (req, res) => {
     price: offer.price,
     amountInr: Number(finalAmount.toFixed(2)),
     assetAmount: Number(assetAmount.toFixed(6)),
+    escrowAmount: Number(assetAmount.toFixed(6)),
+    sellerUserId: seller.id,
+    sellerUsername: seller.username,
+    buyerUserId: buyer.id,
+    buyerUsername: buyer.username,
     createdAt: now,
     expiresAt: now + P2P_ORDER_TTL_MS,
     updatedAt: now,
-    status: 'OPEN',
+    status: 'PENDING',
     participants,
     messages: [
       {
         id: `msg_${now}_welcome`,
         sender: 'System',
-        text: 'Order created. Complete payment before timer ends.',
+        text: 'Order created. Escrow locked from seller wallet. Complete payment before timer ends.',
         createdAt: now
       }
     ]
   };
 
-  if (offer.createdByUserId && offer.createdByUsername) {
-    addSystemMessage(order, `${offer.createdByUsername} is auto-added as counterparty from ad owner.`);
+  try {
+    const savedOrder = await walletService.createEscrowOrder(order);
+    return res.status(201).json({
+      message: 'Order created successfully.',
+      order: normalizeOrderState(savedOrder)
+    });
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    if (error.code === 'SELLER_ALREADY_HAS_ACTIVE_ORDER') {
+      return res.status(409).json({ message: error.message });
+    }
+    if (error.code === 'INSUFFICIENT_BALANCE') {
+      return res.status(400).json({ message: error.message });
+    }
+    return res.status(500).json({ message: 'Server error while creating order.' });
   }
-
-  p2pOrders.set(order.id, order);
-
-  return res.status(201).json({
-    message: 'Order created successfully.',
-    order: normalizeOrderState(order)
-  });
 });
 
-app.get('/api/p2p/orders/live', requiresP2PUser, (req, res) => {
+app.get('/api/p2p/orders/live', requiresP2PUser, async (req, res) => {
   const side = String(req.query.side || '').trim().toLowerCase();
   const asset = String(req.query.asset || '').trim().toUpperCase();
 
-  const liveOrders = Array.from(p2pOrders.values())
-    .map((order) => normalizeOrderState(order))
-    .filter((order) => ['OPEN', 'PAID'].includes(order.status))
-    .filter((order) => (side ? order.side === side : true))
-    .filter((order) => (asset ? order.asset === asset : true))
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .slice(0, 20)
-    .map((order) => ({
-      id: order.id,
-      reference: order.reference,
-      side: order.side,
-      asset: order.asset,
-      status: order.status,
-      advertiser: order.advertiser,
-      amountInr: order.amountInr,
-      price: order.price,
-      participantsLabel: order.participantsLabel,
-      isParticipant: order.participants.some((participant) => participant.id === req.p2pUser.id),
-      updatedAt: order.updatedAt,
-      remainingSeconds: order.remainingSeconds
-    }));
+  try {
+    await walletService.expireOrders();
+    const liveOrders = (await repos.listP2PLiveOrders({ side: side || undefined, asset: asset || undefined, limit: 20 }))
+      .map((order) => normalizeOrderState(order))
+      .map((order) => ({
+        id: order.id,
+        reference: order.reference,
+        side: order.side,
+        asset: order.asset,
+        status: order.status,
+        advertiser: order.advertiser,
+        amountInr: order.amountInr,
+        price: order.price,
+        participantsLabel: order.participantsLabel,
+        isParticipant: order.participants.some((participant) => participant.id === req.p2pUser.id),
+        updatedAt: order.updatedAt,
+        remainingSeconds: order.remainingSeconds
+      }));
 
-  return res.json({
-    total: liveOrders.length,
-    orders: liveOrders
-  });
+    return res.json({
+      total: liveOrders.length,
+      orders: liveOrders
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while fetching live orders.' });
+  }
 });
 
-app.get('/api/p2p/orders/by-reference/:reference', requiresP2PUser, (req, res) => {
+app.get('/api/p2p/orders/by-reference/:reference', requiresP2PUser, async (req, res) => {
   const reference = String(req.params.reference || '').trim();
-  const order = findOrderByReference(reference);
 
-  if (!order) {
-    return res.status(404).json({ message: 'Order not found for this reference.' });
-  }
+  try {
+    await walletService.expireOrders();
+    const orderByReference = await findOrderByReference(reference);
 
-  normalizeOrderState(order);
-
-  if (!isParticipant(order, req.p2pUser.id)) {
-    if (order.participants.length >= 2) {
-      return res.status(400).json({ message: 'Order already has both buyer and seller.' });
+    if (!orderByReference) {
+      return res.status(404).json({ message: 'Order not found for this reference.' });
     }
 
-    order.participants.push({
-      id: req.p2pUser.id,
-      username: req.p2pUser.username,
-      role: getNextParticipantRole(order)
-    });
-    order.updatedAt = Date.now();
-    addSystemMessage(order, `${req.p2pUser.username} joined this order.`);
-
-    broadcastOrderEvent(order.id, 'order_update', {
-      order: normalizeOrderState(order)
-    });
-    broadcastOrderEvent(order.id, 'message_update', {
-      messages: toClientMessages(order.messages)
-    });
-  }
-
-  return res.json({
-    order: normalizeOrderState(order)
-  });
-});
-
-app.post('/api/p2p/orders/:orderId/join', requiresP2PUser, (req, res) => {
-  const order = p2pOrders.get(req.params.orderId);
-
-  if (!order) {
-    return res.status(404).json({ message: 'Order not found.' });
-  }
-
-  normalizeOrderState(order);
-
-  if (!isParticipant(order, req.p2pUser.id)) {
-    if (order.participants.length >= 2) {
-      return res.status(400).json({ message: 'Order already has both buyer and seller.' });
+    if (!isParticipant(orderByReference, req.p2pUser.id)) {
+      return res.status(403).json({ message: 'Only buyer and seller can access this order.' });
     }
 
-    order.participants.push({
-      id: req.p2pUser.id,
-      username: req.p2pUser.username,
-      role: getNextParticipantRole(order)
+    return res.json({
+      order: normalizeOrderState(orderByReference)
     });
-    order.updatedAt = Date.now();
-    addSystemMessage(order, `${req.p2pUser.username} joined this order.`);
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while fetching order by reference.' });
+  }
+});
 
-    broadcastOrderEvent(order.id, 'order_update', {
+app.post('/api/p2p/orders/:orderId/join', requiresP2PUser, async (req, res) => {
+  try {
+    await walletService.expireOrders();
+    const order = await repos.getP2POrderById(req.params.orderId);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+    if (!isParticipant(order, req.p2pUser.id)) {
+      return res.status(403).json({ message: 'Only buyer and seller can access this order.' });
+    }
+
+    return res.json({
+      message: 'Order opened.',
       order: normalizeOrderState(order)
     });
-    broadcastOrderEvent(order.id, 'message_update', {
-      messages: toClientMessages(order.messages)
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while opening order.' });
+  }
+});
+
+app.get('/api/p2p/orders/:orderId', requiresP2PUser, async (req, res) => {
+  try {
+    await walletService.expireOrders();
+    const order = await repos.getP2POrderById(req.params.orderId);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+
+    if (!isParticipant(order, req.p2pUser.id)) {
+      return res.status(403).json({ message: 'Only buyer and seller can access this order.' });
+    }
+
+    return res.json({
+      order: normalizeOrderState(order)
     });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while fetching order.' });
   }
-
-  return res.json({
-    message: 'Order joined.',
-    order: normalizeOrderState(order)
-  });
 });
 
-app.get('/api/p2p/orders/:orderId', requiresP2PUser, (req, res) => {
-  const order = p2pOrders.get(req.params.orderId);
-
-  if (!order) {
-    return res.status(404).json({ message: 'Order not found.' });
-  }
-
-  normalizeOrderState(order);
-
-  if (!isParticipant(order, req.p2pUser.id)) {
-    return res.status(403).json({ message: 'Join this order first to view details.' });
-  }
-
-  return res.json({
-    order: normalizeOrderState(order)
-  });
-});
-
-app.post('/api/p2p/orders/:orderId/status', requiresP2PUser, (req, res) => {
-  const order = p2pOrders.get(req.params.orderId);
+app.post('/api/p2p/orders/:orderId/status', requiresP2PUser, async (req, res) => {
   const action = String(req.body.action || '').trim().toLowerCase();
 
-  if (!order) {
-    return res.status(404).json({ message: 'Order not found.' });
+  try {
+    await walletService.expireOrders();
+
+    let updatedOrder = null;
+    if (action === 'cancel') {
+      updatedOrder = await walletService.cancelOrder(req.params.orderId, req.p2pUser, 'CANCELLED');
+    } else if (action === 'mark_paid') {
+      updatedOrder = await walletService.markOrderPaid(req.params.orderId, req.p2pUser);
+    } else if (action === 'release') {
+      updatedOrder = await walletService.releaseOrder(req.params.orderId, req.p2pUser);
+    } else if (action === 'dispute') {
+      updatedOrder = await walletService.setOrderDisputed(req.params.orderId, req.p2pUser);
+    } else {
+      return res.status(400).json({ message: 'Invalid action.' });
+    }
+
+    const normalizedOrder = normalizeOrderState(updatedOrder);
+    const normalizedMessages = toClientMessages(updatedOrder.messages || []);
+
+    broadcastOrderEvent(updatedOrder.id, 'order_update', { order: normalizedOrder });
+    broadcastOrderEvent(updatedOrder.id, 'message_update', { messages: normalizedMessages });
+
+    return res.json({
+      message: 'Order updated.',
+      order: normalizedOrder
+    });
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    return res.status(500).json({ message: 'Server error while updating order status.' });
   }
-
-  if (!isParticipant(order, req.p2pUser.id)) {
-    return res.status(403).json({ message: 'Join this order first.' });
-  }
-
-  normalizeOrderState(order);
-
-  if (action === 'cancel' && order.status === 'OPEN') {
-    order.status = 'CANCELLED';
-  } else if (action === 'mark_paid' && order.status === 'OPEN') {
-    order.status = 'PAID';
-  } else if (action === 'release' && order.status === 'PAID') {
-    order.status = 'RELEASED';
-  } else {
-    return res.status(400).json({ message: 'Invalid action for current order status.' });
-  }
-
-  order.updatedAt = Date.now();
-  addSystemMessage(order, `${req.p2pUser.username} changed order status to ${order.status}.`);
-
-  const normalizedOrder = normalizeOrderState(order);
-  const normalizedMessages = toClientMessages(order.messages);
-
-  broadcastOrderEvent(order.id, 'order_update', { order: normalizedOrder });
-  broadcastOrderEvent(order.id, 'message_update', { messages: normalizedMessages });
-
-  return res.json({
-    message: 'Order updated.',
-    order: normalizedOrder
-  });
 });
 
-app.get('/api/p2p/orders/:orderId/messages', requiresP2PUser, (req, res) => {
-  const order = p2pOrders.get(req.params.orderId);
+app.get('/api/p2p/orders/:orderId/messages', requiresP2PUser, async (req, res) => {
+  try {
+    await walletService.expireOrders();
+    const order = await repos.getP2POrderById(req.params.orderId);
 
-  if (!order) {
-    return res.status(404).json({ message: 'Order not found.' });
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+
+    if (!isParticipant(order, req.p2pUser.id)) {
+      return res.status(403).json({ message: 'Only buyer and seller can access this order.' });
+    }
+
+    return res.json({
+      messages: toClientMessages(order.messages)
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while fetching messages.' });
   }
-
-  normalizeOrderState(order);
-
-  if (!isParticipant(order, req.p2pUser.id)) {
-    return res.status(403).json({ message: 'Join this order first.' });
-  }
-
-  return res.json({
-    messages: toClientMessages(order.messages)
-  });
 });
 
-app.post('/api/p2p/orders/:orderId/messages', requiresP2PUser, (req, res) => {
-  const order = p2pOrders.get(req.params.orderId);
+app.post('/api/p2p/orders/:orderId/messages', requiresP2PUser, async (req, res) => {
   const text = String(req.body.text || '').trim();
-
-  if (!order) {
-    return res.status(404).json({ message: 'Order not found.' });
-  }
-
-  if (!isParticipant(order, req.p2pUser.id)) {
-    return res.status(403).json({ message: 'Join this order first.' });
-  }
-
-  normalizeOrderState(order);
-
-  if (['RELEASED', 'CANCELLED', 'EXPIRED'].includes(order.status)) {
-    return res.status(400).json({ message: 'Order chat is closed for this status.' });
-  }
 
   if (!text) {
     return res.status(400).json({ message: 'Message text is required.' });
   }
 
-  const now = Date.now();
-  order.messages.push({
-    id: `msg_${now}_${Math.floor(Math.random() * 1000)}`,
-    sender: req.p2pUser.username,
-    text,
-    createdAt: now
-  });
-  order.updatedAt = now;
+  try {
+    await walletService.expireOrders();
+    const mutation = await withOrderMutation(req.params.orderId, (next) => {
+      if (!isParticipant(next, req.p2pUser.id)) {
+        return { error: 'not_participant' };
+      }
 
-  const normalizedMessages = toClientMessages(order.messages);
-  broadcastOrderEvent(order.id, 'message_update', { messages: normalizedMessages });
+      if (['RELEASED', 'CANCELLED', 'EXPIRED'].includes(next.status)) {
+        return { error: 'chat_closed' };
+      }
 
-  return res.status(201).json({
-    message: 'Message sent.',
-    messages: normalizedMessages
-  });
+      const now = Date.now();
+      next.messages.push({
+        id: `msg_${now}_${Math.floor(Math.random() * 1000)}`,
+        sender: req.p2pUser.username,
+        text,
+        createdAt: now
+      });
+      next.updatedAt = now;
+      return {};
+    });
+
+    if (mutation.error === 'not_found') {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+    if (mutation.error === 'not_participant') {
+      return res.status(403).json({ message: 'Only buyer and seller can access this order.' });
+    }
+    if (mutation.error === 'chat_closed') {
+      return res.status(400).json({ message: 'Order chat is closed for this status.' });
+    }
+    if (mutation.error === 'conflict') {
+      return res.status(409).json({ message: 'Order was updated by another user. Try again.' });
+    }
+
+    const normalizedMessages = toClientMessages(mutation.order.messages);
+    broadcastOrderEvent(mutation.order.id, 'message_update', { messages: normalizedMessages });
+
+    return res.status(201).json({
+      message: 'Message sent.',
+      messages: normalizedMessages
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while sending message.' });
+  }
 });
 
-app.get('/api/p2p/orders/:orderId/stream', requiresP2PUser, (req, res) => {
-  const order = p2pOrders.get(req.params.orderId);
+app.get('/api/p2p/orders/:orderId/stream', requiresP2PUser, async (req, res) => {
+  try {
+    await walletService.expireOrders();
+    const order = await repos.getP2POrderById(req.params.orderId);
 
-  if (!order) {
-    return res.status(404).json({ message: 'Order not found.' });
-  }
-
-  if (!isParticipant(order, req.p2pUser.id)) {
-    return res.status(403).json({ message: 'Join this order first.' });
-  }
-
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
-  const streams = getOrderStreams(order.id);
-  streams.add(res);
-
-  res.write(`event: connected\ndata: ${JSON.stringify({ message: 'stream-connected' })}\n\n`);
-
-  req.on('close', () => {
-    streams.delete(res);
-    if (streams.size === 0) {
-      p2pOrderStreams.delete(order.id);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
     }
-  });
+
+    if (!isParticipant(order, req.p2pUser.id)) {
+      return res.status(403).json({ message: 'Only buyer and seller can access this order.' });
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const streams = getOrderStreams(order.id);
+    streams.add(res);
+
+    res.write(`event: connected\ndata: ${JSON.stringify({ message: 'stream-connected' })}\n\n`);
+
+    req.on('close', () => {
+      streams.delete(res);
+      if (streams.size === 0) {
+        p2pOrderStreams.delete(order.id);
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while opening stream.' });
+  }
 });
 
 app.get('/admin-login', (req, res) => {
@@ -1581,13 +1663,64 @@ app.get('/trade/:market/:symbol', (req, res) => {
 });
 
 app.get('/healthz', (req, res) => {
-  return res.status(200).json({ status: 'ok' });
+  if (!persistenceReady || !isDbConnected()) {
+    return res.status(503).json({ status: 'error', db: 'disconnected' });
+  }
+  return res.status(200).json({ status: 'ok', db: 'connected' });
 });
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+async function boot() {
+  try {
+    await connectToMongo();
+    const collections = getCollections();
+    repos = createRepositories(collections);
+    walletService = createWalletService(collections, getMongoClient());
+
+    const mongoConfig = getMongoConfig();
+    await repos.ensureIndexes();
+    console.log('MongoDB indexes ensured');
+
+    const migration = await repos.migrateLegacyLeadsJsonOnce(dataFile);
+    if (migration.migrated) {
+      console.log(`Legacy leads migration completed. Imported ${migration.imported || 0} rows.`);
+    } else {
+      console.log(`Legacy leads migration skipped (${migration.reason || 'n/a'}).`);
+    }
+
+    const seedInfo = await repos.ensureSeedOffers(seedP2POffers);
+    if (seedInfo.seeded) {
+      console.log(`P2P offers seeded: ${seedInfo.count}`);
+    } else {
+      console.log(`P2P offers already present: ${seedInfo.count}`);
+    }
+
+    const walletSeedInfo = await walletService.ensureSeedWallets(seedP2POffers);
+    console.log(`Wallets ensured for seed advertisers: ${walletSeedInfo.ensured}`);
+
+    setInterval(async () => {
+      try {
+        const result = await walletService.expireOrders();
+        if (result.expired > 0) {
+          console.log(`Auto-expired P2P orders: ${result.expired}`);
+        }
+      } catch (error) {
+        console.error('Failed to run P2P expiry sweep:', error.message);
+      }
+    }, P2P_EXPIRY_SWEEP_INTERVAL_MS);
+
+    persistenceReady = true;
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`MongoDB connected to ${mongoConfig.dbName}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error.message);
+    process.exit(1);
+  }
+}
+
+boot();
