@@ -2239,8 +2239,8 @@ body.p2p-cancel-open {
   width: fit-content;
   max-width: min(88%, 520px);
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #1a1f2b;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: #1a1f2b !important;
   padding: 0.58rem 0.68rem;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
   transition: transform 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
@@ -2254,15 +2254,15 @@ body.p2p-cancel-open {
 .order-chat-column .chat-item.chat-self {
   margin-left: auto;
   margin-right: 0;
-  border-color: rgba(247, 167, 35, 0.74);
-  background: linear-gradient(145deg, #3a2b0d 0%, #2b220e 100%);
+  border-color: rgba(247, 167, 35, 0.82) !important;
+  background: linear-gradient(145deg, #4a3410 0%, #33260f 100%) !important;
 }
 
 .order-chat-column .chat-item.chat-other {
   margin-right: auto;
   margin-left: 0;
-  border-color: rgba(255, 255, 255, 0.16);
-  background: linear-gradient(145deg, #1a1f2b 0%, #141a24 100%);
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  background: linear-gradient(145deg, #1c2331 0%, #161c27 100%) !important;
 }
 
 .order-chat-column .chat-item.chat-buyer.chat-other,
@@ -2281,8 +2281,8 @@ body.p2p-cancel-open {
   margin: 0 auto;
   width: min(95%, 560px);
   max-width: 100%;
-  border-color: rgba(130, 170, 255, 0.4);
-  background: linear-gradient(145deg, #1d2536 0%, #151b28 100%);
+  border-color: rgba(130, 170, 255, 0.45) !important;
+  background: linear-gradient(145deg, #1d2536 0%, #151b28 100%) !important;
   box-shadow: 0 8px 18px rgba(18, 32, 58, 0.35);
 }
 
@@ -2299,7 +2299,7 @@ body.p2p-cancel-open {
 .order-chat-column .chat-text,
 .order-chat-column .chat-time {
   margin: 0;
-  color: #ffffff;
+  color: #ffffff !important;
 }
 
 .order-chat-column .chat-sender {
@@ -2322,6 +2322,7 @@ body.p2p-cancel-open {
   overflow-wrap: anywhere;
   word-break: break-word;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
+  opacity: 1 !important;
 }
 
 .order-chat-column .chat-time {
@@ -2455,13 +2456,13 @@ body.p2p-theme-light .order-chat-column .chat-messages {
 }
 
 body.p2p-theme-light .order-chat-column .chat-item.chat-other {
-  background: linear-gradient(145deg, #1a1f2b 0%, #141a24 100%);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: linear-gradient(145deg, #1c2331 0%, #161c27 100%) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
 body.p2p-theme-light .order-chat-column .chat-item.chat-self {
-  background: linear-gradient(145deg, #4a3410 0%, #33260f 100%);
-  border-color: rgba(247, 167, 35, 0.82);
+  background: linear-gradient(145deg, #4a3410 0%, #33260f 100%) !important;
+  border-color: rgba(247, 167, 35, 0.82) !important;
 }
 
 @keyframes chat-upload-spin {
