@@ -388,28 +388,37 @@ function scrollChatToBottom(smooth = false) {
   });
 }
 
-function getMessageCssClass(message) {
+function getMessageCssClasses(message) {
   const buyerName = String(activeOrderSnapshot?.buyerUsername || '').trim();
   const sellerName = String(activeOrderSnapshot?.sellerUsername || activeOrderSnapshot?.advertiser || '').trim();
   const sender = String(message.sender || '').trim();
+  const isCurrentUser = Boolean(currentUser?.username && sender === currentUser.username);
 
   if (sender === 'System') {
     return 'chat-system';
   }
+
+  const classes = [isCurrentUser ? 'chat-self' : 'chat-other'];
+
   if (buyerName && sender === buyerName) {
-    return 'chat-buyer';
+    classes.push('chat-buyer');
+    return classes.join(' ');
   }
   if (sellerName && sender === sellerName) {
-    return 'chat-seller';
+    classes.push('chat-seller');
+    return classes.join(' ');
   }
-  if (currentUser && sender === currentUser.username) {
-    return activeOrderRole === 'buyer' ? 'chat-buyer' : 'chat-seller';
+  if (isCurrentUser) {
+    classes.push(activeOrderRole === 'buyer' ? 'chat-buyer' : 'chat-seller');
+    return classes.join(' ');
   }
-  return 'chat-seller';
+
+  classes.push('chat-seller');
+  return classes.join(' ');
 }
 
 function buildMessageMarkup(message) {
-  const messageClass = getMessageCssClass(message);
+  const messageClass = getMessageCssClasses(message);
   const textContent = escapeHtml(message.text || (message.messageType === 'image' ? 'Payment screenshot' : ''));
   const imageMarkup = message.messageType === 'image' && message.imageUrl
     ? `<button class="chat-image-link" type="button" data-preview-src="${escapeHtml(message.imageUrl)}"><img class="chat-image" src="${escapeHtml(
@@ -465,6 +474,9 @@ function appendMessage(message, options = {}) {
         }
       }
     }
+    if (options.scroll) {
+      scrollChatToBottom(Boolean(options.smooth));
+    }
     return false;
   }
 
@@ -483,6 +495,19 @@ function appendMessage(message, options = {}) {
 
   chatMessages.appendChild(messageNode);
   chatMessageNodes.set(key, messageNode);
+
+  if (normalized.messageType === 'image') {
+    const imageEl = messageNode.querySelector('.chat-image');
+    if (imageEl && !imageEl.complete) {
+      imageEl.addEventListener(
+        'load',
+        () => {
+          scrollChatToBottom(false);
+        },
+        { once: true }
+      );
+    }
+  }
 
   if (options.scroll !== false) {
     scrollChatToBottom(Boolean(options.smooth));

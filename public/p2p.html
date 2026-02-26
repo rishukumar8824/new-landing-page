@@ -364,7 +364,7 @@
                 <p>Order Chat</p>
                 <span id="chatState">Waiting for messages...</span>
               </div>
-              <div id="chatMessages" class="chat-messages"></div>
+              <div id="chatMessages" class="chat-messages" role="log" aria-live="polite" aria-label="Order chat messages"></div>
               <form id="chatForm" class="chat-form">
                 <button id="chatImageBtn" type="button" class="chat-image-btn" aria-label="Upload payment screenshot">🖼</button>
                 <input
@@ -373,7 +373,7 @@
                   type="file"
                   accept="image/png,image/jpeg,image/jpg,image/webp"
                 />
-                <input id="chatInput" type="text" placeholder="Type a message..." maxlength="300" />
+                <input id="chatInput" type="text" placeholder="Type a message..." maxlength="300" autocomplete="off" />
                 <button id="chatSendBtn" type="submit">Send</button>
               </form>
               <p id="chatUploadState" class="chat-upload-state hidden">Uploading image...</p>
