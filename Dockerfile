@@ -2,12 +2,18 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+ENV NODE_ENV=production
+
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev && npm cache clean --force
 
 COPY . .
 
-ENV NODE_ENV=production
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
+  && chown -R appuser:appgroup /app
+
+USER appuser
+
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["npm", "run", "start:prod"]

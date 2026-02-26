@@ -3,3 +3,6 @@ npm-debug.log*
 .git
 .gitignore
 README.md
+.env
+data/leads.json
+deploy/certbot/conf
