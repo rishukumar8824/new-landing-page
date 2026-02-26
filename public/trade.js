@@ -534,7 +534,12 @@ function toChartSeriesRows(data) {
   const rows = Array.isArray(data) ? data : [];
   return rows
     .map((item) => {
-      const time = Math.floor(new Date(item.time).getTime() / 1000);
+      const rawTime = item.openTime ?? item.time ?? item.closeTime;
+      let unixTime = Number(rawTime);
+      if (!Number.isFinite(unixTime)) {
+        unixTime = new Date(rawTime).getTime();
+      }
+      const time = Math.floor(unixTime / 1000);
       return {
         time,
         open: Number(item.open),
@@ -544,7 +549,15 @@ function toChartSeriesRows(data) {
         volume: Number(item.volume)
       };
     })
-    .filter((item) => Number.isFinite(item.time) && Number.isFinite(item.open) && Number.isFinite(item.close));
+    .filter(
+      (item) =>
+        Number.isFinite(item.time) &&
+        Number.isFinite(item.open) &&
+        Number.isFinite(item.high) &&
+        Number.isFinite(item.low) &&
+        Number.isFinite(item.close)
+    )
+    .sort((a, b) => a.time - b.time);
 }
 
 function drawNoChartState(text) {
