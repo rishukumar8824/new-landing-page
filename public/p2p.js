@@ -429,8 +429,20 @@ function getMessageCssClasses(message) {
   return classes.join(' ');
 }
 
+function getMessageInlineStyle(messageClass) {
+  const cls = String(messageClass || '');
+  if (cls.includes('chat-system')) {
+    return 'background:linear-gradient(145deg,#1d2536 0%,#151b28 100%);border:1px solid rgba(130,170,255,0.45);color:#ffffff;';
+  }
+  if (cls.includes('chat-self')) {
+    return 'background:linear-gradient(145deg,#4a3410 0%,#33260f 100%);border:1px solid rgba(247,167,35,0.82);color:#ffffff;';
+  }
+  return 'background:linear-gradient(145deg,#1c2331 0%,#161c27 100%);border:1px solid rgba(255,255,255,0.18);color:#ffffff;';
+}
+
 function buildMessageMarkup(message) {
   const messageClass = getMessageCssClasses(message);
+  const bubbleStyle = getMessageInlineStyle(messageClass);
   const textContent = escapeHtml(message.text || (message.messageType === 'image' ? 'Payment screenshot' : ''));
   const imageMarkup = message.messageType === 'image' && message.imageUrl
     ? `<button class="chat-image-link" type="button" data-preview-src="${escapeHtml(message.imageUrl)}"><img class="chat-image" src="${escapeHtml(
@@ -443,11 +455,15 @@ function buildMessageMarkup(message) {
   return `
     <article class="chat-item ${messageClass}${message.pending ? ' pending' : ''}${message.failed ? ' failed' : ''}" data-message-key="${escapeHtml(
       messageKeyFromMessage(message)
-    )}">
-      <p class="chat-sender">${escapeHtml(message.sender)}</p>
+    )}" style="${bubbleStyle}">
+      <p class="chat-sender" style="color:${messageClass.includes('chat-self') ? '#f6d98f' : '#cad2e2'};">${escapeHtml(message.sender)}</p>
       ${imageMarkup}
-      ${textContent ? `<p class="chat-text">${textContent}</p>` : ''}
-      <p class="chat-time">${new Date(message.createdAt).toLocaleTimeString()} ${pendingTag} ${failedTag}</p>
+      ${
+        textContent
+          ? `<p class="chat-text" style="color:#ffffff;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;">${textContent}</p>`
+          : ''
+      }
+      <p class="chat-time" style="color:#aab2c6;">${new Date(message.createdAt).toLocaleTimeString()} ${pendingTag} ${failedTag}</p>
     </article>
   `;
 }
