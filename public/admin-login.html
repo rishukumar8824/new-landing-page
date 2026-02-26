@@ -1,26 +1,80 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-slate-950">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin Login</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <title>Bitegit Admin Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: '#22c55e',
+              panel: '#0f172a'
+            }
+          }
+        }
+      };
+    </script>
   </head>
-  <body>
-    <main class="container">
-      <section class="card">
-        <h1>Admin Login</h1>
-        <p>Only authorized users can view submitted leads.</p>
+  <body class="min-h-full bg-slate-950 text-slate-100">
+    <main class="min-h-screen flex items-center justify-center px-4 py-8">
+      <section class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/70 backdrop-blur p-6 sm:p-8 shadow-2xl shadow-slate-950/60">
+        <header class="mb-6">
+          <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Bitegit Exchange</p>
+          <h1 class="mt-2 text-2xl font-semibold">Admin Control Panel</h1>
+          <p class="mt-2 text-sm text-slate-400">Secure login for Super, Finance, Support and Compliance admins.</p>
+        </header>
 
-        <form id="loginForm" novalidate>
-          <label for="username">Username</label>
-          <input id="username" name="username" type="text" placeholder="Enter username" required />
+        <form id="adminLoginForm" class="space-y-4" novalidate>
+          <div>
+            <label for="identifier" class="block text-sm text-slate-300 mb-1">Email or Username</label>
+            <input
+              id="identifier"
+              name="identifier"
+              type="text"
+              placeholder="admin or admin@admin.local"
+              autocomplete="username"
+              class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+              required
+            />
+          </div>
 
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" placeholder="Enter password" required />
+          <div>
+            <label for="password" class="block text-sm text-slate-300 mb-1">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="Enter admin password"
+              autocomplete="current-password"
+              class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+              required
+            />
+          </div>
 
-          <button type="submit">Login</button>
-          <p id="loginMessage" class="message"></p>
+          <div>
+            <label for="otpCode" class="block text-sm text-slate-300 mb-1">2FA Code (optional)</label>
+            <input
+              id="otpCode"
+              name="otpCode"
+              type="text"
+              placeholder="6-digit code if enabled"
+              inputmode="numeric"
+              class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+            />
+          </div>
+
+          <button
+            id="submitBtn"
+            type="submit"
+            class="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 active:scale-[0.99]"
+          >
+            Sign In
+          </button>
+
+          <p id="loginMessage" class="min-h-[20px] text-sm"></p>
         </form>
       </section>
     </main>

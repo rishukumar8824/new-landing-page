@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "seed:admin": "node admin/seed-admin.js",
     "mobile:sync": "npx cap sync android",
     "mobile:open": "npx cap open android",
     "mobile:copy": "npx cap copy android",

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bitegit Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/admin-dashboard.css" />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              shell: '#0b0f17',
+              panel: '#111827',
+              muted: '#94a3b8',
+              brand: '#22c55e',
+              danger: '#ef4444',
+              warning: '#f59e0b'
+            },
+            boxShadow: {
+              panel: '0 20px 60px rgba(2, 6, 23, 0.45)'
+            }
+          }
+        }
+      };
+    </script>
+  </head>
+  <body class="min-h-full bg-shell text-slate-100 antialiased">
+    <div class="flex min-h-screen">
+      <aside
+        id="adminSidebar"
+        class="admin-sidebar fixed inset-y-0 left-0 z-40 w-72 -translate-x-full border-r border-slate-800 bg-slate-900/95 px-4 py-5 shadow-panel transition-transform duration-300 lg:static lg:translate-x-0"
+      >
+        <div class="mb-6 flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Bitegit</p>
+            <h1 class="text-lg font-semibold">Admin Panel</h1>
+          </div>
+          <button id="sidebarCloseBtn" class="rounded-lg border border-slate-700 px-2 py-1 text-xs lg:hidden">Close</button>
+        </div>
+
+        <nav class="space-y-1" id="sidebarNav">
+          <button class="admin-nav-btn active" data-view="overview">Overview</button>
+          <button class="admin-nav-btn" data-view="users">User Management</button>
+          <button class="admin-nav-btn" data-view="wallet">Wallet Management</button>
+          <button class="admin-nav-btn" data-view="spot">Spot Control</button>
+          <button class="admin-nav-btn" data-view="p2p">P2P Control</button>
+          <button class="admin-nav-btn" data-view="revenue">Revenue</button>
+          <button class="admin-nav-btn" data-view="settings">Platform Settings</button>
+          <button class="admin-nav-btn" data-view="compliance">Compliance</button>
+          <button class="admin-nav-btn" data-view="support">Support</button>
+          <button class="admin-nav-btn" data-view="monitoring">Monitoring</button>
+          <button class="admin-nav-btn" data-view="audit">Audit Logs</button>
+        </nav>
+      </aside>
+
+      <div id="sidebarBackdrop" class="fixed inset-0 z-30 hidden bg-slate-950/70 backdrop-blur-sm lg:hidden"></div>
+
+      <main class="flex-1 overflow-x-hidden">
+        <header class="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+          <div class="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+            <div class="flex items-center gap-3">
+              <button id="sidebarOpenBtn" class="rounded-lg border border-slate-700 px-2 py-1 text-xs lg:hidden">Menu</button>
+              <div>
+                <h2 id="pageTitle" class="text-base font-semibold sm:text-lg">Overview</h2>
+                <p id="adminIdentity" class="text-xs text-slate-400">Loading admin profile...</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="refreshCurrentBtn" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium hover:border-slate-500">Refresh</button>
+              <button id="logoutBtn" class="rounded-lg border border-rose-500/50 px-3 py-1.5 text-xs font-medium text-rose-300 hover:border-rose-400 hover:text-rose-200">Logout</button>
+            </div>
+          </div>
+        </header>
+
+        <div class="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6">
+          <p id="globalMessage" class="mb-4 hidden rounded-lg border px-3 py-2 text-sm"></p>
+
+          <section class="admin-panel" data-panel="overview">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" id="overviewCards"></div>
+            <div class="mt-4 grid gap-4 xl:grid-cols-[2fr_1fr]">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Revenue Trend (14 Days)</h3>
+                  <span class="text-xs text-slate-500">Auto-refresh 30s</span>
+                </div>
+                <canvas id="overviewRevenueChart" height="120"></canvas>
+              </article>
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">System Health</h3>
+                <dl class="space-y-2 text-sm" id="overviewHealth"></dl>
+              </article>
+            </div>
+          </section>
+
+          <section class="admin-panel hidden" data-panel="users">
+            <div class="mb-4 grid gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel sm:grid-cols-[1fr_auto]">
+              <div class="flex flex-wrap gap-2">
+                <input id="userSearchInput" class="input-dark min-w-[220px] flex-1" type="text" placeholder="Search by email" />
+                <button id="userSearchBtn" class="btn-secondary">Search</button>
+                <button id="userSearchResetBtn" class="btn-secondary">Reset</button>
+              </div>
+              <button id="usersReloadBtn" class="btn-primary">Reload Users</button>
+            </div>
+
+            <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 shadow-panel">
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-950/80 text-slate-400">
+                    <tr>
+                      <th class="admin-th">UID</th>
+                      <th class="admin-th">Email</th>
+                      <th class="admin-th">Role</th>
+                      <th class="admin-th">Status</th>
+                      <th class="admin-th">KYC</th>
+                      <th class="admin-th text-right">Balance</th>
+                      <th class="admin-th text-right">Locked</th>
+                      <th class="admin-th">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usersTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="admin-panel hidden" data-panel="wallet">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" id="walletCards"></div>
+            <div class="mt-4 grid gap-4 xl:grid-cols-2">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Withdrawals</h3>
+                  <button id="walletWithdrawalsReloadBtn" class="btn-secondary">Reload</button>
+                </div>
+                <div class="max-h-[380px] overflow-auto" id="withdrawalsList"></div>
+              </article>
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Coin Withdrawal Config</h3>
+                <form id="coinConfigForm" class="grid gap-3 sm:grid-cols-2">
+                  <input name="coin" class="input-dark" placeholder="Coin (e.g. USDT)" required />
+                  <input name="networkFee" type="number" step="0.00000001" class="input-dark" placeholder="Network Fee" required />
+                  <input name="minWithdrawal" type="number" step="0.00000001" class="input-dark" placeholder="Min Withdrawal" required />
+                  <input name="maxWithdrawal" type="number" step="0.00000001" class="input-dark" placeholder="Max Withdrawal" required />
+                  <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                    <input name="withdrawalsEnabled" type="checkbox" class="h-4 w-4" checked />
+                    Withdrawals Enabled
+                  </label>
+                  <button type="submit" class="btn-primary">Save Config</button>
+                </form>
+                <h4 class="mt-6 mb-2 text-sm font-semibold text-slate-300">Hot Wallet Balances</h4>
+                <div id="hotWalletList" class="space-y-2"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="admin-panel hidden" data-panel="spot">
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Spot Trading Pairs</h3>
+                <button id="spotReloadBtn" class="btn-secondary">Reload</button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-950/80 text-slate-400">
+                    <tr>
+                      <th class="admin-th">Pair</th>
+                      <th class="admin-th">Enabled</th>
+                      <th class="admin-th">Maker Fee</th>
+                      <th class="admin-th">Taker Fee</th>
+                      <th class="admin-th">Precision</th>
+                      <th class="admin-th">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="spotPairsTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="admin-panel hidden" data-panel="p2p">
+            <div class="grid gap-4 xl:grid-cols-[2fr_1fr]">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">P2P Ads</h3>
+                  <button id="p2pReloadBtn" class="btn-secondary">Reload</button>
+                </div>
+                <div id="p2pAdsList" class="space-y-2"></div>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">P2P Settings</h3>
+                <form id="p2pSettingsForm" class="space-y-3">
+                  <input name="p2pFeePercent" type="number" step="0.01" class="input-dark" placeholder="P2P Fee (%)" required />
+                  <input name="minOrderLimit" type="number" step="1" class="input-dark" placeholder="Min Order Limit" required />
+                  <input name="maxOrderLimit" type="number" step="1" class="input-dark" placeholder="Max Order Limit" required />
+                  <input name="autoExpiryMinutes" type="number" step="1" class="input-dark" placeholder="Auto Expiry (min)" required />
+                  <button type="submit" class="btn-primary w-full">Save P2P Settings</button>
+                </form>
+
+                <h4 class="mt-6 mb-2 text-sm font-semibold text-slate-300">Open Disputes</h4>
+                <div id="p2pDisputesList" class="space-y-2"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="admin-panel hidden" data-panel="revenue">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" id="revenueCards"></div>
+            <article class="mt-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+              <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Revenue Chart</h3>
+              <canvas id="revenueChart" height="120"></canvas>
+            </article>
+          </section>
+
+          <section class="admin-panel hidden" data-panel="settings">
+            <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+              <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Platform Settings</h3>
+              <form id="platformSettingsForm" class="grid gap-3 md:grid-cols-2">
+                <input class="input-dark" name="siteName" placeholder="Site Name" />
+                <input class="input-dark" name="logoUrl" placeholder="Logo URL" />
+                <input class="input-dark" name="announcementBanner" placeholder="Announcement Banner" />
+                <input class="input-dark" name="referralCommissionPercent" type="number" step="0.01" placeholder="Referral Commission %" />
+                <input class="input-dark" name="signupBonusUsdt" type="number" step="0.01" placeholder="Signup Bonus (USDT)" />
+                <input class="input-dark" name="smtpHost" placeholder="SMTP Host" />
+                <input class="input-dark" name="smtpPort" type="number" placeholder="SMTP Port" />
+                <input class="input-dark" name="smtpUser" placeholder="SMTP Username" />
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="smtpSecure" class="h-4 w-4" /> SMTP Secure</label>
+                <input class="input-dark" name="makerFee" type="number" step="0.0001" placeholder="Global Maker Fee" />
+                <input class="input-dark" name="takerFee" type="number" step="0.0001" placeholder="Global Taker Fee" />
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="maintenanceMode" class="h-4 w-4" /> Maintenance Mode</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="requireKycBeforeWithdrawal" class="h-4 w-4" /> Require KYC before Withdrawal</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="spotEnabled" class="h-4 w-4" /> Spot Feature Enabled</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="p2pEnabled" class="h-4 w-4" /> P2P Feature Enabled</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="walletEnabled" class="h-4 w-4" /> Wallet Feature Enabled</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="referralsEnabled" class="h-4 w-4" /> Referral Feature Enabled</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="supportEnabled" class="h-4 w-4" /> Support Feature Enabled</label>
+                <button type="submit" class="btn-primary md:col-span-2">Save Platform Settings</button>
+              </form>
+            </article>
+          </section>
+
+          <section class="admin-panel hidden" data-panel="compliance">
+            <div class="grid gap-4 xl:grid-cols-[1fr_2fr]">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Create Compliance Flag</h3>
+                <form id="complianceFlagForm" class="space-y-3">
+                  <input name="userId" class="input-dark" placeholder="User ID" required />
+                  <select name="type" class="input-dark">
+                    <option value="SUSPICIOUS_ACTIVITY">SUSPICIOUS_ACTIVITY</option>
+                    <option value="AML_REVIEW">AML_REVIEW</option>
+                    <option value="KYC_MISMATCH">KYC_MISMATCH</option>
+                  </select>
+                  <select name="severity" class="input-dark">
+                    <option value="LOW">LOW</option>
+                    <option value="MEDIUM" selected>MEDIUM</option>
+                    <option value="HIGH">HIGH</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                  </select>
+                  <textarea name="reason" class="input-dark min-h-[110px]" placeholder="Reason" required></textarea>
+                  <button type="submit" class="btn-danger w-full">Create Flag</button>
+                </form>
+                <button id="exportCsvBtn" class="btn-secondary mt-3 w-full">Export Transaction CSV</button>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Compliance Flags</h3>
+                  <button id="complianceReloadBtn" class="btn-secondary">Reload</button>
+                </div>
+                <div id="complianceFlagsList" class="space-y-2"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="admin-panel hidden" data-panel="support">
+            <div class="grid gap-4 xl:grid-cols-[2fr_1fr]">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Support Tickets</h3>
+                  <button id="supportReloadBtn" class="btn-secondary">Reload</button>
+                </div>
+                <div id="supportTicketsList" class="space-y-2"></div>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Ticket Actions</h3>
+                <form id="supportReplyForm" class="space-y-3">
+                  <input name="ticketId" class="input-dark" placeholder="Ticket ID" required />
+                  <textarea name="message" class="input-dark min-h-[120px]" placeholder="Reply message" required></textarea>
+                  <button type="submit" class="btn-primary w-full">Reply to Ticket</button>
+                </form>
+                <form id="supportStatusForm" class="mt-4 space-y-3">
+                  <input name="ticketId" class="input-dark" placeholder="Ticket ID" required />
+                  <select name="status" class="input-dark">
+                    <option value="OPEN">OPEN</option>
+                    <option value="IN_PROGRESS">IN_PROGRESS</option>
+                    <option value="CLOSED">CLOSED</option>
+                  </select>
+                  <button type="submit" class="btn-secondary w-full">Update Status</button>
+                </form>
+                <form id="supportAssignForm" class="mt-4 space-y-3">
+                  <input name="ticketId" class="input-dark" placeholder="Ticket ID" required />
+                  <input name="assignedTo" class="input-dark" placeholder="Assign to admin ID" required />
+                  <button type="submit" class="btn-secondary w-full">Assign Ticket</button>
+                </form>
+              </article>
+            </div>
+          </section>
+
+          <section class="admin-panel hidden" data-panel="monitoring">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" id="monitoringCards"></div>
+            <article class="mt-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">API Request Logs</h3>
+                <button id="monitoringReloadBtn" class="btn-secondary">Reload</button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-950/80 text-slate-400">
+                    <tr>
+                      <th class="admin-th">Time</th>
+                      <th class="admin-th">Module</th>
+                      <th class="admin-th">Action</th>
+                      <th class="admin-th">Method</th>
+                      <th class="admin-th">Status</th>
+                      <th class="admin-th">Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody id="monitoringApiLogsBody"></tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+
+          <section class="admin-panel hidden" data-panel="audit">
+            <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Audit Logs</h3>
+                <button id="auditReloadBtn" class="btn-secondary">Reload</button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-950/80 text-slate-400">
+                    <tr>
+                      <th class="admin-th">Time</th>
+                      <th class="admin-th">Admin</th>
+                      <th class="admin-th">Module</th>
+                      <th class="admin-th">Action</th>
+                      <th class="admin-th">Status</th>
+                      <th class="admin-th">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody id="auditLogsBody"></tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script src="/admin-dashboard.js"></script>
+  </body>
+</html>

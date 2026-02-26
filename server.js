@@ -1,3 +1,6 @@
+const { loadEnvFile } = require('./lib/env');
+loadEnvFile();
+
 const crypto = require('crypto');
 const express = require('express');
 const nodemailer = require('nodemailer');
@@ -5,19 +8,36 @@ const path = require('path');
 const { connectToMongo, getCollections, getMongoClient, getMongoConfig, isDbConnected } = require('./lib/db');
 const { createRepositories } = require('./lib/repositories');
 const { createWalletService, makeSeedUserId } = require('./lib/wallet-service');
+const { createAuthMiddleware } = require('./middleware/auth');
+const { registerAuthRoutes } = require('./routes/auth');
+const tokenService = require('./services/tokenService');
+const { createAdminStore } = require('./admin/services/admin-store');
+const { createAdminAuthMiddleware } = require('./admin/middleware/admin-auth');
+const { createAdminControllers } = require('./admin/controllers/admin-controller');
+const { registerAdminRoutes } = require('./admin/routes/admin-routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || 'admin')
+const ADMIN_SEED_USERNAME = String(process.env.ADMIN_USERNAME || 'admin')
   .trim()
   .toLowerCase();
 const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || 'admin123').trim();
+const ADMIN_SEED_EMAIL = String(process.env.ADMIN_EMAIL || `${ADMIN_SEED_USERNAME || 'admin'}@admin.local`)
+  .trim()
+  .toLowerCase();
+const ADMIN_SEED_ROLE = String(process.env.ADMIN_ROLE || 'SUPER_ADMIN')
+  .trim()
+  .toUpperCase();
 const SESSION_COOKIE_NAME = 'admin_session';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12;
+const ADMIN_ACCESS_COOKIE_NAME = 'admin_access_token';
+const ADMIN_REFRESH_COOKIE_NAME = 'admin_refresh_token';
 
 const P2P_USER_COOKIE_NAME = 'p2p_user_session';
 const P2P_USER_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const P2P_ACCESS_COOKIE_NAME = 'p2p_access_token';
+const P2P_REFRESH_COOKIE_NAME = 'p2p_refresh_token';
 const P2P_ORDER_TTL_MS = 1000 * 60 * 15;
 const P2P_EXPIRY_SWEEP_INTERVAL_MS = 30 * 1000;
 const SIGNUP_OTP_TTL_MS = 1000 * 60 * 10;
@@ -86,6 +106,10 @@ const seedP2POffers = [
 
 let repos = null;
 let walletService = null;
+let authMiddleware = null;
+let adminStore = null;
+let adminAuthMiddleware = null;
+let adminControllers = null;
 let persistenceReady = false;
 
 app.use(express.json());
@@ -96,6 +120,27 @@ function readLeads() {
     throw new Error('Persistence layer not initialized');
   }
   return repos.getLeadsLatest();
+}
+
+function validateStartupConfig() {
+  const missing = [];
+  if (!String(process.env.MONGODB_URI || '').trim()) {
+    missing.push('MONGODB_URI');
+  }
+  if (!String(process.env.JWT_SECRET || '').trim()) {
+    missing.push('JWT_SECRET');
+  }
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}. Configure them in .env file.`);
+  }
+
+  if (!String(process.env.ADMIN_USERNAME || '').trim()) {
+    console.warn('ADMIN_USERNAME not set. Using default "admin".');
+  }
+  if (!String(process.env.ADMIN_PASSWORD || '').trim()) {
+    console.warn('ADMIN_PASSWORD not set. Using default "admin123".');
+  }
 }
 
 function saveLeadRecord(name, contact, extra = {}) {
@@ -401,17 +446,90 @@ function parseCookies(req) {
   return parsed;
 }
 
-function setCookie(res, key, value, maxAgeSeconds) {
-  res.setHeader('Set-Cookie', `${key}=${value}; HttpOnly; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax`);
+function appendSetCookie(res, cookieValue) {
+  const existing = res.getHeader('Set-Cookie');
+  if (!existing) {
+    res.setHeader('Set-Cookie', [cookieValue]);
+    return;
+  }
+
+  if (Array.isArray(existing)) {
+    res.setHeader('Set-Cookie', [...existing, cookieValue]);
+    return;
+  }
+
+  res.setHeader('Set-Cookie', [existing, cookieValue]);
 }
 
-function clearCookie(res, key) {
-  res.setHeader('Set-Cookie', `${key}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
+function setCookie(res, key, value, maxAgeSeconds, options = {}) {
+  const sameSite = options.sameSite || 'Lax';
+  const pathValue = options.path || '/';
+  const secure = options.secure === undefined ? IS_PRODUCTION : Boolean(options.secure);
+  const httpOnly = options.httpOnly === undefined ? true : Boolean(options.httpOnly);
+  const cookieParts = [
+    `${key}=${encodeURIComponent(String(value || ''))}`,
+    `Path=${pathValue}`,
+    `Max-Age=${Math.max(0, Number(maxAgeSeconds) || 0)}`,
+    `SameSite=${sameSite}`
+  ];
+  if (httpOnly) {
+    cookieParts.push('HttpOnly');
+  }
+  if (secure) {
+    cookieParts.push('Secure');
+  }
+  appendSetCookie(res, cookieParts.join('; '));
+}
+
+function clearCookie(res, key, options = {}) {
+  setCookie(res, key, '', 0, options);
 }
 
 function createToken() {
   return crypto.randomBytes(32).toString('hex');
 }
+
+function createIpAttemptLimiter({ maxAttempts, windowMs }) {
+  const store = new Map();
+  return function checkAttempt(ipKey) {
+    const key = String(ipKey || 'unknown');
+    const now = Date.now();
+    const existing = store.get(key);
+    if (!existing || now > existing.resetAt) {
+      store.set(key, {
+        count: 1,
+        resetAt: now + windowMs
+      });
+      return {
+        allowed: true
+      };
+    }
+
+    if (existing.count >= maxAttempts) {
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((existing.resetAt - now) / 1000))
+      };
+    }
+
+    existing.count += 1;
+    store.set(key, existing);
+    return {
+      allowed: true
+    };
+  };
+}
+
+function getRequestIp(req) {
+  const forwardedRaw = String(req.headers['x-forwarded-for'] || '').trim();
+  const firstForwarded = forwardedRaw.split(',')[0].trim();
+  return firstForwarded || String(req.ip || req.connection?.remoteAddress || 'unknown');
+}
+
+const loginAttemptLimiter = createIpAttemptLimiter({
+  maxAttempts: 5,
+  windowMs: 10 * 60 * 1000
+});
 
 async function createSession() {
   const token = createToken();
@@ -439,6 +557,9 @@ async function isSessionValid(token) {
 }
 
 async function requiresAdminSession(req, res, next) {
+  if (authMiddleware) {
+    return authMiddleware.requireAdmin({ allowLegacy: true })(req, res, next);
+  }
   try {
     const cookies = parseCookies(req);
     const token = cookies[SESSION_COOKIE_NAME];
@@ -453,24 +574,89 @@ async function requiresAdminSession(req, res, next) {
   }
 }
 
-async function createP2PUserSession(email) {
-  const token = createToken();
+function buildP2PUserFromEmail(email, role = 'USER') {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   const baseName = normalizedEmail.split('@')[0] || 'trader';
   const username = baseName.replace(/[^a-z0-9_]/gi, '_').slice(0, 20) || 'trader';
   const userHash = crypto.createHash('sha1').update(normalizedEmail).digest('hex').slice(0, 16);
-  const user = {
+  return {
     id: `usr_${userHash}`,
     username,
     email: normalizedEmail,
+    role: tokenService.normalizeRole(role),
     expiresAt: Date.now() + P2P_USER_TTL_MS
   };
+}
+
+async function createP2PUserSession(email, role = 'USER') {
+  const token = createToken();
+  const user = buildP2PUserFromEmail(email, role);
 
   await repos.createP2PUserSession(token, user, user.expiresAt);
   return { token, user };
 }
 
+async function persistRefreshToken(user, refreshToken, refreshTokenExpiresAtMs) {
+  await repos.saveRefreshToken({
+    userId: user.id,
+    role: user.role,
+    username: user.username,
+    email: user.email,
+    tokenHash: tokenService.hashRefreshToken(refreshToken),
+    issuedAt: Date.now(),
+    expiresAt: refreshTokenExpiresAtMs
+  });
+}
+
+async function issueAuthTokenPairForUser(user) {
+  const tokenPair = tokenService.createTokenPair(user);
+  await persistRefreshToken(user, tokenPair.refreshToken, tokenPair.refreshTokenExpiresAt);
+  return tokenPair;
+}
+
+function setP2PAuthCookies(res, tokenPair) {
+  setCookie(res, P2P_ACCESS_COOKIE_NAME, tokenPair.accessToken, tokenService.ACCESS_TOKEN_TTL_SECONDS);
+  setCookie(res, P2P_REFRESH_COOKIE_NAME, tokenPair.refreshToken, tokenService.REFRESH_TOKEN_TTL_SECONDS);
+}
+
+function clearP2PAuthCookies(res) {
+  clearCookie(res, P2P_ACCESS_COOKIE_NAME);
+  clearCookie(res, P2P_REFRESH_COOKIE_NAME);
+}
+
+function setAdminAuthCookies(res, tokenPair) {
+  setCookie(res, ADMIN_ACCESS_COOKIE_NAME, tokenPair.accessToken, tokenService.ACCESS_TOKEN_TTL_SECONDS);
+  setCookie(res, ADMIN_REFRESH_COOKIE_NAME, tokenPair.refreshToken, tokenService.REFRESH_TOKEN_TTL_SECONDS);
+}
+
+function clearAdminAuthCookies(res) {
+  clearCookie(res, ADMIN_ACCESS_COOKIE_NAME);
+  clearCookie(res, ADMIN_REFRESH_COOKIE_NAME);
+}
+
 async function getP2PUserFromRequest(req) {
+  if (authMiddleware) {
+    const accessToken = authMiddleware.extractAccessTokenFromRequest(req);
+    if (accessToken) {
+      try {
+        const decoded = tokenService.verifyAccessToken(accessToken);
+        if (String(decoded?.typ || 'access').trim().toLowerCase() === 'access' && String(decoded?.sub || '').trim()) {
+          return {
+            id: String(decoded.sub).trim(),
+            username: String(decoded.username || '').trim(),
+            email: String(decoded.email || '')
+              .trim()
+              .toLowerCase(),
+            role: tokenService.normalizeRole(decoded.role || 'USER'),
+            expiresAt: Date.now() + P2P_USER_TTL_MS
+          };
+        }
+      } catch (error) {
+        // Fall back to legacy session lookup.
+      }
+    }
+  }
+
   const cookies = parseCookies(req);
   const token = cookies[P2P_USER_COOKIE_NAME];
 
@@ -495,11 +681,15 @@ async function getP2PUserFromRequest(req) {
     id: session.userId,
     username: session.username,
     email: session.email,
+    role: tokenService.normalizeRole(session.role || 'USER'),
     expiresAt
   };
 }
 
 async function requiresP2PUser(req, res, next) {
+  if (authMiddleware) {
+    return authMiddleware.requireAuth({ roles: ['USER', 'ADMIN'], allowLegacy: true })(req, res, next);
+  }
   try {
     const user = await getP2PUserFromRequest(req);
     if (!user) {
@@ -667,41 +857,16 @@ async function withOrderMutation(orderId, mutator, maxRetries = 4) {
   return { error: 'conflict' };
 }
 
-app.post('/api/admin/login', async (req, res) => {
-  const username = String(req.body.username || '').trim().toLowerCase();
-  const password = String(req.body.password || '').trim();
-
-  try {
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-      const token = await createSession();
-      setCookie(res, SESSION_COOKIE_NAME, token, SESSION_TTL_MS / 1000);
-      return res.json({ message: 'Login successful' });
-    }
-
-    clearCookie(res, SESSION_COOKIE_NAME);
-    return res.status(401).json({ message: 'Invalid username or password' });
-  } catch (error) {
-    return res.status(500).json({ message: 'Server error while logging in.' });
-  }
-});
-
-app.post('/api/admin/logout', async (req, res) => {
-  const cookies = parseCookies(req);
-  const token = cookies[SESSION_COOKIE_NAME];
-
-  try {
-    if (token) {
-      await repos.deleteAdminSession(token);
-    }
-
-    clearCookie(res, SESSION_COOKIE_NAME);
-    return res.json({ message: 'Logged out' });
-  } catch (error) {
-    return res.status(500).json({ message: 'Server error while logging out.' });
-  }
-});
-
 app.post('/api/p2p/login', async (req, res) => {
+  const ipCheck = loginAttemptLimiter(`p2p_login:${getRequestIp(req)}`);
+  if (!ipCheck.allowed) {
+    res.setHeader('Retry-After', String(ipCheck.retryAfterSeconds));
+    return res.status(429).json({
+      message: 'Too many login attempts. Please try again later.',
+      retryAfterSeconds: ipCheck.retryAfterSeconds
+    });
+  }
+
   const email = String(req.body.email || '')
     .trim()
     .toLowerCase();
@@ -720,24 +885,37 @@ app.post('/api/p2p/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+    let userRole = tokenService.normalizeRole(existingCredential?.role || 'USER');
     if (!existingCredential) {
       const hash = repos.hashPassword(password);
-      await repos.setP2PCredential(email, hash);
+      await repos.setP2PCredential(email, hash, {
+        role: 'USER'
+      });
+      userRole = 'USER';
     }
 
-    const { token, user } = await createP2PUserSession(email);
+    const { token, user } = await createP2PUserSession(email, userRole);
+    const tokenPair = await issueAuthTokenPairForUser(user);
     await walletService.ensureWallet(user.id, { username: user.username });
     setCookie(res, P2P_USER_COOKIE_NAME, token, P2P_USER_TTL_MS / 1000);
+    setP2PAuthCookies(res, tokenPair);
 
     return res.json({
       message: 'P2P login successful.',
       user: {
         id: user.id,
         username: user.username,
-        email: user.email
-      }
+        email: user.email,
+        role: user.role
+      },
+      accessToken: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken
     });
   } catch (error) {
+    clearP2PAuthCookies(res);
+    if (String(error.message || '').includes('JWT_SECRET')) {
+      return res.status(503).json({ message: 'JWT auth is not configured.' });
+    }
     return res.status(500).json({ message: 'Server error while logging into P2P.' });
   }
 });
@@ -859,15 +1037,27 @@ app.post('/api/signup/verify-code', async (req, res) => {
 app.post('/api/p2p/logout', async (req, res) => {
   const cookies = parseCookies(req);
   const token = cookies[P2P_USER_COOKIE_NAME];
+  const refreshToken = authMiddleware ? authMiddleware.extractRefreshTokenFromRequest(req) : String(cookies[P2P_REFRESH_COOKIE_NAME] || '').trim();
+  const userFromRequest = await getP2PUserFromRequest(req).catch(() => null);
 
   try {
     if (token) {
       await repos.deleteP2PUserSession(token);
     }
+    if (refreshToken) {
+      await repos.deleteRefreshTokenByHash(tokenService.hashRefreshToken(refreshToken));
+    } else {
+      if (userFromRequest?.id) {
+        await repos.deleteRefreshTokensByUserId(userFromRequest.id);
+      }
+    }
 
     clearCookie(res, P2P_USER_COOKIE_NAME);
+    clearP2PAuthCookies(res);
     return res.json({ message: 'Logged out from P2P.' });
   } catch (error) {
+    clearCookie(res, P2P_USER_COOKIE_NAME);
+    clearP2PAuthCookies(res);
     return res.status(500).json({ message: 'Server error while logging out from P2P.' });
   }
 });
@@ -884,7 +1074,8 @@ app.get('/api/p2p/me', async (req, res) => {
     user: {
       id: user.id,
       username: user.username,
-      email: user.email
+      email: user.email,
+      role: tokenService.normalizeRole(user.role || 'USER')
     }
   });
 });
@@ -1637,11 +1828,38 @@ app.get('/api/p2p/orders/:orderId/stream', requiresP2PUser, async (req, res) => 
 });
 
 app.get('/admin-login', (req, res) => {
+  return res.redirect('/admin/login');
+});
+
+app.get('/admin/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-login.html'));
 });
 
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+app.get('/admin', async (req, res) => {
+  try {
+    const cookies = parseCookies(req);
+    const legacySessionToken = String(cookies[SESSION_COOKIE_NAME] || '').trim();
+    const hasLegacySession = legacySessionToken ? await isSessionValid(legacySessionToken) : false;
+
+    if (!hasLegacySession && adminAuthMiddleware) {
+      const accessToken = String(cookies[ADMIN_ACCESS_COOKIE_NAME] || '').trim();
+      if (!accessToken) {
+        return res.redirect('/admin/login');
+      }
+
+      try {
+        await adminStore.verifyAdminAccessToken(accessToken);
+      } catch (error) {
+        return res.redirect('/admin/login');
+      }
+    } else if (!hasLegacySession && !adminAuthMiddleware) {
+      return res.redirect('/admin/login');
+    }
+
+    return res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
+  } catch (error) {
+    return res.redirect('/admin/login');
+  }
 });
 
 app.get('/p2p', (req, res) => {
@@ -1669,19 +1887,87 @@ app.get('/healthz', (req, res) => {
   return res.status(200).json({ status: 'ok', db: 'connected' });
 });
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 async function boot() {
   try {
+    validateStartupConfig();
+    tokenService.ensureJwtSecret();
     await connectToMongo();
     const collections = getCollections();
     repos = createRepositories(collections);
     walletService = createWalletService(collections, getMongoClient());
+    authMiddleware = createAuthMiddleware({
+      verifyAccessToken: tokenService.verifyAccessToken,
+      resolveLegacyUser: async (req) => {
+        const legacyUser = await getP2PUserFromRequest(req);
+        if (!legacyUser) {
+          return null;
+        }
+        return {
+          ...legacyUser,
+          role: tokenService.normalizeRole(legacyUser.role || 'USER')
+        };
+      },
+      resolveLegacyAdminSession: async (req) => {
+        const cookies = parseCookies(req);
+        const legacyToken = cookies[SESSION_COOKIE_NAME];
+        return isSessionValid(legacyToken);
+      }
+    });
+
+    registerAuthRoutes(app, {
+      repos,
+      walletService,
+      authMiddleware,
+      tokenService,
+      buildP2PUserFromEmail,
+      createLegacyP2PUserSession: createP2PUserSession,
+      setCookie,
+      clearCookie,
+      cookieNames: {
+        accessToken: P2P_ACCESS_COOKIE_NAME,
+        refreshToken: P2P_REFRESH_COOKIE_NAME,
+        legacyP2PSession: P2P_USER_COOKIE_NAME
+      },
+      p2pUserTtlMs: P2P_USER_TTL_MS
+    });
+
+    adminStore = createAdminStore({
+      collections,
+      repos,
+      walletService,
+      tokenService,
+      isDbConnected
+    });
+
+    adminAuthMiddleware = createAdminAuthMiddleware({
+      adminStore,
+      cookieNames: {
+        accessToken: ADMIN_ACCESS_COOKIE_NAME,
+        refreshToken: ADMIN_REFRESH_COOKIE_NAME
+      }
+    });
+
+    adminControllers = createAdminControllers({
+      adminStore,
+      auth: adminAuthMiddleware,
+      repos,
+      setCookie,
+      clearCookie,
+      cookieNames: {
+        accessToken: ADMIN_ACCESS_COOKIE_NAME,
+        refreshToken: ADMIN_REFRESH_COOKIE_NAME
+      }
+    });
+
+    registerAdminRoutes(app, {
+      adminStore,
+      adminAuthMiddleware,
+      adminControllers
+    });
 
     const mongoConfig = getMongoConfig();
     await repos.ensureIndexes();
+    await adminStore.ensureIndexes();
     console.log('MongoDB indexes ensured');
 
     const migration = await repos.migrateLegacyLeadsJsonOnce(dataFile);
@@ -1701,6 +1987,34 @@ async function boot() {
     const walletSeedInfo = await walletService.ensureSeedWallets(seedP2POffers);
     console.log(`Wallets ensured for seed advertisers: ${walletSeedInfo.ensured}`);
 
+    await adminStore.ensureDefaults();
+    await adminStore.ensureDemoSupportTicket();
+    const seededAdmin = await adminStore.seedAdminUser({
+      username: ADMIN_SEED_USERNAME,
+      email: ADMIN_SEED_EMAIL,
+      password: ADMIN_PASSWORD,
+      role: ADMIN_SEED_ROLE,
+      forcePasswordSync:
+        String(process.env.ADMIN_FORCE_PASSWORD_SYNC || '')
+          .trim()
+          .toLowerCase() === 'true',
+      forceRoleSync:
+        String(process.env.ADMIN_FORCE_ROLE_SYNC || '')
+          .trim()
+          .toLowerCase() === 'true',
+      forceActivate:
+        String(process.env.ADMIN_FORCE_ACTIVATE || '')
+          .trim()
+          .toLowerCase() === 'true'
+    });
+    if (seededAdmin) {
+      console.log(`Admin seed ensured for ${seededAdmin.email} (${seededAdmin.role})`);
+    }
+
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    });
+
     setInterval(async () => {
       try {
         const result = await walletService.expireOrders();
@@ -1719,6 +2033,9 @@ async function boot() {
     });
   } catch (error) {
     console.error('Failed to start server:', error.message);
+    if (!IS_PRODUCTION && error.stack) {
+      console.error(error.stack);
+    }
     process.exit(1);
   }
 }

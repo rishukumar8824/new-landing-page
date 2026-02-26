@@ -2,42 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="0; url=/admin" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin Panel - Leads</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <title>Redirecting...</title>
+    <script>
+      window.location.replace('/admin');
+    </script>
   </head>
-  <body>
-    <main class="admin-container">
-      <section class="admin-card">
-        <div class="admin-header">
-          <div>
-            <h1>Submitted Leads</h1>
-            <p>All form submissions are listed below.</p>
-          </div>
-          <div class="admin-actions">
-            <a class="secondary-btn" href="/">Back to Form</a>
-            <button id="refreshBtn" type="button">Refresh</button>
-            <button id="logoutBtn" type="button">Logout</button>
-          </div>
-        </div>
-
-        <p id="adminMessage" class="message"></p>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Mobile</th>
-                <th>Submitted At</th>
-              </tr>
-            </thead>
-            <tbody id="leadRows"></tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-
-    <script src="/admin.js"></script>
-  </body>
+  <body></body>
 </html>

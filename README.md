@@ -1,114 +1,137 @@
-# Bitegit Web App
+# Bitegit Exchange (Node + MongoDB)
 
-Express-based landing + P2P + trade app with MongoDB Atlas persistence.
+Production-ready scaffold for:
 
-## What Is Persisted
+- Landing page + lead capture
+- P2P module (offers/orders/chat/escrow states)
+- Spot module
+- Admin Panel (`/admin/login`, `/admin`)
 
-All dynamic/business data is stored in MongoDB:
+## 1) Prerequisites
 
-- Leads
-- Admin sessions
-- Signup OTP codes
-- P2P credentials and user sessions
-- P2P wallets (`balance`, `lockedBalance`)
-- P2P offers
-- P2P orders and chat messages
-- Trade orders
-- Migration/meta flags
+- Node.js 18+
+- MongoDB Atlas cluster (recommended)
 
-In-memory is used only for runtime SSE stream connections.
+## 2) Environment Setup (.env)
 
-## Environment Variables
+Create `.env` in project root:
 
-Required:
+```bash
+cp .env.example .env
+```
 
-- `MONGODB_URI` -> MongoDB Atlas connection string
-- `ADMIN_USERNAME`
-- `ADMIN_PASSWORD`
+Then edit `.env` values:
 
-Optional:
+```env
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority
+MONGODB_DB_NAME=bitegit
+JWT_SECRET=replace_with_long_random_secret
 
-- `MONGODB_DB_NAME` -> default `bitegit`
-- `ALLOW_DEMO_OTP` -> default `true` in non-production
-- `RESEND_API_KEY`
-- `RESEND_FROM_EMAIL`
-- `SMTP_HOST`
-- `SMTP_PORT`
-- `SMTP_USER`
-- `SMTP_PASS`
-- `SMTP_FROM_EMAIL`
-- `SMTP_SECURE`
-- `GMAIL_USER`
-- `GMAIL_APP_PASSWORD`
-- `P2P_DEFAULT_USER_BALANCE` (default `10000`, for demo auto-wallet init)
-- `P2P_DEFAULT_SEED_WALLET_BALANCE` (default `1000000`)
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin123
+ADMIN_EMAIL=admin@admin.local
+ADMIN_ROLE=SUPER_ADMIN
+```
 
-## Local Run
+Notes:
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Set env:
-   ```bash
-   export MONGODB_URI="mongodb+srv://<user>:<pass>@<cluster>/<db>?retryWrites=true&w=majority"
-   export MONGODB_DB_NAME="bitegit"
-   export ADMIN_USERNAME="your-admin-user"
-   export ADMIN_PASSWORD="your-admin-pass"
-   ```
-3. Start server:
-   ```bash
-   npm start
-   ```
-4. Open:
-   - `http://localhost:3000`
-   - `http://localhost:3000/p2p`
-   - `http://localhost:3000/trade/spot/BTCUSDT`
-   - `http://localhost:3000/admin-login`
+- App uses built-in `.env` loader (`/Users/sumitkmina/Documents/New project/lib/env.js`), no manual `export` needed.
+- Local MongoDB is disabled by default. To allow local URI (`127.0.0.1`/`localhost`), set:
+  - `ALLOW_LOCAL_MONGO=true`
 
-## Startup Behavior
+## 3) Atlas Connection Guide
 
-On startup, server does:
+1. Atlas -> Database Access -> create DB user.
+2. Atlas -> Network Access -> add your IP (or temporary `0.0.0.0/0` for testing).
+3. Atlas -> Clusters -> Connect -> Drivers -> copy connection string.
+4. Put that string into `MONGODB_URI` in `.env`.
+5. Keep password URL-safe in URI.
 
-1. Connect to MongoDB (fail-fast if connection/index setup fails)
-2. Ensure all indexes
-3. Run one-time migration from `data/leads.json` into Mongo (`app_meta` flag: `leads_migrated_v1`)
-4. Seed default P2P offers only if `p2p_offers` is empty
-5. Ensure wallets for seed advertisers
-6. Start HTTP server
+## 4) Install and Run
 
-## P2P Escrow States
+```bash
+npm install
+npm start
+```
 
-Order status lifecycle:
+Expected startup logs:
 
-- `PENDING` -> escrow locked from seller wallet
-- `PAID` -> buyer marked payment done
-- `RELEASED` -> seller released escrow to buyer wallet
-- `CANCELLED` -> escrow unlocked back to seller wallet
-- `DISPUTED` -> manual review state
-- `EXPIRED` -> auto-expired and escrow unlocked to seller
+- `MongoDB indexes ensured`
+- `Admin seed ensured for ...`
+- `Server running on port 3000`
 
-Escrow safety rules:
+## 5) Admin Login
 
-- One active order per seller (`PENDING`, `PAID`, `DISPUTED`)
-- Seller balance check before escrow lock
-- Release/cancel uses MongoDB transaction session
-- 15-minute auto-expiry sweep runs in background
+Open:
 
-## Health Check
+- `http://localhost:3000/admin/login`
 
-`GET /healthz`
+Default from `.env`:
 
-- Connected: `{"status":"ok","db":"connected"}`
-- Disconnected: HTTP `503` with `{"status":"error","db":"disconnected"}`
+- Username: `admin`
+- Password: `admin123`
 
-## Render Deploy
+## 6) Health Check
 
-Set these env vars in Render service:
+```bash
+curl -i http://localhost:3000/healthz
+```
+
+Healthy response:
+
+```json
+{"status":"ok","db":"connected"}
+```
+
+## 7) Admin Seed (Manual)
+
+If needed, run standalone seed:
+
+```bash
+npm run seed:admin
+```
+
+Behavior:
+
+- Creates admin if not exists.
+- Does not duplicate existing admin.
+- Supports controlled sync flags:
+  - `ADMIN_FORCE_PASSWORD_SYNC=true`
+  - `ADMIN_FORCE_ROLE_SYNC=true`
+  - `ADMIN_FORCE_ACTIVATE=true`
+
+## 8) Required Environment Variables
 
 - `MONGODB_URI`
-- `MONGODB_DB_NAME` (optional, default `bitegit`)
-- `ADMIN_USERNAME`
-- `ADMIN_PASSWORD`
+- `JWT_SECRET`
 
-`render.yaml` already includes these keys.
+Recommended:
+
+- `MONGODB_DB_NAME` (default: `bitegit`)
+- `ADMIN_USERNAME` (default: `admin`)
+- `ADMIN_PASSWORD` (default: `admin123`)
+- `ADMIN_EMAIL` (default: `${ADMIN_USERNAME}@admin.local`)
+- `ADMIN_ROLE` (default: `SUPER_ADMIN`)
+
+## 9) Troubleshooting
+
+- `ECONNREFUSED 127.0.0.1:27017`:
+  - You are using local Mongo URI while local mode is disabled.
+  - Fix `MONGODB_URI` to Atlas, or set `ALLOW_LOCAL_MONGO=true`.
+
+- `MONGODB_URI is required`:
+  - Add `MONGODB_URI` in `.env`.
+
+- `JWT_SECRET is required`:
+  - Add strong random `JWT_SECRET` in `.env`.
+
+- Admin login fails:
+  - Check `.env` admin credentials.
+  - Run `npm run seed:admin` once.
+  - Restart server.
+
+## 10) Admin API Reference
+
+See:
+
+- `/Users/sumitkmina/Documents/New project/docs/admin-api.md`
