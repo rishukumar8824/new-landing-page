@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bitegit Markets</title>
+    <link rel="stylesheet" href="/mobile-nav.css" />
+    <link rel="stylesheet" href="/markets.css" />
+  </head>
+  <body class="markets-page has-mobile-nav">
+    <header class="markets-header">
+      <div class="markets-header-inner">
+        <a class="markets-back" href="/">←</a>
+        <h1>Markets</h1>
+        <a class="markets-trade-link" href="/trade/spot/BTCUSDT">Trade</a>
+      </div>
+    </header>
+
+    <main class="markets-main">
+      <section class="markets-tabs" id="marketsTabs" role="tablist" aria-label="Market filters">
+        <button type="button" data-tab="popular" class="active" role="tab" aria-selected="true">Popular</button>
+        <button type="button" data-tab="gainers" role="tab" aria-selected="false">Gainers</button>
+        <button type="button" data-tab="new" role="tab" aria-selected="false">New</button>
+        <button type="button" data-tab="volume" role="tab" aria-selected="false">24h Vol</button>
+      </section>
+
+      <section class="markets-list-wrap">
+        <div class="markets-head-row">
+          <span>Pair</span>
+          <span>Price</span>
+          <span>Change</span>
+        </div>
+        <div id="marketsRows" class="markets-rows">
+          <p class="markets-loading">Loading markets...</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="mobile-app-nav" aria-label="App navigation">
+      <a href="/">
+        <span class="nav-icon">⌂</span>
+        <span class="nav-label">Home</span>
+      </a>
+      <a href="/markets.html" class="active" aria-current="page">
+        <span class="nav-icon">◍</span>
+        <span class="nav-label">Markets</span>
+      </a>
+      <a href="/trade/spot/BTCUSDT">
+        <span class="nav-icon">⇅</span>
+        <span class="nav-label">Trade</span>
+      </a>
+      <a href="/p2p#orders">
+        <span class="nav-icon">◔</span>
+        <span class="nav-label">Assets</span>
+      </a>
+    </nav>
+
+    <script src="/markets.js"></script>
+  </body>
+</html>

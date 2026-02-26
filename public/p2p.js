@@ -27,7 +27,7 @@ const p2pMenuToggle = document.getElementById('p2pMenuToggle');
 const p2pNavClose = document.getElementById('p2pNavClose');
 const p2pNavDrawer = document.getElementById('p2pNavDrawer');
 const p2pNavOverlay = document.getElementById('p2pNavOverlay');
-const p2pMobileBottomNav = document.querySelector('.p2p-mobile-bottom-nav');
+const p2pMobileBottomNav = document.querySelector('.mobile-app-nav');
 
 const liveOrdersMeta = document.getElementById('liveOrdersMeta');
 const liveOrdersRows = document.getElementById('liveOrdersRows');
@@ -1522,10 +1522,11 @@ async function sendMessageHandler(event) {
   }
 
   const clientId = generateClientId();
+  const createdAt = new Date().toISOString();
   const optimisticMessage = {
     id: '',
     sender: currentUser?.username || 'You',
-    createdAt: new Date().toISOString(),
+    createdAt,
     clientId,
     messageType: 'text',
     text,
@@ -1536,13 +1537,21 @@ async function sendMessageHandler(event) {
   chatInput.value = '';
   chatState.textContent = 'Sending...';
 
+  const encodedPayload = encodeChatPayload({
+    messageType: 'text',
+    text,
+    imageUrl: '',
+    clientId,
+    createdAt
+  });
+
   try {
     const messages = await postChatPayload({
       messageType: 'text',
-      text,
+      text: encodedPayload,
       imageUrl: '',
       clientId,
-      createdAt: new Date().toISOString()
+      createdAt
     });
     renderMessages(messages, { smoothScroll: true, forceScroll: true });
     chatState.textContent = 'Message delivered';
@@ -2064,11 +2073,13 @@ if (paidConfirmBtn) {
 }
 if (orderChatBtn) {
   orderChatBtn.addEventListener('click', () => {
-    const chatPanel = document.querySelector('.order-chat-column');
-    if (chatPanel) {
-      chatPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (!activeOrderId) {
+      if (chatState) {
+        chatState.textContent = 'Order is not ready for chat yet.';
+      }
+      return;
     }
-    chatInput?.focus();
+    window.location.href = `/p2p-chat.html?orderId=${encodeURIComponent(activeOrderId)}`;
   });
 }
 if (cancelModalBackdrop) {

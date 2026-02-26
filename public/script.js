@@ -3,6 +3,7 @@ const message = document.getElementById('message');
 const topSignupBtn = document.getElementById('topSignupBtn');
 const heroUsers = document.getElementById('heroUsers');
 const marketList = document.getElementById('marketList');
+const marketTabs = document.getElementById('marketTabs');
 const newsList = document.getElementById('newsList');
 const spotPairsList = document.getElementById('spotPairsList');
 const derivPairsList = document.getElementById('derivPairsList');
@@ -31,6 +32,10 @@ const obBidsRows = document.getElementById('obBidsRows');
 const obTradesRows = document.getElementById('obTradesRows');
 
 const MARKET_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'ADAUSDT'];
+const MARKET_TAB_ORDER = {
+  popular: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'],
+  new: ['ADAUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT', 'ETHUSDT', 'BTCUSDT']
+};
 const COIN_NAMES = {
   BTCUSDT: 'Bitcoin',
   ETHUSDT: 'Ethereum',
@@ -60,6 +65,7 @@ let pendingContact = '';
 let pendingName = 'Website Lead';
 let activeBookSymbol = '';
 let depthRefreshTimer = null;
+let marketTab = 'popular';
 
 function setMessage(text, type = '') {
   if (!message) {
@@ -331,8 +337,19 @@ function renderMiniMarketRows(ticker) {
     return;
   }
 
-  marketList.innerHTML = ticker
-    .slice(0, 5)
+  const tickerBySymbol = new Map(ticker.map((item) => [item.symbol, item]));
+  let selectedRows = [...ticker];
+
+  if (marketTab === 'gainers') {
+    selectedRows.sort((a, b) => Number(b.change24h || 0) - Number(a.change24h || 0));
+  } else if (marketTab === 'volume') {
+    selectedRows.sort((a, b) => Number(b.volume24h || 0) - Number(a.volume24h || 0));
+  } else if (MARKET_TAB_ORDER[marketTab]) {
+    selectedRows = MARKET_TAB_ORDER[marketTab].map((symbol) => tickerBySymbol.get(symbol)).filter(Boolean);
+  }
+
+  marketList.innerHTML = selectedRows
+    .slice(0, 6)
     .map((item) => {
       const change = Number(item.change24h || 0);
       const sign = change >= 0 ? '+' : '';
@@ -411,6 +428,19 @@ function renderOpportunities(ticker) {
         })
         .join('');
     }
+  }
+}
+
+function setMarketTab(tab) {
+  const safeTab = ['popular', 'gainers', 'new', 'volume'].includes(tab) ? tab : 'popular';
+  marketTab = safeTab;
+
+  if (marketTabs) {
+    marketTabs.querySelectorAll('button[data-market-tab]').forEach((btn) => {
+      const isActive = btn.dataset.marketTab === safeTab;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
   }
 }
 
@@ -549,6 +579,17 @@ if (marketList) {
   });
 }
 
+if (marketTabs) {
+  marketTabs.addEventListener('click', (event) => {
+    const tabBtn = event.target.closest('button[data-market-tab]');
+    if (!tabBtn) {
+      return;
+    }
+    setMarketTab(tabBtn.dataset.marketTab || 'popular');
+    loadMarket();
+  });
+}
+
 [spotPairsList, derivPairsList].forEach((container) => {
   if (!container) {
     return;
@@ -585,6 +626,7 @@ window.addEventListener('keydown', (event) => {
 });
 
 setupHomeNav();
+setMarketTab('popular');
 animateCounter(309497423);
 renderNews();
 initScrollReveal();

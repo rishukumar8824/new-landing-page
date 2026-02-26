@@ -4,10 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Bitegit P2P</title>
-    <link rel="stylesheet" href="/styles.css?v=20260226-chatfix2" />
-    <link rel="stylesheet" href="/p2p.css?v=20260226-chatfix2" />
+    <link rel="stylesheet" href="/mobile-nav.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260227-mobile-premium" />
+    <link rel="stylesheet" href="/p2p.css?v=20260227-mobile-premium" />
   </head>
-  <body class="p2p-page p2p-theme-dark">
+  <body class="p2p-page p2p-theme-dark has-mobile-nav">
     <header class="p2p-header" id="p2pHeader">
       <div class="p2p-header-inner">
         <div class="p2p-brand-wrap">
@@ -160,7 +161,7 @@
         <div id="p2pCards" class="p2p-cards mobile-only"></div>
       </section>
 
-      <section class="p2p-live-card">
+      <section id="orders" class="p2p-live-card">
         <div class="p2p-live-head">
           <h2>Live Orders</h2>
           <p id="liveOrdersMeta">Loading live orders...</p>
@@ -191,22 +192,22 @@
       </section>
     </main>
 
-    <nav class="p2p-mobile-bottom-nav mobile-only" aria-label="P2P bottom navigation">
-      <a href="/p2p" class="active" aria-current="page">
+    <nav class="mobile-app-nav" aria-label="App navigation">
+      <a href="/">
         <span class="nav-icon">⌂</span>
-        <span>P2P</span>
+        <span class="nav-label">Home</span>
       </a>
-      <a href="/p2p#orders">
-        <span class="nav-icon">☰</span>
-        <span>Orders</span>
+      <a href="/markets.html">
+        <span class="nav-icon">◍</span>
+        <span class="nav-label">Markets</span>
       </a>
-      <a href="/p2p#ads">
-        <span class="nav-icon">↗</span>
-        <span>Ads</span>
+      <a href="/trade/spot/BTCUSDT">
+        <span class="nav-icon">⇅</span>
+        <span class="nav-label">Trade</span>
       </a>
-      <a href="/p2p#profile">
-        <span class="nav-icon">◉</span>
-        <span>Profile</span>
+      <a href="/p2p#orders" class="active" aria-current="page">
+        <span class="nav-icon">◔</span>
+        <span class="nav-label">Assets</span>
       </a>
     </nav>
 
@@ -422,6 +423,6 @@
       </div>
     </section>
 
-    <script src="/p2p.js?v=20260226-chatfix2"></script>
+    <script src="/p2p.js?v=20260227-mobile-premium2"></script>
   </body>
 </html>

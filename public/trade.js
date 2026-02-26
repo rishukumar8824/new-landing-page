@@ -23,7 +23,7 @@ const routeSymbol = normalizeRouteSymbol(pathParts[2] || 'BTCUSDT');
 const state = {
   market: routeMarket,
   symbol: routeSymbol,
-  interval: '5m',
+  interval: '15m',
   tradeSide: 'buy',
   mobileTab: 'chart',
   klines: [],
@@ -33,6 +33,8 @@ const state = {
 };
 
 const pairTitle = document.getElementById('pairTitle');
+const pairSelector = document.getElementById('pairSelector');
+const pairMarketLabel = document.querySelector('.pair-chip p');
 const pairPrice = document.getElementById('pairPrice');
 const pairChange = document.getElementById('pairChange');
 const pairHigh = document.getElementById('pairHigh');
@@ -72,6 +74,10 @@ const tradeActionMessage = document.getElementById('tradeActionMessage');
 const mobileTradeSideSwitch = document.getElementById('mobileTradeSideSwitch');
 const mobileTradeAmountUsdt = document.getElementById('mobileTradeAmountUsdt');
 const mobilePlaceTradeBtn = document.getElementById('mobilePlaceTradeBtn');
+const mobileQuickBuyBtn = document.getElementById('mobileQuickBuyBtn');
+const mobileQuickSellBtn = document.getElementById('mobileQuickSellBtn');
+const mobileBuyPrice = document.getElementById('mobileBuyPrice');
+const mobileSellPrice = document.getElementById('mobileSellPrice');
 
 const tradeMenuToggle = document.getElementById('tradeMenuToggle');
 const tradeNavClose = document.getElementById('tradeNavClose');
@@ -168,6 +174,12 @@ function setPairIdentity() {
   if (pairTitle) {
     pairTitle.textContent = displayPair;
   }
+  if (pairSelector) {
+    pairSelector.value = state.symbol;
+  }
+  if (pairMarketLabel) {
+    pairMarketLabel.textContent = state.market === 'perp' ? 'Perpetual' : 'Spot';
+  }
   document.title = `${displayPair} | Bitegit Trade`;
 }
 
@@ -225,6 +237,13 @@ function syncTradeActionButton() {
     mobilePlaceTradeBtn.textContent = label;
     mobilePlaceTradeBtn.classList.toggle('is-sell', state.tradeSide === 'sell');
   }
+
+  if (mobileQuickBuyBtn) {
+    mobileQuickBuyBtn.classList.toggle('active', state.tradeSide === 'buy');
+  }
+  if (mobileQuickSellBtn) {
+    mobileQuickSellBtn.classList.toggle('active', state.tradeSide === 'sell');
+  }
 }
 
 function setTradeSide(side) {
@@ -258,6 +277,29 @@ function setPriceChangeStyle(value) {
   }
 }
 
+function updateMobileQuickPrices(price, change) {
+  const numericPrice = Number(price || 0);
+  if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+    return;
+  }
+  const text = formatPrice(numericPrice, 4);
+  if (mobileBuyPrice) {
+    mobileBuyPrice.textContent = text;
+  }
+  if (mobileSellPrice) {
+    mobileSellPrice.textContent = text;
+  }
+  const isUp = Number(change || 0) >= 0;
+  if (mobileBuyPrice) {
+    mobileBuyPrice.classList.toggle('price-up', isUp);
+    mobileBuyPrice.classList.toggle('price-down', !isUp);
+  }
+  if (mobileSellPrice) {
+    mobileSellPrice.classList.toggle('price-up', isUp);
+    mobileSellPrice.classList.toggle('price-down', !isUp);
+  }
+}
+
 function renderTicker(ticker) {
   if (!ticker) {
     return;
@@ -284,6 +326,7 @@ function renderTicker(ticker) {
   }
 
   setPriceChangeStyle(change);
+  updateMobileQuickPrices(ticker.lastPrice, change);
   renderEstimatedQty();
 }
 
@@ -807,6 +850,11 @@ function setupInteractions() {
     loadKlines();
   });
 
+  pairSelector?.addEventListener('change', () => {
+    const nextSymbol = normalizeRouteSymbol(pairSelector.value || 'BTCUSDT');
+    window.location.href = `/trade/${state.market}/${encodeURIComponent(nextSymbol)}`;
+  });
+
   tradeSideSwitch?.addEventListener('click', (event) => {
     const btn = event.target.closest('button[data-side]');
     if (!btn) {
@@ -821,6 +869,16 @@ function setupInteractions() {
       return;
     }
     setTradeSide(btn.dataset.side);
+  });
+
+  mobileQuickBuyBtn?.addEventListener('click', () => {
+    setTradeSide('buy');
+    placeTradeOrder();
+  });
+
+  mobileQuickSellBtn?.addEventListener('click', () => {
+    setTradeSide('sell');
+    placeTradeOrder();
   });
 
   tradeAmountUsdt?.addEventListener('input', () => {

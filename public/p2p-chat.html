@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bitegit P2P Order Chat</title>
+    <link rel="stylesheet" href="/p2p-chat.css?v=20260227" />
+  </head>
+  <body class="p2p-chat-page">
+    <main class="order-chat-layout">
+      <section class="order-summary-card">
+        <header class="order-summary-head">
+          <button id="backBtn" type="button" class="icon-btn" aria-label="Back">←</button>
+          <div class="counterparty-wrap">
+            <p id="counterpartyName">Counterparty</p>
+            <span class="online-status"><span class="dot"></span>Online</span>
+          </div>
+          <span id="statusBadge" class="status-badge status-created">CREATED</span>
+        </header>
+
+        <div class="order-summary-body">
+          <h1>The order has been generated. Proceed to payment.</h1>
+          <div class="countdown-row">
+            <strong id="orderTimer">15:00</strong>
+            <span>Time Remaining</span>
+          </div>
+
+          <article class="escrow-card">
+            <p class="escrow-title">Escrow Protection</p>
+            <p>Crypto is held in escrow until payment is confirmed.</p>
+          </article>
+
+          <div class="details-grid">
+            <div>
+              <span>Trading Amount</span>
+              <strong id="detailAmount">--</strong>
+            </div>
+            <div>
+              <span>Price</span>
+              <strong id="detailPrice">--</strong>
+            </div>
+            <div>
+              <span>Quantity</span>
+              <strong id="detailQty">--</strong>
+            </div>
+            <div>
+              <span>Fee</span>
+              <strong id="detailFee">₹0</strong>
+            </div>
+            <div>
+              <span>Payment Method</span>
+              <strong id="detailPayment">--</strong>
+            </div>
+            <div>
+              <span>Order Number</span>
+              <strong id="detailRef">--</strong>
+            </div>
+            <div>
+              <span>Order Time</span>
+              <strong id="detailTime">--</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="chat-card" aria-label="Order chat">
+        <header class="chat-head">
+          <div>
+            <p>Order Chat</p>
+            <span id="chatState">Connecting...</span>
+          </div>
+          <button id="refreshBtn" type="button" class="refresh-btn" aria-label="Refresh">↻</button>
+        </header>
+
+        <div id="chatMessages" class="chat-messages" role="log" aria-live="polite" aria-label="Order chat messages">
+          <p class="chat-empty">No messages yet.</p>
+        </div>
+
+        <form id="chatForm" class="chat-form">
+          <button id="chatImageBtn" type="button" class="chat-image-btn" aria-label="Upload image">🖼</button>
+          <input id="chatImageInput" type="file" class="hidden-control" accept="image/png,image/jpeg,image/jpg,image/webp" />
+          <input id="chatInput" type="text" maxlength="300" autocomplete="off" placeholder="Type a message..." />
+          <button id="chatSendBtn" type="submit" class="send-btn">Send</button>
+        </form>
+
+        <p id="chatUploadState" class="chat-upload-state hidden">Uploading image...</p>
+      </section>
+    </main>
+
+    <section id="imagePreviewModal" class="image-preview-modal hidden" aria-hidden="true">
+      <div id="imagePreviewBackdrop" class="image-preview-backdrop"></div>
+      <div class="image-preview-panel" role="dialog" aria-modal="true" aria-label="Image preview">
+        <button id="imagePreviewCloseBtn" type="button" class="image-preview-close" aria-label="Close preview">✕</button>
+        <img id="imagePreviewEl" alt="Preview" />
+      </div>
+    </section>
+
+    <script src="/p2p-chat.js?v=20260227"></script>
+  </body>
+</html>

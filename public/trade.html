@@ -4,9 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Bitegit Trade</title>
+    <link rel="stylesheet" href="/mobile-nav.css" />
     <link rel="stylesheet" href="/trade.css" />
   </head>
-  <body class="trade-page">
+  <body class="trade-page has-mobile-nav">
     <header class="trade-topbar" id="tradeHeader">
       <div class="topbar-left">
         <button id="tradeMenuToggle" class="icon-btn" type="button" aria-label="Open menu" aria-controls="tradeNavDrawer" aria-expanded="false">☰</button>
@@ -18,11 +19,22 @@
             <p>Spot</p>
           </div>
         </div>
+        <label class="pair-select-wrap" for="pairSelector">
+          <span class="sr-only">Select pair</span>
+          <select id="pairSelector">
+            <option value="BTCUSDT">BTC/USDT</option>
+            <option value="ETHUSDT">ETH/USDT</option>
+            <option value="BNBUSDT">BNB/USDT</option>
+            <option value="SOLUSDT">SOL/USDT</option>
+            <option value="XRPUSDT">XRP/USDT</option>
+            <option value="ADAUSDT">ADA/USDT</option>
+          </select>
+        </label>
       </div>
 
       <nav class="topbar-nav" aria-label="Trade navigation">
         <a href="/">Buy Crypto</a>
-        <a href="/trade/spot/BTCUSDT">Markets</a>
+        <a href="/markets.html">Markets</a>
         <a href="/p2p">P2P</a>
         <a href="/trade/spot/BTCUSDT" class="active">Trade</a>
         <a href="/trade/perp/BTCUSDT">Derivatives</a>
@@ -42,7 +54,7 @@
       </div>
       <nav class="trade-nav-links" aria-label="Mobile trade navigation">
         <a href="/">Buy Crypto</a>
-        <a href="/trade/spot/BTCUSDT">Markets</a>
+        <a href="/markets.html">Markets</a>
         <a href="/p2p">P2P</a>
         <a href="/trade/spot/BTCUSDT">Trade</a>
         <a href="/trade/perp/BTCUSDT">Derivatives</a>
@@ -101,13 +113,12 @@
         </div>
 
         <div class="chart-toolbar" id="intervalTabs">
-          <button type="button" data-interval="1m">1m</button>
-          <button type="button" class="active" data-interval="5m">5m</button>
-          <button type="button" data-interval="15m">15m</button>
-          <button type="button" data-interval="30m">30m</button>
+          <button type="button" class="active" data-interval="15m">15m</button>
           <button type="button" data-interval="1h">1h</button>
           <button type="button" data-interval="4h">4h</button>
-          <button type="button" data-interval="1d">1d</button>
+          <button type="button" data-interval="1d">1D</button>
+          <button type="button" data-interval="5m">5m</button>
+          <button type="button" data-interval="30m">30m</button>
         </div>
 
         <div class="chart-wrap">
@@ -249,17 +260,40 @@
     </section>
 
     <section id="mobileTradeSticky" class="mobile-trade-sticky">
-      <div id="mobileTradeSideSwitch" class="mobile-side-switch">
-        <button type="button" data-side="buy" class="active">Buy</button>
-        <button type="button" data-side="sell">Sell</button>
-      </div>
-
-      <div class="mobile-trade-form">
-        <label for="mobileTradeAmountUsdt" class="sr-only">Order value USDT</label>
-        <input id="mobileTradeAmountUsdt" type="number" min="10" step="0.01" value="100" placeholder="USDT" />
-        <button id="mobilePlaceTradeBtn" type="button">Buy</button>
+      <div class="mobile-trade-strip">
+        <button id="mobileQuickBuyBtn" type="button" class="mobile-quick-btn buy">
+          <span>Buy</span>
+          <strong id="mobileBuyPrice">--</strong>
+        </button>
+        <label class="mobile-qty-wrap" for="mobileTradeAmountUsdt">
+          <input id="mobileTradeAmountUsdt" type="number" min="10" step="0.01" value="100" placeholder="USDT" />
+          <span>USDT</span>
+        </label>
+        <button id="mobileQuickSellBtn" type="button" class="mobile-quick-btn sell">
+          <span>Sell</span>
+          <strong id="mobileSellPrice">--</strong>
+        </button>
       </div>
     </section>
+
+    <nav class="mobile-app-nav" aria-label="App navigation">
+      <a href="/">
+        <span class="nav-icon">⌂</span>
+        <span class="nav-label">Home</span>
+      </a>
+      <a href="/markets.html">
+        <span class="nav-icon">◍</span>
+        <span class="nav-label">Markets</span>
+      </a>
+      <a href="/trade/spot/BTCUSDT" class="active" aria-current="page">
+        <span class="nav-icon">⇅</span>
+        <span class="nav-label">Trade</span>
+      </a>
+      <a href="/p2p#orders">
+        <span class="nav-icon">◔</span>
+        <span class="nav-label">Assets</span>
+      </a>
+    </nav>
 
     <script src="/trade.js"></script>
   </body>

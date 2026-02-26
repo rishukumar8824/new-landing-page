@@ -6,8 +6,9 @@
     <title>Bitegit | Crypto Exchange</title>
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/coinflare.css" />
+    <link rel="stylesheet" href="/mobile-nav.css" />
   </head>
-  <body class="coinflare-page">
+  <body class="coinflare-page has-mobile-nav">
     <div class="cf-bg-grid" aria-hidden="true"></div>
 
     <header class="cf-header" id="homeHeader">
@@ -92,10 +93,18 @@
         <div class="cf-hero-right">
           <div class="cf-mini-head">
             <h3>Live Market</h3>
-            <a href="/trade/spot/BTCUSDT">View all</a>
+            <a href="/markets.html">View all</a>
           </div>
-          <div id="marketList" class="cf-mini-market-list">
-            <p class="bnx-loading">Loading markets...</p>
+          <div class="cf-market-shell">
+            <div id="marketTabs" class="cf-market-tabs" role="tablist" aria-label="Market categories">
+              <button type="button" class="active" data-market-tab="popular" role="tab" aria-selected="true">Popular</button>
+              <button type="button" data-market-tab="gainers" role="tab" aria-selected="false">Gainers</button>
+              <button type="button" data-market-tab="new" role="tab" aria-selected="false">New</button>
+              <button type="button" data-market-tab="volume" role="tab" aria-selected="false">24h Vol</button>
+            </div>
+            <div id="marketList" class="cf-mini-market-list">
+              <p class="bnx-loading">Loading markets...</p>
+            </div>
           </div>
 
           <div class="cf-news-card">
@@ -328,6 +337,25 @@
       </div>
       <p class="cf-copyright">&copy; 2026 Bitegit. All rights reserved.</p>
     </footer>
+
+    <nav class="mobile-app-nav" aria-label="App navigation">
+      <a href="/" class="active" aria-current="page">
+        <span class="nav-icon">⌂</span>
+        <span class="nav-label">Home</span>
+      </a>
+      <a href="/markets.html">
+        <span class="nav-icon">◍</span>
+        <span class="nav-label">Markets</span>
+      </a>
+      <a href="/trade/spot/BTCUSDT">
+        <span class="nav-icon">⇅</span>
+        <span class="nav-label">Trade</span>
+      </a>
+      <a href="/p2p#orders">
+        <span class="nav-icon">◔</span>
+        <span class="nav-label">Assets</span>
+      </a>
+    </nav>
 
     <section id="chartModal" class="bnx-chart-modal hidden" aria-hidden="true">
       <div id="closeChartBackdrop" class="bnx-chart-backdrop"></div>

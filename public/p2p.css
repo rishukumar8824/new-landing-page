@@ -2705,3 +2705,83 @@ body.p2p-theme-light .order-chat-column .chat-item.chat-self {
     font-size: 0.96rem;
   }
 }
+
+/* Mobile compact Bybit-like polish */
+@media (max-width: 768px) {
+  .p2p-main {
+    padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  }
+
+  .p2p-mobile-top {
+    top: 58px;
+    padding-bottom: 0.36rem;
+  }
+
+  .sticky-filter-row {
+    top: 98px;
+    border-radius: 10px;
+  }
+
+  .p2p-cards {
+    width: 95%;
+    gap: 0.42rem;
+    margin-top: 0.32rem;
+  }
+
+  .p2p-offer-card {
+    border-radius: 12px;
+    padding: 0.58rem 0.62rem;
+    gap: 0.3rem;
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.26);
+  }
+
+  .p2p-card-user {
+    gap: 0.4rem;
+  }
+
+  .card-avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 0.78rem;
+  }
+
+  .p2p-card-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+  }
+
+  .p2p-card-time,
+  .p2p-card-order-meta {
+    font-size: 0.73rem;
+  }
+
+  .p2p-card-price {
+    font-size: 1.45rem;
+  }
+
+  .p2p-card-price .price-currency {
+    font-size: 0.82rem;
+  }
+
+  .p2p-card-details p {
+    font-size: 0.78rem;
+  }
+
+  .p2p-card-details p strong {
+    font-size: 0.82rem;
+  }
+
+  .card-payment-tags .pay-chip {
+    min-height: 16px;
+    padding: 0 0.3rem;
+    font-size: 0.66rem;
+  }
+
+  .p2p-offer-card .offer-action-btn {
+    min-width: 84px;
+    min-height: 34px;
+    font-size: 0.9rem;
+    padding: 0 0.8rem;
+  }
+}

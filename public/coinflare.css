@@ -433,6 +433,36 @@ a {
   gap: 0.55rem;
 }
 
+.cf-market-shell {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.cf-market-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+  border-bottom: 1px solid rgba(203, 219, 244, 0.15);
+  padding-bottom: 0.42rem;
+}
+
+.cf-market-tabs button {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #93a0b8;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cf-market-tabs button.active {
+  border-color: rgba(143, 252, 0, 0.38);
+  background: rgba(143, 252, 0, 0.14);
+  color: #d8ff9a;
+}
+
 .bnx-market-row {
   width: 100%;
   border: 1px solid var(--cf-line);
@@ -1428,5 +1458,16 @@ a {
   .cf-pair-change {
     grid-area: change;
     justify-self: end;
+  }
+
+  .cf-market-tabs {
+    gap: 0.3rem;
+    padding-bottom: 0.34rem;
+  }
+
+  .cf-market-tabs button {
+    min-height: 30px;
+    font-size: 0.8rem;
+    border-radius: 8px;
   }
 }
