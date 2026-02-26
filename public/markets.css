@@ -85,30 +85,39 @@ body.markets-page {
   position: sticky;
   top: 66px;
   z-index: 16;
-  padding: 0.45rem;
-  border: 1px solid var(--mk-line);
-  border-radius: 12px;
-  background: rgba(12, 16, 23, 0.92);
+  padding: 0.12rem 0.1rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 11, 16, 0.94);
   backdrop-filter: blur(10px);
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.markets-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .markets-tabs button {
-  min-height: 34px;
-  border: 1px solid transparent;
-  border-radius: 9px;
+  min-height: 42px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  padding: 0 0.55rem;
+  flex: 0 0 auto;
   background: transparent;
   color: var(--mk-muted);
-  font-size: 0.86rem;
+  font-size: 1rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .markets-tabs button.active {
   color: #ffffff;
-  border-color: rgba(143, 252, 0, 0.32);
-  background: rgba(143, 252, 0, 0.13);
+  border-bottom-color: #ffffff;
+  background: transparent;
 }
 
 .markets-list-wrap {
@@ -217,22 +226,18 @@ body.markets-page {
 
 .market-change {
   min-width: 88px;
-  min-height: 32px;
-  border-radius: 8px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-size: 0.85rem;
+  justify-content: flex-end;
+  font-size: 1.02rem;
   font-weight: 800;
 }
 
 .market-change.up {
-  background: rgba(22, 199, 132, 0.2);
   color: var(--mk-green);
 }
 
 .market-change.down {
-  background: rgba(255, 77, 79, 0.2);
   color: var(--mk-red);
 }
 
@@ -254,6 +259,7 @@ body.markets-page {
 
   .markets-head-row {
     padding: 0 0.6rem;
+    font-size: 0.88rem;
   }
 
   .market-row {
@@ -266,5 +272,9 @@ body.markets-page {
   .markets-head-row span:nth-child(2),
   .markets-head-row span:nth-child(3) {
     min-width: 78px;
+  }
+
+  .markets-tabs button {
+    font-size: 0.9rem;
   }
 }

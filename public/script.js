@@ -7,6 +7,8 @@ const marketTabs = document.getElementById('marketTabs');
 const newsList = document.getElementById('newsList');
 const spotPairsList = document.getElementById('spotPairsList');
 const derivPairsList = document.getElementById('derivPairsList');
+const eventsTrack = document.getElementById('eventsTrack');
+const eventsCount = document.querySelector('.cf-events-count');
 
 const otpRow = document.getElementById('otpRow');
 const otpInput = document.getElementById('otpInput');
@@ -66,6 +68,7 @@ let pendingName = 'Website Lead';
 let activeBookSymbol = '';
 let depthRefreshTimer = null;
 let marketTab = 'popular';
+let eventsAutoSlide = null;
 
 function setMessage(text, type = '') {
   if (!message) {
@@ -340,10 +343,10 @@ function renderMiniMarketRows(ticker) {
   const tickerBySymbol = new Map(ticker.map((item) => [item.symbol, item]));
   let selectedRows = [...ticker];
 
-  if (marketTab === 'gainers') {
-    selectedRows.sort((a, b) => Number(b.change24h || 0) - Number(a.change24h || 0));
-  } else if (marketTab === 'volume') {
+  if (marketTab === 'trends') {
     selectedRows.sort((a, b) => Number(b.volume24h || 0) - Number(a.volume24h || 0));
+  } else if (marketTab === 'change') {
+    selectedRows.sort((a, b) => Math.abs(Number(b.change24h || 0)) - Math.abs(Number(a.change24h || 0)));
   } else if (MARKET_TAB_ORDER[marketTab]) {
     selectedRows = MARKET_TAB_ORDER[marketTab].map((symbol) => tickerBySymbol.get(symbol)).filter(Boolean);
   }
@@ -432,7 +435,7 @@ function renderOpportunities(ticker) {
 }
 
 function setMarketTab(tab) {
-  const safeTab = ['popular', 'gainers', 'new', 'volume'].includes(tab) ? tab : 'popular';
+  const safeTab = ['popular', 'trends', 'change', 'new'].includes(tab) ? tab : 'popular';
   marketTab = safeTab;
 
   if (marketTabs) {
@@ -441,6 +444,48 @@ function setMarketTab(tab) {
       btn.classList.toggle('active', isActive);
       btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
+  }
+}
+
+function updateEventsCount() {
+  if (!eventsTrack || !eventsCount) {
+    return;
+  }
+  const cards = Array.from(eventsTrack.querySelectorAll('.cf-event-card'));
+  if (!cards.length) {
+    return;
+  }
+  const cardWidth = cards[0].offsetWidth || 1;
+  const activeIndex = Math.min(cards.length - 1, Math.max(0, Math.round(eventsTrack.scrollLeft / cardWidth)));
+  eventsCount.textContent = `${activeIndex + 1}/${cards.length}`;
+}
+
+function setupEventsCarousel() {
+  if (!eventsTrack) {
+    return;
+  }
+  const cards = Array.from(eventsTrack.querySelectorAll('.cf-event-card'));
+  if (!cards.length) {
+    return;
+  }
+
+  const scrollToCard = (index) => {
+    const safeIndex = ((index % cards.length) + cards.length) % cards.length;
+    cards[safeIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+  };
+
+  eventsTrack.addEventListener('scroll', updateEventsCount, { passive: true });
+  updateEventsCount();
+
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    let current = 0;
+    if (eventsAutoSlide) {
+      clearInterval(eventsAutoSlide);
+    }
+    eventsAutoSlide = setInterval(() => {
+      current = (current + 1) % cards.length;
+      scrollToCard(current);
+    }, 3200);
   }
 }
 
@@ -626,6 +671,7 @@ window.addEventListener('keydown', (event) => {
 });
 
 setupHomeNav();
+setupEventsCarousel();
 setMarketTab('popular');
 animateCounter(309497423);
 renderNews();

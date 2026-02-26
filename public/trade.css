@@ -448,10 +448,11 @@ body.trade-nav-open {
 .chart-wrap {
   position: relative;
   min-height: 320px;
+  background: #070c14;
 }
 
 #klineCanvas {
-  display: block;
+  display: none;
   width: 100%;
   height: 100%;
   touch-action: none;
@@ -460,6 +461,11 @@ body.trade-nav-open {
 
 #klineCanvas.dragging {
   cursor: grabbing;
+}
+
+.tv-chart {
+  position: absolute;
+  inset: 0;
 }
 
 .chart-foot {
@@ -1032,6 +1038,132 @@ body.trade-nav-open {
 
   .mobile-quick-btn {
     min-height: 52px;
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .trade-topbar {
+    min-height: 70px;
+    padding: 0.5rem 0.6rem;
+  }
+
+  .trade-brand {
+    display: none;
+  }
+
+  .pair-chip h1 {
+    font-size: 1.1rem;
+  }
+
+  .trade-stats-strip {
+    margin-top: 0.42rem;
+    border-radius: 12px;
+    padding: 0.58rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    background: #0a1220;
+  }
+
+  .stat span {
+    font-size: 0.72rem;
+  }
+
+  .stat strong {
+    font-size: 1rem;
+  }
+
+  .stat-price strong {
+    font-size: 2.25rem;
+    line-height: 1;
+  }
+
+  .mode-switch {
+    min-height: 38px;
+  }
+
+  .mode-switch button {
+    min-width: 74px;
+    min-height: 36px;
+    font-size: 0.82rem;
+  }
+
+  .mobile-market-tabs {
+    top: 70px;
+    margin-top: 0.42rem;
+    border-radius: 10px;
+    padding: 0.34rem;
+    background: rgba(10, 16, 26, 0.97);
+  }
+
+  .mobile-market-tabs button {
+    min-height: 34px;
+    font-size: 0.78rem;
+    border-radius: 8px;
+  }
+
+  .trade-main-grid {
+    margin-top: 0.42rem;
+    gap: 0.45rem;
+  }
+
+  .chart-column,
+  .book-column {
+    border-radius: 12px;
+  }
+
+  .chart-column {
+    grid-template-rows: auto auto minmax(420px, 60vh) auto;
+  }
+
+  .chart-main-tabs button,
+  .chart-view-tabs button,
+  .chart-toolbar button {
+    min-height: 30px;
+    padding: 0 0.55rem;
+    font-size: 0.76rem;
+  }
+
+  .chart-toolbar {
+    gap: 0.24rem;
+  }
+
+  .book-head,
+  .book-panel {
+    padding-inline: 0.5rem;
+  }
+
+  .book-table th,
+  .book-table td {
+    font-size: 0.76rem;
+    padding: 0.32rem 0.24rem;
+  }
+
+  .orders-bottom {
+    display: none;
+  }
+
+  .mobile-trade-sticky {
+    bottom: calc(88px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(203, 221, 255, 0.2);
+    padding: 0.45rem 0.62rem;
+    background: rgba(6, 11, 18, 0.96);
+  }
+
+  .mobile-trade-strip {
+    grid-template-columns: minmax(110px, 1fr) minmax(88px, 0.62fr) minmax(110px, 1fr);
+    gap: 0.34rem;
+  }
+
+  .mobile-quick-btn {
+    min-height: 66px;
+    border-radius: 18px;
+  }
+
+  .mobile-quick-btn strong {
+    font-size: 1.16rem;
+  }
+
+  .mobile-qty-wrap {
     border-radius: 14px;
   }
 }

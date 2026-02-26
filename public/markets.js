@@ -26,13 +26,13 @@ function formatPrice(value) {
 function applyTabOrder(rows) {
   const copy = [...rows];
 
-  if (currentTab === 'gainers') {
-    copy.sort((a, b) => Number(b.change24h || 0) - Number(a.change24h || 0));
+  if (currentTab === 'trends') {
+    copy.sort((a, b) => Number(b.volume24h || 0) - Number(a.volume24h || 0));
     return copy;
   }
 
-  if (currentTab === 'volume') {
-    copy.sort((a, b) => Number(b.volume24h || 0) - Number(a.volume24h || 0));
+  if (currentTab === 'change') {
+    copy.sort((a, b) => Math.abs(Number(b.change24h || 0)) - Math.abs(Number(a.change24h || 0)));
     return copy;
   }
 
@@ -81,7 +81,7 @@ function renderRows(rows) {
 }
 
 function setTab(nextTab) {
-  currentTab = ['popular', 'gainers', 'new', 'volume'].includes(nextTab) ? nextTab : 'popular';
+  currentTab = ['popular', 'trends', 'new', 'change'].includes(nextTab) ? nextTab : 'popular';
 
   if (marketsTabs) {
     marketsTabs.querySelectorAll('button[data-tab]').forEach((btn) => {

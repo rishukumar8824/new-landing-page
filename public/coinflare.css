@@ -393,6 +393,106 @@ a {
   font-size: 0.85rem;
 }
 
+.cf-mobile-events {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.cf-announcement-bar {
+  border: 1px solid var(--cf-line);
+  border-radius: 12px;
+  background: #0d141f;
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cf-announcement-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 8px;
+  background: rgba(156, 255, 0, 0.2);
+  color: #cbff7b;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 0 0.55rem;
+  white-space: nowrap;
+}
+
+.cf-announcement-bar p {
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+  color: #cfd9eb;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cf-announcement-bar a {
+  color: var(--cf-brand);
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.cf-events-track-wrap {
+  overflow: hidden;
+}
+
+.cf-events-track {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.cf-events-track::-webkit-scrollbar {
+  display: none;
+}
+
+.cf-event-card {
+  flex: 0 0 min(300px, 88%);
+  min-height: 132px;
+  border-radius: 14px;
+  border: 1px solid rgba(179, 203, 247, 0.2);
+  padding: 0.9rem;
+  background: radial-gradient(circle at 100% 10%, rgba(129, 214, 255, 0.2), transparent 45%),
+    linear-gradient(130deg, #0c1118 0%, #090d14 55%, #111826 100%);
+  scroll-snap-align: start;
+}
+
+.cf-event-card small {
+  color: var(--cf-brand);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.cf-event-card h4 {
+  margin: 0.42rem 0 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.cf-event-card p {
+  margin: 0.42rem 0 0;
+  color: var(--cf-muted);
+  font-size: 0.82rem;
+}
+
+.cf-events-count {
+  margin: 0;
+  color: var(--cf-brand);
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+
 .social-pill {
   width: 36px;
   height: 36px;
@@ -455,6 +555,9 @@ a {
   font-size: 0.84rem;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cf-market-tabs button.active {
@@ -1469,5 +1572,149 @@ a {
     min-height: 30px;
     font-size: 0.8rem;
     border-radius: 8px;
+  }
+}
+
+@media (max-width: 768px) {
+  .cf-header-inner {
+    min-height: 72px;
+  }
+
+  .cf-brand {
+    font-size: 2.05rem;
+  }
+
+  .cf-actions {
+    gap: 0.7rem;
+  }
+
+  .cf-signup {
+    min-height: 54px;
+    padding: 0 1.45rem;
+    font-size: 1rem;
+    font-weight: 800;
+    background: #9cff00;
+  }
+
+  .cf-nav-toggle {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: #111a2a;
+  }
+
+  .cf-main {
+    margin-top: 0.75rem;
+    gap: 1.2rem;
+  }
+
+  .cf-hero {
+    border-radius: 20px;
+    background: linear-gradient(180deg, #080d15 0%, #08111c 100%);
+  }
+
+  .cf-hero h1 {
+    font-size: clamp(2.5rem, 13vw, 3.8rem);
+    max-width: 10ch;
+  }
+
+  .cf-hero-subtitle {
+    font-size: 0.96rem;
+    max-width: none;
+  }
+
+  .cf-lead-form {
+    gap: 0.8rem;
+  }
+
+  .cf-lead-form input {
+    min-height: 56px;
+    border-radius: 16px;
+    font-size: 1.03rem;
+  }
+
+  .cf-lead-form button {
+    min-height: 58px;
+    border-radius: 16px;
+    font-size: 1.08rem;
+    font-weight: 800;
+  }
+
+  .cf-mini-head h3 {
+    font-size: 1.75rem;
+  }
+
+  .cf-mini-head a {
+    font-size: 1rem;
+  }
+
+  .cf-market-shell {
+    gap: 0.85rem;
+  }
+
+  .cf-market-tabs {
+    border-bottom: 1px solid rgba(240, 245, 255, 0.22);
+  }
+
+  .cf-market-tabs button {
+    min-height: 32px;
+    border-radius: 0;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 0;
+    color: #a8b4ca;
+    background: transparent;
+    font-size: 0.84rem;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .cf-market-tabs button.active {
+    color: #ffffff;
+    border-bottom-color: #ffffff;
+    background: transparent;
+  }
+
+  .bnx-market-row {
+    border-radius: 14px;
+    min-height: 68px;
+    padding: 0.7rem 0.85rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'symbol change'
+      'price price';
+    border-color: rgba(176, 195, 226, 0.2);
+  }
+
+  .bnx-market-symbol {
+    grid-area: symbol;
+  }
+
+  .bnx-market-price {
+    grid-area: price;
+    font-size: 1.12rem;
+    font-weight: 700;
+  }
+
+  .bnx-market-change {
+    grid-area: change;
+    justify-self: end;
+    font-size: 1.02rem;
+  }
+
+  .cf-news-card,
+  .cf-hero-stats {
+    display: none;
+  }
+
+  .cf-opportunities,
+  .cf-everyone,
+  .cf-trading-exp,
+  .cf-app-block,
+  .cf-testimonials,
+  .cf-neon-strip,
+  .cf-partners,
+  .cf-footer {
+    margin-top: 0;
   }
 }

@@ -56,6 +56,7 @@ const intervalTabs = document.getElementById('intervalTabs');
 const flashModeBtn = document.getElementById('flashModeBtn');
 const proModeBtn = document.getElementById('proModeBtn');
 const canvas = document.getElementById('klineCanvas');
+const tvChartHost = document.getElementById('tvChart');
 const chartColumn = document.getElementById('chartColumn');
 const bookColumn = document.getElementById('bookColumn');
 const mobileMarketTabs = document.getElementById('mobileMarketTabs');
@@ -87,6 +88,10 @@ const tradeNavOverlay = document.getElementById('tradeNavOverlay');
 let depthTimer = null;
 let klineTimer = null;
 let resizeTimer = null;
+let lightweightChart = null;
+let candleSeries = null;
+let volumeSeries = null;
+let useLightweightChart = Boolean(window.LightweightCharts && tvChartHost);
 const chartView = {
   offset: 0,
   visible: 90,
@@ -394,7 +399,124 @@ function renderTrades(trades) {
     : '<tr><td colspan="4">No recent trades</td></tr>';
 }
 
+function ensureLightweightChart() {
+  if (!useLightweightChart || !tvChartHost) {
+    return false;
+  }
+  if (lightweightChart && candleSeries && volumeSeries) {
+    return true;
+  }
+
+  const hostWidth = Math.max(300, tvChartHost.clientWidth || 0);
+  const hostHeight = Math.max(320, tvChartHost.clientHeight || 0);
+  const lc = window.LightweightCharts;
+  if (!lc?.createChart) {
+    useLightweightChart = false;
+    return false;
+  }
+
+  lightweightChart = lc.createChart(tvChartHost, {
+    width: hostWidth,
+    height: hostHeight,
+    layout: {
+      background: { color: '#070c14' },
+      textColor: '#8ea0bd',
+      fontSize: 12,
+      fontFamily: 'Manrope, Segoe UI, sans-serif'
+    },
+    grid: {
+      vertLines: { color: 'rgba(142,160,189,0.10)' },
+      horzLines: { color: 'rgba(142,160,189,0.10)' }
+    },
+    crosshair: {
+      mode: lc.CrosshairMode.Normal
+    },
+    rightPriceScale: {
+      borderColor: 'rgba(142,160,189,0.24)'
+    },
+    timeScale: {
+      borderColor: 'rgba(142,160,189,0.24)',
+      timeVisible: true,
+      secondsVisible: false
+    },
+    handleScale: {
+      pinch: true,
+      mouseWheel: true,
+      axisPressedMouseMove: true
+    },
+    handleScroll: {
+      mouseWheel: true,
+      pressedMouseMove: true,
+      horzTouchDrag: true,
+      vertTouchDrag: false
+    }
+  });
+
+  candleSeries = lightweightChart.addCandlestickSeries({
+    upColor: '#00d084',
+    downColor: '#ff4d6d',
+    borderUpColor: '#00d084',
+    borderDownColor: '#ff4d6d',
+    wickUpColor: '#00d084',
+    wickDownColor: '#ff4d6d',
+    priceLineVisible: true,
+    priceLineColor: '#9cff00',
+    lastValueVisible: true
+  });
+
+  volumeSeries = lightweightChart.addHistogramSeries({
+    priceFormat: {
+      type: 'volume'
+    },
+    priceScaleId: '',
+    scaleMargins: {
+      top: 0.8,
+      bottom: 0
+    }
+  });
+
+  if (canvas) {
+    canvas.style.display = 'none';
+  }
+  return true;
+}
+
+function resizeLightweightChart() {
+  if (!lightweightChart || !tvChartHost) {
+    return;
+  }
+  const width = Math.max(280, tvChartHost.clientWidth || 0);
+  const height = Math.max(320, tvChartHost.clientHeight || 0);
+  lightweightChart.applyOptions({ width, height });
+}
+
+function toChartSeriesRows(data) {
+  const rows = Array.isArray(data) ? data : [];
+  return rows
+    .map((item) => {
+      const time = Math.floor(new Date(item.time).getTime() / 1000);
+      return {
+        time,
+        open: Number(item.open),
+        high: Number(item.high),
+        low: Number(item.low),
+        close: Number(item.close),
+        volume: Number(item.volume)
+      };
+    })
+    .filter((item) => Number.isFinite(item.time) && Number.isFinite(item.open) && Number.isFinite(item.close));
+}
+
 function drawNoChartState(text) {
+  if (ensureLightweightChart()) {
+    candleSeries?.setData([]);
+    volumeSeries?.setData([]);
+    if (chartStatus) {
+      chartStatus.textContent = text;
+    }
+    return;
+  }
+
   if (!canvas) {
     return;
   }
@@ -412,7 +534,6 @@ function drawNoChartState(text) {
 
   ctx.fillStyle = '#0d121a';
   ctx.fillRect(0, 0, rect.width, rect.height);
-
   ctx.fillStyle = '#8f9eb5';
   ctx.font = '13px Manrope';
   ctx.textAlign = 'center';
@@ -420,6 +541,39 @@ function drawNoChartState(text) {
 }
 
 function drawCandles(data) {
+  if (ensureLightweightChart()) {
+    const rows = toChartSeriesRows(data);
+    if (!rows.length) {
+      candleSeries?.setData([]);
+      volumeSeries?.setData([]);
+      return;
+    }
+
+    candleSeries.setData(
+      rows.map((item) => ({
+        time: item.time,
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close
+      }))
+    );
+    volumeSeries.setData(
+      rows.map((item) => ({
+        time: item.time,
+        value: item.volume,
+        color: item.close >= item.open ? 'rgba(0,208,132,0.45)' : 'rgba(255,77,109,0.45)'
+      }))
+    );
+    const visibleWindow = Math.min(96, rows.length);
+    lightweightChart.timeScale().setVisibleLogicalRange({
+      from: Math.max(0, rows.length - visibleWindow),
+      to: rows.length + 3
+    });
+    resizeLightweightChart();
+    return;
+  }
+
   if (!canvas) {
     return;
   }
@@ -589,7 +743,9 @@ async function loadKlines() {
     requestChartRedraw();
 
     if (chartStatus) {
-      chartStatus.textContent = `${state.interval} candles • ${data.klines.length} points • drag to pan • wheel to zoom`;
+      chartStatus.textContent = useLightweightChart
+        ? `${state.interval} candles • ${data.klines.length} points • pinch/drag to explore`
+        : `${state.interval} candles • ${data.klines.length} points • drag to pan • wheel to zoom`;
     }
     if (chartUpdatedAt) {
       chartUpdatedAt.textContent = `Updated ${new Date().toLocaleTimeString()}`;
@@ -728,6 +884,9 @@ function setTradeNavOpen(open) {
 }
 
 function setupChartInteractions() {
+  if (useLightweightChart) {
+    return;
+  }
   if (!canvas) {
     return;
   }
@@ -818,6 +977,7 @@ function setupChartInteractions() {
 }
 
 function applyResponsiveState() {
+  resizeLightweightChart();
   if (!isMobileViewport()) {
     chartColumn?.classList.remove('mobile-hidden');
     bookColumn?.classList.remove('mobile-hidden');
@@ -953,6 +1113,7 @@ function setupInteractions() {
 }
 
 async function initTradePage() {
+  ensureLightweightChart();
   setPairIdentity();
   setupInteractions();
   setOrderType(tradeOrderType?.value || 'limit');
