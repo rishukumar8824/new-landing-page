@@ -34,6 +34,7 @@ const state = {
 
 const pairTitle = document.getElementById('pairTitle');
 const pairSelector = document.getElementById('pairSelector');
+const pairCoin = document.getElementById('pairCoin');
 const pairMarketLabel = document.querySelector('.pair-chip p');
 const pairPrice = document.getElementById('pairPrice');
 const pairChange = document.getElementById('pairChange');
@@ -92,6 +93,19 @@ let lightweightChart = null;
 let candleSeries = null;
 let volumeSeries = null;
 let useLightweightChart = Boolean(window.LightweightCharts && tvChartHost);
+const COIN_ICON_SLUGS = {
+  BTC: 'btc',
+  ETH: 'eth',
+  BNB: 'bnb',
+  SOL: 'sol',
+  XRP: 'xrp',
+  ADA: 'ada',
+  DOGE: 'doge',
+  AVAX: 'avax',
+  LINK: 'link',
+  LTC: 'ltc',
+  TRX: 'trx'
+};
 const chartView = {
   offset: 0,
   visible: 90,
@@ -184,6 +198,17 @@ function setPairIdentity() {
   }
   if (pairMarketLabel) {
     pairMarketLabel.textContent = state.market === 'perp' ? 'Perpetual' : 'Spot';
+  }
+  if (pairCoin) {
+    const slug = COIN_ICON_SLUGS[base];
+    if (slug) {
+      pairCoin.innerHTML = `
+        <img src="https://cryptoicons.org/api/icon/${slug}/64" alt="${base}" loading="lazy" onerror="this.remove()" />
+        <span class="coin-fallback">${base.slice(0, 1)}</span>
+      `;
+    } else {
+      pairCoin.innerHTML = `<span class="coin-fallback">${base.slice(0, 1)}</span>`;
+    }
   }
   document.title = `${displayPair} | Bitegit Trade`;
 }
@@ -401,9 +426,19 @@ function renderTrades(trades) {
 
 function ensureLightweightChart() {
   if (!useLightweightChart || !tvChartHost) {
+    if (tvChartHost) {
+      tvChartHost.style.display = 'none';
+    }
+    if (canvas) {
+      canvas.style.display = 'block';
+    }
     return false;
   }
   if (lightweightChart && candleSeries && volumeSeries) {
+    tvChartHost.style.display = 'block';
+    if (canvas) {
+      canvas.style.display = 'none';
+    }
     return true;
   }
 
@@ -412,6 +447,10 @@ function ensureLightweightChart() {
   const lc = window.LightweightCharts;
   if (!lc?.createChart) {
     useLightweightChart = false;
+    tvChartHost.style.display = 'none';
+    if (canvas) {
+      canvas.style.display = 'block';
+    }
     return false;
   }
 
@@ -475,6 +514,7 @@ function ensureLightweightChart() {
     }
   });
 
+  tvChartHost.style.display = 'block';
   if (canvas) {
     canvas.style.display = 'none';
   }

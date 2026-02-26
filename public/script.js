@@ -56,6 +56,20 @@ const COIN_ICONS = {
   ADA: '◉'
 };
 
+const COIN_ICON_SLUGS = {
+  BTC: 'btc',
+  ETH: 'eth',
+  BNB: 'bnb',
+  XRP: 'xrp',
+  SOL: 'sol',
+  ADA: 'ada',
+  DOGE: 'doge',
+  AVAX: 'avax',
+  LINK: 'link',
+  LTC: 'ltc',
+  TRX: 'trx'
+};
+
 const NEWS_ITEMS = [
   'Bitcoin dominates market flows as spot demand rises across major venues.',
   'Ether network activity rebounds after latest layer-2 upgrade cycle.',
@@ -189,6 +203,23 @@ function formatTradeTime(value) {
     return '--:--:--';
   }
   return date.toLocaleTimeString([], { hour12: false });
+}
+
+function getCoinIconMarkup(base, size = 64, wrapperClass = 'bnx-coin-dot') {
+  const coin = String(base || '').toUpperCase();
+  const fallback = COIN_ICONS[coin] || coin.slice(0, 1) || '?';
+  const slug = COIN_ICON_SLUGS[coin];
+
+  if (!slug) {
+    return `<span class="${wrapperClass}"><span class="coin-fallback">${fallback}</span></span>`;
+  }
+
+  return `
+    <span class="${wrapperClass}">
+      <img src="https://cryptoicons.org/api/icon/${slug}/${size}" alt="${coin}" loading="lazy" onerror="this.remove()" />
+      <span class="coin-fallback">${fallback}</span>
+    </span>
+  `;
 }
 
 function setRows(target, rows, htmlFactory, colspan) {
@@ -363,7 +394,7 @@ function renderMiniMarketRows(ticker) {
       return `
         <button type="button" class="bnx-market-row" data-symbol="${symbol}">
           <div class="bnx-market-symbol">
-            <span class="bnx-coin-dot">${base.slice(0, 1)}</span>
+            ${getCoinIconMarkup(base, 64, 'bnx-coin-dot')}
             <p>${base} <small>${name}</small></p>
           </div>
           <p class="bnx-market-price">$${formatPrice(item.lastPrice)}</p>
@@ -395,7 +426,7 @@ function renderOpportunities(ticker) {
           return `
             <button type="button" class="cf-pair-row" data-market="spot" data-symbol="${item.symbol}">
               <div class="cf-pair-main">
-                <span class="cf-pair-icon">${COIN_ICONS[base] || base.slice(0, 1)}</span>
+                ${getCoinIconMarkup(base, 64, 'cf-pair-icon')}
                 <p>${base}/USDT</p>
               </div>
               <p class="cf-pair-price">${formatPrice(item.lastPrice)}</p>
@@ -421,7 +452,7 @@ function renderOpportunities(ticker) {
           return `
             <button type="button" class="cf-pair-row" data-market="perp" data-symbol="${item.symbol}">
               <div class="cf-pair-main">
-                <span class="cf-pair-icon">${COIN_ICONS[base] || base.slice(0, 1)}</span>
+                ${getCoinIconMarkup(base, 64, 'cf-pair-icon')}
                 <p>${base}USDT-P</p>
               </div>
               <p class="cf-pair-price">${formatPrice(item.lastPrice)}</p>

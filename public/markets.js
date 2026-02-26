@@ -16,11 +16,41 @@ const ICONS = {
   LTC: 'Ł'
 };
 
+const ICON_SLUGS = {
+  BTC: 'btc',
+  ETH: 'eth',
+  BNB: 'bnb',
+  SOL: 'sol',
+  XRP: 'xrp',
+  ADA: 'ada',
+  DOGE: 'doge',
+  AVAX: 'avax',
+  LINK: 'link',
+  LTC: 'ltc'
+};
+
 let currentTab = 'popular';
 let cacheRows = [];
 
 function formatPrice(value) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 5 });
+}
+
+function getCoinIconMarkup(base, size = 64) {
+  const coin = String(base || '').toUpperCase();
+  const fallback = ICONS[coin] || coin.slice(0, 1) || '?';
+  const slug = ICON_SLUGS[coin];
+
+  if (!slug) {
+    return `<span class="market-logo"><span class="coin-fallback">${fallback}</span></span>`;
+  }
+
+  return `
+    <span class="market-logo">
+      <img src="https://cryptoicons.org/api/icon/${slug}/${size}" alt="${coin}" loading="lazy" onerror="this.remove()" />
+      <span class="coin-fallback">${fallback}</span>
+    </span>
+  `;
 }
 
 function applyTabOrder(rows) {
@@ -69,7 +99,7 @@ function renderRows(rows) {
       return `
         <button type="button" class="market-row" data-symbol="${symbol}">
           <div class="market-pair">
-            <span class="market-logo">${ICONS[base] || base.slice(0, 1)}</span>
+            ${getCoinIconMarkup(base)}
             <p class="market-symbol">${base}<small>/USDT</small></p>
           </div>
           <p class="market-price">${formatPrice(item.lastPrice)}</p>
