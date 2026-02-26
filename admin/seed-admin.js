@@ -70,5 +70,5 @@ async function run() {
 
 run().catch((error) => {
   console.error('Admin seed failed:', error.message);
-  process.exit(1);
+  process.exitCode = 1;
 });

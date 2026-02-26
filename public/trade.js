@@ -25,6 +25,7 @@ const state = {
   symbol: routeSymbol,
   interval: '5m',
   tradeSide: 'buy',
+  mobileTab: 'chart',
   klines: [],
   ticker: null,
   orderBook: null,
@@ -53,6 +54,11 @@ const intervalTabs = document.getElementById('intervalTabs');
 const flashModeBtn = document.getElementById('flashModeBtn');
 const proModeBtn = document.getElementById('proModeBtn');
 const canvas = document.getElementById('klineCanvas');
+const chartColumn = document.getElementById('chartColumn');
+const bookColumn = document.getElementById('bookColumn');
+const mobileMarketTabs = document.getElementById('mobileMarketTabs');
+const mobileBookCollapseBtn = document.getElementById('mobileBookCollapseBtn');
+
 const tradeSideSwitch = document.getElementById('tradeSideSwitch');
 const orderTypeTabs = document.getElementById('orderTypeTabs');
 const tradeOrderType = document.getElementById('tradeOrderType');
@@ -62,6 +68,15 @@ const tradeRiskSlider = document.getElementById('tradeRiskSlider');
 const tradeEstimateQty = document.getElementById('tradeEstimateQty');
 const placeTradeBtn = document.getElementById('placeTradeBtn');
 const tradeActionMessage = document.getElementById('tradeActionMessage');
+
+const mobileTradeSideSwitch = document.getElementById('mobileTradeSideSwitch');
+const mobileTradeAmountUsdt = document.getElementById('mobileTradeAmountUsdt');
+const mobilePlaceTradeBtn = document.getElementById('mobilePlaceTradeBtn');
+
+const tradeMenuToggle = document.getElementById('tradeMenuToggle');
+const tradeNavClose = document.getElementById('tradeNavClose');
+const tradeNavDrawer = document.getElementById('tradeNavDrawer');
+const tradeNavOverlay = document.getElementById('tradeNavOverlay');
 
 let depthTimer = null;
 let klineTimer = null;
@@ -76,6 +91,10 @@ const chartView = {
   dragStartOffset: 0,
   rafPending: false
 };
+
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 767px)').matches;
+}
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -163,6 +182,21 @@ function setTradeActionMessage(text, type = '') {
   }
 }
 
+function syncAmountInputs(amount) {
+  const normalized = Number(amount);
+  if (Number.isNaN(normalized)) {
+    return;
+  }
+
+  if (tradeAmountUsdt && Number(tradeAmountUsdt.value || 0) !== normalized) {
+    tradeAmountUsdt.value = normalized <= 0 ? '' : normalized.toFixed(2);
+  }
+
+  if (mobileTradeAmountUsdt && Number(mobileTradeAmountUsdt.value || 0) !== normalized) {
+    mobileTradeAmountUsdt.value = normalized <= 0 ? '' : normalized.toFixed(2);
+  }
+}
+
 function renderEstimatedQty() {
   if (!tradeEstimateQty) {
     return;
@@ -180,21 +214,28 @@ function renderEstimatedQty() {
 }
 
 function syncTradeActionButton() {
-  if (!placeTradeBtn) {
-    return;
+  const label = state.tradeSide === 'sell' ? 'Sell' : 'Buy';
+
+  if (placeTradeBtn) {
+    placeTradeBtn.textContent = label;
+    placeTradeBtn.classList.toggle('is-sell', state.tradeSide === 'sell');
   }
-  placeTradeBtn.textContent = state.tradeSide === 'sell' ? 'Sell' : 'Buy';
-  placeTradeBtn.classList.toggle('is-sell', state.tradeSide === 'sell');
+
+  if (mobilePlaceTradeBtn) {
+    mobilePlaceTradeBtn.textContent = label;
+    mobilePlaceTradeBtn.classList.toggle('is-sell', state.tradeSide === 'sell');
+  }
 }
 
 function setTradeSide(side) {
   state.tradeSide = side === 'sell' ? 'sell' : 'buy';
   syncTradeActionButton();
 
-  if (!tradeSideSwitch) {
-    return;
-  }
-  tradeSideSwitch.querySelectorAll('button[data-side]').forEach((btn) => {
+  tradeSideSwitch?.querySelectorAll('button[data-side]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.side === state.tradeSide);
+  });
+
+  mobileTradeSideSwitch?.querySelectorAll('button[data-side]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.side === state.tradeSide);
   });
 }
@@ -525,13 +566,12 @@ async function placeTradeOrder() {
     return;
   }
 
-  if (!placeTradeBtn) {
-    return;
-  }
-
-  const previousText = placeTradeBtn.textContent;
-  placeTradeBtn.disabled = true;
-  placeTradeBtn.textContent = 'Placing...';
+  const disabledButtons = [placeTradeBtn, mobilePlaceTradeBtn].filter(Boolean);
+  disabledButtons.forEach((btn) => {
+    btn.disabled = true;
+    btn.dataset.originalText = btn.textContent;
+    btn.textContent = 'Placing...';
+  });
 
   try {
     const response = await fetch('/api/trade/orders', {
@@ -558,8 +598,11 @@ async function placeTradeOrder() {
   } catch (error) {
     setTradeActionMessage(error.message, 'error');
   } finally {
-    placeTradeBtn.disabled = false;
-    placeTradeBtn.textContent = previousText;
+    disabledButtons.forEach((btn) => {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.originalText || (state.tradeSide === 'sell' ? 'Sell' : 'Buy');
+    });
+    syncTradeActionButton();
   }
 }
 
@@ -585,6 +628,60 @@ function setOrderType(orderType) {
   orderTypeTabs?.querySelectorAll('button[data-order-type]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.orderType === normalized);
   });
+}
+
+function setMobileTab(tab) {
+  const target = ['chart', 'book', 'trades'].includes(tab) ? tab : 'chart';
+  state.mobileTab = target;
+
+  mobileMarketTabs?.querySelectorAll('button[data-mobile-tab]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.mobileTab === target);
+  });
+
+  if (!isMobileViewport()) {
+    chartColumn?.classList.remove('mobile-hidden');
+    bookColumn?.classList.remove('mobile-hidden');
+    return;
+  }
+
+  if (target === 'chart') {
+    chartColumn?.classList.remove('mobile-hidden');
+    bookColumn?.classList.add('mobile-hidden');
+  } else {
+    chartColumn?.classList.add('mobile-hidden');
+    bookColumn?.classList.remove('mobile-hidden');
+  }
+
+  if (target === 'trades') {
+    openBookPanel('trades');
+  }
+  if (target === 'book') {
+    openBookPanel('book');
+  }
+}
+
+function toggleBookCollapse() {
+  if (!bookColumn || !isMobileViewport()) {
+    return;
+  }
+  const collapsed = bookColumn.classList.toggle('is-collapsed');
+  if (mobileBookCollapseBtn) {
+    mobileBookCollapseBtn.textContent = collapsed ? 'Expand' : 'Collapse';
+  }
+}
+
+function setTradeNavOpen(open) {
+  if (!tradeNavDrawer || !tradeNavOverlay || !tradeMenuToggle) {
+    return;
+  }
+
+  const shouldOpen = Boolean(open);
+  document.body.classList.toggle('trade-nav-open', shouldOpen);
+  tradeNavDrawer.classList.toggle('is-open', shouldOpen);
+  tradeNavOverlay.classList.toggle('hidden', !shouldOpen);
+  tradeNavDrawer.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  tradeNavOverlay.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  tradeMenuToggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
 }
 
 function setupChartInteractions() {
@@ -677,6 +774,16 @@ function setupChartInteractions() {
   );
 }
 
+function applyResponsiveState() {
+  if (!isMobileViewport()) {
+    chartColumn?.classList.remove('mobile-hidden');
+    bookColumn?.classList.remove('mobile-hidden');
+    bookColumn?.classList.remove('is-collapsed');
+    return;
+  }
+  setMobileTab(state.mobileTab);
+}
+
 function setupInteractions() {
   setupChartInteractions();
 
@@ -708,7 +815,21 @@ function setupInteractions() {
     setTradeSide(btn.dataset.side);
   });
 
+  mobileTradeSideSwitch?.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-side]');
+    if (!btn) {
+      return;
+    }
+    setTradeSide(btn.dataset.side);
+  });
+
   tradeAmountUsdt?.addEventListener('input', () => {
+    syncAmountInputs(tradeAmountUsdt.value || 0);
+    renderEstimatedQty();
+  });
+
+  mobileTradeAmountUsdt?.addEventListener('input', () => {
+    syncAmountInputs(mobileTradeAmountUsdt.value || 0);
     renderEstimatedQty();
   });
 
@@ -730,17 +851,46 @@ function setupInteractions() {
     const percent = Number(tradeRiskSlider.value || 0);
     const simulatedWalletUsdt = 1000;
     const nextAmount = (simulatedWalletUsdt * percent) / 100;
-    if (tradeAmountUsdt) {
-      tradeAmountUsdt.value = nextAmount <= 0 ? '' : nextAmount.toFixed(2);
-    }
+    syncAmountInputs(nextAmount <= 0 ? 0 : Number(nextAmount.toFixed(2)));
     renderEstimatedQty();
   });
 
   placeTradeBtn?.addEventListener('click', placeTradeOrder);
+  mobilePlaceTradeBtn?.addEventListener('click', placeTradeOrder);
+
+  mobileMarketTabs?.addEventListener('click', (event) => {
+    const tabBtn = event.target.closest('button[data-mobile-tab]');
+    if (!tabBtn) {
+      return;
+    }
+    setMobileTab(tabBtn.dataset.mobileTab || 'chart');
+  });
+
+  mobileBookCollapseBtn?.addEventListener('click', toggleBookCollapse);
+
+  tradeMenuToggle?.addEventListener('click', () => setTradeNavOpen(true));
+  tradeNavClose?.addEventListener('click', () => setTradeNavOpen(false));
+  tradeNavOverlay?.addEventListener('click', () => setTradeNavOpen(false));
+
+  tradeNavDrawer?.addEventListener('click', (event) => {
+    const link = event.target.closest('a[href]');
+    if (link) {
+      setTradeNavOpen(false);
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      setTradeNavOpen(false);
+    }
+  });
 
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => requestChartRedraw(), 120);
+    resizeTimer = setTimeout(() => {
+      applyResponsiveState();
+      requestChartRedraw();
+    }, 120);
   });
 }
 
@@ -749,8 +899,11 @@ async function initTradePage() {
   setupInteractions();
   setOrderType(tradeOrderType?.value || 'limit');
   setTradeSide(state.tradeSide);
+  syncAmountInputs(Number(tradeAmountUsdt?.value || 100));
   renderEstimatedQty();
   openBookPanel('book');
+  setMobileTab('chart');
+  applyResponsiveState();
 
   await Promise.all([loadDepth(), loadKlines()]);
 

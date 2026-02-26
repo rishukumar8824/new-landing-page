@@ -38,25 +38,51 @@ const joinByRefBtn = document.getElementById('joinByRefBtn');
 const orderModal = document.getElementById('orderModal');
 const closeModalBtn = document.getElementById('closeModalBtn');
 const closeModalBackdrop = document.getElementById('closeModalBackdrop');
+const orderChatBtn = document.getElementById('orderChatBtn');
 
 const orderRef = document.getElementById('orderRef');
 const orderStatus = document.getElementById('orderStatus');
 const orderTimer = document.getElementById('orderTimer');
 const orderMerchant = document.getElementById('orderMerchant');
+const orderCounterpartyName = document.getElementById('orderCounterpartyName');
+const orderCounterpartyMeta = document.getElementById('orderCounterpartyMeta');
 const orderPrice = document.getElementById('orderPrice');
 const orderAmount = document.getElementById('orderAmount');
 const orderAssetAmount = document.getElementById('orderAssetAmount');
+const orderFee = document.getElementById('orderFee');
 const orderPayment = document.getElementById('orderPayment');
 const orderParticipants = document.getElementById('orderParticipants');
+const orderTime = document.getElementById('orderTime');
 
 const markPaidBtn = document.getElementById('markPaidBtn');
-const releaseBtn = document.getElementById('releaseBtn');
 const cancelOrderBtn = document.getElementById('cancelOrderBtn');
+const paymentPanel = document.getElementById('paymentPanel');
+const paymentAmountDisplay = document.getElementById('paymentAmountDisplay');
+const paymentMethodDisplay = document.getElementById('paymentMethodDisplay');
+const paymentInstructions = document.getElementById('paymentInstructions');
+const paymentCountdown = document.getElementById('paymentCountdown');
+const paidConfirmBtn = document.getElementById('paidConfirmBtn');
+
+const cancelModal = document.getElementById('cancelModal');
+const cancelModalBackdrop = document.getElementById('cancelModalBackdrop');
+const cancelModalCloseBtn = document.getElementById('cancelModalCloseBtn');
+const cancelReasonForm = document.getElementById('cancelReasonForm');
+const cancelNoPaymentCheck = document.getElementById('cancelNoPaymentCheck');
+const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
 
 const chatState = document.getElementById('chatState');
 const chatMessages = document.getElementById('chatMessages');
 const chatForm = document.getElementById('chatForm');
 const chatInput = document.getElementById('chatInput');
+const chatSendBtn = document.getElementById('chatSendBtn');
+const chatImageBtn = document.getElementById('chatImageBtn');
+const chatImageInput = document.getElementById('chatImageInput');
+const chatUploadState = document.getElementById('chatUploadState');
+
+const imagePreviewModal = document.getElementById('imagePreviewModal');
+const imagePreviewBackdrop = document.getElementById('imagePreviewBackdrop');
+const imagePreviewCloseBtn = document.getElementById('imagePreviewCloseBtn');
+const imagePreviewEl = document.getElementById('imagePreviewEl');
 
 const dealModal = document.getElementById('dealModal');
 const dealBackdrop = document.getElementById('dealBackdrop');
@@ -87,6 +113,18 @@ let pollingIntervalId = null;
 let countdownIntervalId = null;
 let orderStream = null;
 let remainingSeconds = 0;
+let activeOrderRole = '';
+let activeOrderSnapshot = null;
+let autoCancelRequested = false;
+let chatUploading = false;
+let messagePollTick = 0;
+const chatMessageMap = new Map();
+const chatMessageNodes = new Map();
+const CHAT_IMAGE_MAX_SIZE = 3 * 1024 * 1024;
+// Keep payload comfortably below default Express JSON body limit once base64 + JSON overhead is added.
+const CHAT_MAX_PAYLOAD_BYTES = 60 * 1024;
+const CHAT_IMAGE_ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+const CHAT_PAYLOAD_PREFIX = '__P2P_MSG__:';
 const P2P_THEME_STORAGE_KEY = 'p2p_theme_mode';
 
 function escapeHtml(text) {
@@ -111,30 +149,374 @@ function formatTimer(seconds) {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '--';
+  }
+  return date.toLocaleString();
+}
+
+function normalizeStatusForUi(status) {
+  if (status === 'PENDING' || status === 'OPEN') {
+    return 'CREATED';
+  }
+  return String(status || '').toUpperCase();
+}
+
 function statusLabel(status) {
   const map = {
-    PENDING: 'Pending',
-    OPEN: 'Open',
+    CREATED: 'Created',
     PAID: 'Paid',
     RELEASED: 'Released',
     CANCELLED: 'Cancelled',
     DISPUTED: 'Disputed',
     EXPIRED: 'Expired'
   };
-  return map[status] || status;
+  return map[normalizeStatusForUi(status)] || status;
 }
 
 function statusClass(status) {
   const map = {
-    PENDING: 'status-open',
-    OPEN: 'status-open',
+    CREATED: 'status-created',
     PAID: 'status-paid',
     RELEASED: 'status-released',
     CANCELLED: 'status-cancelled',
     DISPUTED: 'status-paid',
     EXPIRED: 'status-expired'
   };
-  return map[status] || 'status-open';
+  return map[normalizeStatusForUi(status)] || 'status-created';
+}
+
+function generateClientId() {
+  return `tmp_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function encodeChatPayload(payload) {
+  return `${CHAT_PAYLOAD_PREFIX}${JSON.stringify(payload)}`;
+}
+
+function sanitizeImageUrl(url) {
+  const source = String(url || '').trim();
+  if (!source) {
+    return '';
+  }
+
+  const isSafeData =
+    /^data:image\/(png|jpe?g|webp);base64,[a-z0-9+/=\s]+$/i.test(source);
+  const isSafeRemote = /^https?:\/\/[^\s]+$/i.test(source);
+  const isSafePath = source.startsWith('/');
+
+  if (isSafeData || isSafeRemote || isSafePath) {
+    return source;
+  }
+  return '';
+}
+
+function estimateDataUrlBytes(dataUrl) {
+  const text = String(dataUrl || '');
+  const base64Part = text.includes(',') ? text.split(',')[1] : text;
+  const normalized = base64Part.replace(/\s/g, '');
+  return Math.floor((normalized.length * 3) / 4);
+}
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Unable to process image.'));
+    };
+    img.src = objectUrl;
+  });
+}
+
+async function compressImageForChat(file) {
+  const image = await loadImageFromFile(file);
+  const maxDimension = 1280;
+  const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('Unable to initialize image processor.');
+  }
+  context.drawImage(image, 0, 0, width, height);
+
+  const mimeType = 'image/webp';
+  let quality = 0.9;
+  let dataUrl = canvas.toDataURL(mimeType, quality);
+
+  while (estimateDataUrlBytes(dataUrl) > CHAT_MAX_PAYLOAD_BYTES && quality > 0.4) {
+    quality -= 0.08;
+    dataUrl = canvas.toDataURL(mimeType, quality);
+  }
+
+  if (estimateDataUrlBytes(dataUrl) > CHAT_MAX_PAYLOAD_BYTES) {
+    throw new Error('Image is too large after compression. Try a smaller screenshot.');
+  }
+
+  return dataUrl;
+}
+
+function decodeChatPayload(rawText) {
+  const raw = String(rawText || '');
+  if (!raw.startsWith(CHAT_PAYLOAD_PREFIX)) {
+    return {
+      messageType: 'text',
+      text: raw,
+      imageUrl: '',
+      clientId: '',
+      createdAt: null
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(raw.slice(CHAT_PAYLOAD_PREFIX.length));
+    const messageType = parsed?.messageType === 'image' ? 'image' : 'text';
+    const text = String(parsed?.text || '').trim();
+    const imageUrl = sanitizeImageUrl(parsed?.imageUrl || '');
+    const clientId = String(parsed?.clientId || '').trim();
+    const createdAt = parsed?.createdAt || null;
+    return {
+      messageType,
+      text,
+      imageUrl,
+      clientId,
+      createdAt
+    };
+  } catch (error) {
+    return {
+      messageType: 'text',
+      text: raw,
+      imageUrl: '',
+      clientId: '',
+      createdAt: null
+    };
+  }
+}
+
+function messageKeyFromMessage(message) {
+  if (!message) {
+    return '';
+  }
+  if (message.clientId) {
+    return `client:${message.clientId}`;
+  }
+  if (message.id) {
+    return `id:${message.id}`;
+  }
+  return `fallback:${message.sender || ''}:${message.createdAt || ''}:${message.text || ''}:${message.imageUrl || ''}`;
+}
+
+function toEpoch(value) {
+  const epoch = new Date(value).getTime();
+  return Number.isNaN(epoch) ? Date.now() : epoch;
+}
+
+function normalizeServerMessage(raw, optimistic = false) {
+  const payload = decodeChatPayload(raw?.text || '');
+  const explicitType = raw?.messageType === 'image' || raw?.messageType === 'text' ? raw.messageType : '';
+  const explicitImageUrl = sanitizeImageUrl(raw?.imageUrl || '');
+  const explicitClientId = String(raw?.clientId || '').trim();
+  const explicitText = String(raw?.text || '').trim();
+  const createdAtSource = raw?.createdAt || payload.createdAt || Date.now();
+  const messageType = explicitType || payload.messageType;
+  const imageUrl = explicitImageUrl || payload.imageUrl;
+  const clientId = explicitClientId || payload.clientId;
+  const isPayloadEncodedText = !explicitType && explicitText.startsWith(CHAT_PAYLOAD_PREFIX);
+  const safeExplicitText = isPayloadEncodedText ? '' : explicitText;
+  const text =
+    messageType === 'image'
+      ? safeExplicitText || payload.text || 'Payment screenshot'
+      : explicitType
+        ? safeExplicitText
+        : payload.text;
+
+  return {
+    id: raw?.id || '',
+    sender: String(raw?.sender || currentUser?.username || 'You'),
+    createdAt: new Date(createdAtSource).toISOString(),
+    messageType,
+    text,
+    imageUrl,
+    clientId,
+    pending: Boolean(optimistic),
+    failed: false
+  };
+}
+
+function resetChatMessages() {
+  chatMessageMap.clear();
+  chatMessageNodes.clear();
+  if (chatMessages) {
+    chatMessages.innerHTML = '';
+  }
+}
+
+function setChatUploading(isUploading, label = '') {
+  chatUploading = Boolean(isUploading);
+
+  if (chatSendBtn) {
+    chatSendBtn.disabled = chatUploading;
+  }
+  if (chatImageBtn) {
+    chatImageBtn.disabled = chatUploading;
+  }
+  if (chatUploadState) {
+    chatUploadState.classList.toggle('hidden', !chatUploading);
+    chatUploadState.textContent = label || 'Uploading image...';
+  }
+}
+
+function scrollChatToBottom(smooth = false) {
+  if (!chatMessages) {
+    return;
+  }
+  chatMessages.scrollTo({
+    top: chatMessages.scrollHeight,
+    behavior: smooth ? 'smooth' : 'auto'
+  });
+}
+
+function getMessageCssClass(message) {
+  const buyerName = String(activeOrderSnapshot?.buyerUsername || '').trim();
+  const sellerName = String(activeOrderSnapshot?.sellerUsername || activeOrderSnapshot?.advertiser || '').trim();
+  const sender = String(message.sender || '').trim();
+
+  if (sender === 'System') {
+    return 'chat-system';
+  }
+  if (buyerName && sender === buyerName) {
+    return 'chat-buyer';
+  }
+  if (sellerName && sender === sellerName) {
+    return 'chat-seller';
+  }
+  if (currentUser && sender === currentUser.username) {
+    return activeOrderRole === 'buyer' ? 'chat-buyer' : 'chat-seller';
+  }
+  return 'chat-seller';
+}
+
+function buildMessageMarkup(message) {
+  const messageClass = getMessageCssClass(message);
+  const textContent = escapeHtml(message.text || (message.messageType === 'image' ? 'Payment screenshot' : ''));
+  const imageMarkup = message.messageType === 'image' && message.imageUrl
+    ? `<button class="chat-image-link" type="button" data-preview-src="${escapeHtml(message.imageUrl)}"><img class="chat-image" src="${escapeHtml(
+        message.imageUrl
+      )}" alt="Payment screenshot" loading="lazy" /></button>`
+    : '';
+  const pendingTag = message.pending ? '<span class="chat-meta-flag">Sending...</span>' : '';
+  const failedTag = message.failed ? '<span class="chat-meta-flag failed">Failed</span>' : '';
+
+  return `
+    <article class="chat-item ${messageClass}${message.pending ? ' pending' : ''}${message.failed ? ' failed' : ''}" data-message-key="${escapeHtml(
+      messageKeyFromMessage(message)
+    )}">
+      <p class="chat-sender">${escapeHtml(message.sender)}</p>
+      ${imageMarkup}
+      ${textContent ? `<p class="chat-text">${textContent}</p>` : ''}
+      <p class="chat-time">${new Date(message.createdAt).toLocaleTimeString()} ${pendingTag} ${failedTag}</p>
+    </article>
+  `;
+}
+
+function updateMessageNode(node, message) {
+  if (!node) {
+    return null;
+  }
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = buildMessageMarkup(message).trim();
+  const next = wrapper.firstElementChild;
+  if (!next) {
+    return null;
+  }
+  node.replaceWith(next);
+  return next;
+}
+
+function appendMessage(message, options = {}) {
+  const normalized = normalizeServerMessage(message, Boolean(options.optimistic));
+  const key = messageKeyFromMessage(normalized);
+  if (!key || !chatMessages) {
+    return false;
+  }
+
+  const existing = chatMessageMap.get(key);
+  if (existing) {
+    if ((existing.pending || existing.failed) && !normalized.pending) {
+      const updated = { ...existing, ...normalized, pending: false, failed: false };
+      chatMessageMap.set(key, updated);
+      const node = chatMessageNodes.get(key);
+      if (node) {
+        const nextNode = updateMessageNode(node, updated);
+        if (nextNode) {
+          chatMessageNodes.set(key, nextNode);
+        }
+      }
+    }
+    return false;
+  }
+
+  const emptyNode = chatMessages.querySelector('.chat-empty');
+  if (emptyNode) {
+    emptyNode.remove();
+  }
+
+  chatMessageMap.set(key, normalized);
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = buildMessageMarkup(normalized).trim();
+  const messageNode = wrapper.firstElementChild;
+  if (!messageNode) {
+    return false;
+  }
+
+  chatMessages.appendChild(messageNode);
+  chatMessageNodes.set(key, messageNode);
+
+  if (options.scroll !== false) {
+    scrollChatToBottom(Boolean(options.smooth));
+  }
+  return true;
+}
+
+function renderMessages(messages = [], options = {}) {
+  if (!chatMessages) {
+    return;
+  }
+
+  if (!Array.isArray(messages) || messages.length === 0) {
+    if (chatMessageMap.size === 0) {
+      chatMessages.innerHTML = '<p class="chat-empty">No messages yet.</p>';
+    }
+    return;
+  }
+
+  const sorted = messages
+    .map((item) => normalizeServerMessage(item))
+    .sort((a, b) => toEpoch(a.createdAt) - toEpoch(b.createdAt));
+
+  let appendedCount = 0;
+  sorted.forEach((message) => {
+    const appended = appendMessage(message, { scroll: false });
+    if (appended) {
+      appendedCount += 1;
+    }
+  });
+
+  if (appendedCount > 0 || options.forceScroll) {
+    scrollChatToBottom(Boolean(options.smoothScroll));
+  }
 }
 
 function setP2PNavOpen(open) {
@@ -404,6 +786,61 @@ function setModalOpen(open) {
   }
 }
 
+function setPaymentPanelOpen(open) {
+  if (!paymentPanel) {
+    return;
+  }
+  const shouldOpen = Boolean(open);
+  paymentPanel.classList.toggle('hidden', !shouldOpen);
+}
+
+function setCancelModalOpen(open) {
+  if (!cancelModal) {
+    return;
+  }
+  const shouldOpen = Boolean(open);
+  cancelModal.classList.toggle('hidden', !shouldOpen);
+  cancelModal.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  document.body.classList.toggle('p2p-cancel-open', shouldOpen);
+  if (!shouldOpen && cancelReasonForm) {
+    cancelReasonForm.reset();
+  }
+  if (!shouldOpen && cancelNoPaymentCheck) {
+    cancelNoPaymentCheck.checked = false;
+  }
+  refreshCancelConfirmState();
+}
+
+function refreshCancelConfirmState() {
+  if (!cancelConfirmBtn) {
+    return;
+  }
+
+  const reasonSelected = Boolean(cancelReasonForm?.querySelector('input[name="cancelReason"]:checked'));
+  const noPaymentConfirmed = Boolean(cancelNoPaymentCheck?.checked);
+  cancelConfirmBtn.disabled = !(reasonSelected && noPaymentConfirmed);
+}
+
+function getOrderRole(order) {
+  if (!order || !currentUser) {
+    return '';
+  }
+
+  if (currentUser.id && currentUser.id === order.buyerUserId) {
+    return 'buyer';
+  }
+  if (currentUser.id && currentUser.id === order.sellerUserId) {
+    return 'seller';
+  }
+  if (currentUser.username && currentUser.username === order.buyerUsername) {
+    return 'buyer';
+  }
+  if (currentUser.username && currentUser.username === order.sellerUsername) {
+    return 'seller';
+  }
+  return '';
+}
+
 function resetOrderWatch() {
   if (pollingIntervalId) {
     clearInterval(pollingIntervalId);
@@ -421,14 +858,23 @@ function resetOrderWatch() {
 
 function closeOrderModal() {
   setModalOpen(false);
+  setPaymentPanelOpen(false);
+  setCancelModalOpen(false);
+  setImagePreviewOpen(false);
   activeOrderId = null;
+  activeOrderRole = '';
+  activeOrderSnapshot = null;
+  autoCancelRequested = false;
+  messagePollTick = 0;
   resetOrderWatch();
-  if (chatMessages) {
-    chatMessages.innerHTML = '';
-  }
+  resetChatMessages();
+  setChatUploading(false);
   if (chatInput) {
     chatInput.value = '';
     chatInput.disabled = false;
+  }
+  if (chatImageInput) {
+    chatImageInput.value = '';
   }
   if (chatState) {
     chatState.textContent = 'Waiting for messages...';
@@ -883,58 +1329,101 @@ function updateOrderUi(order) {
     return;
   }
 
+  activeOrderSnapshot = order;
+  activeOrderRole = getOrderRole(order);
+  const normalizedStatus = normalizeStatusForUi(order.status);
+  const counterpartyName =
+    activeOrderRole === 'buyer'
+      ? order.sellerUsername || order.advertiser || 'Seller'
+      : order.buyerUsername || 'Buyer';
+
   orderRef.textContent = order.reference;
   orderStatus.className = `status-pill ${statusClass(order.status)}`;
-  orderStatus.textContent = statusLabel(order.status);
-  orderMerchant.textContent = order.advertiser;
+  orderStatus.textContent = statusLabel(order.status).toUpperCase();
+  orderMerchant.textContent = counterpartyName;
+  if (orderCounterpartyName) {
+    orderCounterpartyName.textContent = counterpartyName;
+  }
+  if (orderCounterpartyMeta) {
+    orderCounterpartyMeta.textContent = `Order with verified ${activeOrderRole === 'buyer' ? 'seller' : 'buyer'}`;
+  }
   orderPrice.textContent = `₹${formatNumber(order.price)} / ${order.asset}`;
   orderAmount.textContent = `₹${formatNumber(order.amountInr)}`;
   orderAssetAmount.textContent = `${formatNumber(order.assetAmount)} ${order.asset}`;
+  if (orderFee) {
+    orderFee.textContent = `₹${formatNumber(Number(order.fee || 0))}`;
+  }
   orderPayment.textContent = order.paymentMethod;
   orderParticipants.textContent = order.participantsLabel;
+  if (orderTime) {
+    orderTime.textContent = formatDateTime(order.createdAt);
+  }
+  if (paymentAmountDisplay) {
+    paymentAmountDisplay.textContent = `₹${formatNumber(order.amountInr)}`;
+  }
+  if (paymentMethodDisplay) {
+    paymentMethodDisplay.textContent = `Payment method: ${order.paymentMethod}`;
+  }
+  if (paymentInstructions) {
+    paymentInstructions.textContent =
+      'Transfer exact amount from your own account and click “I have paid”.';
+  }
 
   remainingSeconds = Number(order.remainingSeconds || 0);
   orderTimer.textContent = formatTimer(remainingSeconds);
-
-  const isOpen = order.status === 'PENDING' || order.status === 'OPEN';
-  const isPaid = order.status === 'PAID';
-  const isClosed = ['RELEASED', 'CANCELLED', 'EXPIRED'].includes(order.status);
-
-  markPaidBtn.disabled = !isOpen;
-  cancelOrderBtn.disabled = !isOpen;
-  releaseBtn.disabled = !isPaid;
-  chatInput.disabled = isClosed;
-}
-
-function renderMessages(messages) {
-  if (!Array.isArray(messages) || messages.length === 0) {
-    chatMessages.innerHTML = '<p class="chat-empty">No messages yet.</p>';
-    return;
+  if (paymentCountdown) {
+    paymentCountdown.textContent = formatTimer(remainingSeconds);
   }
 
-  chatMessages.innerHTML = messages
-    .map((msg) => {
-      const cls =
-        currentUser && msg.sender === currentUser.username
-          ? 'chat-you'
-          : msg.sender === 'System'
-            ? 'chat-system'
-            : 'chat-merchant';
+  const isCreated = normalizedStatus === 'CREATED';
+  const isPaid = normalizedStatus === 'PAID';
+  const isReleased = normalizedStatus === 'RELEASED';
+  const isClosed = ['RELEASED', 'CANCELLED', 'EXPIRED'].includes(normalizedStatus);
 
-      return `
-        <article class="chat-item ${cls}">
-          <p class="chat-sender">${escapeHtml(msg.sender)}</p>
-          <p class="chat-text">${escapeHtml(msg.text)}</p>
-          <p class="chat-time">${new Date(msg.createdAt).toLocaleTimeString()}</p>
-        </article>
-      `;
-    })
-    .join('');
+  if (markPaidBtn) {
+    if (activeOrderRole === 'seller' && isPaid) {
+      markPaidBtn.dataset.action = 'release';
+      markPaidBtn.textContent = 'Release';
+      markPaidBtn.disabled = false;
+      markPaidBtn.classList.add('release-mode');
+    } else if (activeOrderRole === 'buyer' && isCreated) {
+      markPaidBtn.dataset.action = 'pay';
+      markPaidBtn.textContent = 'Pay';
+      markPaidBtn.disabled = false;
+      markPaidBtn.classList.remove('release-mode');
+    } else if (activeOrderRole === 'buyer' && isPaid) {
+      markPaidBtn.dataset.action = 'none';
+      markPaidBtn.textContent = 'Payment Sent';
+      markPaidBtn.disabled = true;
+      markPaidBtn.classList.remove('release-mode');
+    } else if (isReleased) {
+      markPaidBtn.dataset.action = 'none';
+      markPaidBtn.textContent = 'Released';
+      markPaidBtn.disabled = true;
+      markPaidBtn.classList.remove('release-mode');
+    } else {
+      markPaidBtn.dataset.action = 'none';
+      markPaidBtn.textContent = 'Pay';
+      markPaidBtn.disabled = true;
+      markPaidBtn.classList.remove('release-mode');
+    }
+  }
 
-  chatMessages.scrollTop = chatMessages.scrollHeight;
+  if (cancelOrderBtn) {
+    cancelOrderBtn.disabled = !isCreated;
+  }
+  if (paidConfirmBtn) {
+    paidConfirmBtn.disabled = !(activeOrderRole === 'buyer' && isCreated);
+  }
+  if (chatInput) {
+    chatInput.disabled = isClosed;
+  }
+  if (isClosed || isPaid || activeOrderRole !== 'buyer') {
+    setPaymentPanelOpen(false);
+  }
 }
 
-async function loadMessages() {
+async function fetchMessages(options = {}) {
   if (!activeOrderId) {
     return;
   }
@@ -947,10 +1436,165 @@ async function loadMessages() {
       throw new Error(data.message || 'Failed to load messages.');
     }
 
-    renderMessages(data.messages);
+    renderMessages(data.messages, options);
     chatState.textContent = `Messages: ${data.messages.length}`;
   } catch (error) {
     chatState.textContent = error.message;
+  }
+}
+
+async function postChatPayload(payload) {
+  const response = await fetch(`/api/p2p/orders/${activeOrderId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: encodeChatPayload(payload) })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Message failed.');
+  }
+  return data.messages;
+}
+
+async function sendMessageHandler(event) {
+  event.preventDefault();
+
+  if (!activeOrderId || !chatInput || !chatSendBtn || chatUploading) {
+    return;
+  }
+
+  const text = String(chatInput.value || '').trim();
+  if (!text) {
+    return;
+  }
+
+  const clientId = generateClientId();
+  const optimisticMessage = {
+    id: '',
+    sender: currentUser?.username || 'You',
+    createdAt: new Date().toISOString(),
+    clientId,
+    messageType: 'text',
+    text,
+    imageUrl: ''
+  };
+
+  appendMessage(optimisticMessage, { optimistic: true, smooth: true });
+  chatInput.value = '';
+  chatState.textContent = 'Sending...';
+
+  try {
+    const messages = await postChatPayload({
+      messageType: 'text',
+      text,
+      imageUrl: '',
+      clientId,
+      createdAt: new Date().toISOString()
+    });
+    renderMessages(messages, { smoothScroll: true, forceScroll: true });
+    chatState.textContent = 'Message delivered';
+  } catch (error) {
+    const key = messageKeyFromMessage(optimisticMessage);
+    const existing = chatMessageMap.get(key);
+    if (existing) {
+      existing.pending = false;
+      existing.failed = true;
+      chatMessageMap.set(key, existing);
+      const existingNode = chatMessageNodes.get(key);
+      if (existingNode) {
+        updateMessageNode(existingNode, existing);
+      }
+    }
+    chatState.textContent = error.message;
+  }
+}
+
+function setImagePreviewOpen(open, src = '') {
+  if (!imagePreviewModal) {
+    return;
+  }
+  const shouldOpen = Boolean(open);
+  imagePreviewModal.classList.toggle('hidden', !shouldOpen);
+  imagePreviewModal.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  if (imagePreviewEl) {
+    imagePreviewEl.src = shouldOpen ? src : '';
+  }
+}
+
+async function handleChatImageSelected(event) {
+  const file = event.target?.files?.[0];
+  if (!file || !activeOrderId || chatUploading) {
+    return;
+  }
+
+  if (!CHAT_IMAGE_ALLOWED_TYPES.includes(file.type)) {
+    chatState.textContent = 'Only JPG, JPEG, PNG, or WEBP images are allowed.';
+    event.target.value = '';
+    return;
+  }
+
+  if (file.size > CHAT_IMAGE_MAX_SIZE) {
+    chatState.textContent = 'Image size must be 3MB or less.';
+    event.target.value = '';
+    return;
+  }
+
+  setChatUploading(true, 'Uploading image...');
+
+  let safeImageUrl = '';
+  try {
+    const compressedDataUrl = await compressImageForChat(file);
+    safeImageUrl = sanitizeImageUrl(compressedDataUrl);
+    if (!safeImageUrl) {
+      throw new Error('Invalid image format.');
+    }
+  } catch (error) {
+    chatState.textContent = error.message || 'Failed to process image.';
+    setChatUploading(false);
+    event.target.value = '';
+    return;
+  }
+
+  const clientId = generateClientId();
+  const optimisticMessage = {
+    id: '',
+    sender: currentUser?.username || 'You',
+    createdAt: new Date().toISOString(),
+    clientId,
+    messageType: 'image',
+    text: 'Payment screenshot',
+    imageUrl: safeImageUrl
+  };
+
+  appendMessage(optimisticMessage, { optimistic: true, smooth: true });
+  chatState.textContent = 'Uploading image...';
+
+  try {
+    const messages = await postChatPayload({
+      messageType: 'image',
+      text: 'Payment screenshot',
+      imageUrl: safeImageUrl,
+      clientId,
+      createdAt: new Date().toISOString()
+    });
+    renderMessages(messages, { smoothScroll: true, forceScroll: true });
+    chatState.textContent = 'Image sent';
+  } catch (error) {
+    const key = messageKeyFromMessage(optimisticMessage);
+    const existing = chatMessageMap.get(key);
+    if (existing) {
+      existing.pending = false;
+      existing.failed = true;
+      chatMessageMap.set(key, existing);
+      const existingNode = chatMessageNodes.get(key);
+      if (existingNode) {
+        updateMessageNode(existingNode, existing);
+      }
+    }
+    chatState.textContent = error.message;
+  } finally {
+    setChatUploading(false);
+    event.target.value = '';
   }
 }
 
@@ -973,21 +1617,41 @@ async function loadOrderDetails() {
 
 function openOrder(order) {
   activeOrderId = order.id;
+  autoCancelRequested = false;
+  messagePollTick = 0;
+  resetChatMessages();
+  setChatUploading(false);
   setModalOpen(true);
+  setPaymentPanelOpen(false);
+  setCancelModalOpen(false);
   updateOrderUi(order);
-  loadMessages();
+  fetchMessages({ forceScroll: true });
 
   resetOrderWatch();
 
   pollingIntervalId = setInterval(() => {
-    loadOrderDetails();
-    loadMessages();
+    messagePollTick += 1;
+    fetchMessages();
+    if (messagePollTick % 2 === 0) {
+      loadOrderDetails();
+    }
     loadLiveOrders();
-  }, 6000);
+  }, 3000);
 
   countdownIntervalId = setInterval(() => {
     remainingSeconds = Math.max(0, remainingSeconds - 1);
     orderTimer.textContent = formatTimer(remainingSeconds);
+    if (paymentCountdown) {
+      paymentCountdown.textContent = formatTimer(remainingSeconds);
+    }
+
+    const normalizedStatus = normalizeStatusForUi(activeOrderSnapshot?.status);
+    if (remainingSeconds <= 0 && normalizedStatus === 'CREATED' && !autoCancelRequested) {
+      autoCancelRequested = true;
+      updateOrderStatus('cancel', { skipNotification: true }).catch(() => {
+        autoCancelRequested = false;
+      });
+    }
   }, 1000);
 
   orderStream = new EventSource(`/api/p2p/orders/${order.id}/stream`);
@@ -1000,7 +1664,7 @@ function openOrder(order) {
   orderStream.addEventListener('message_update', (event) => {
     const payload = JSON.parse(event.data || '{}');
     if (payload.messages) {
-      renderMessages(payload.messages);
+      renderMessages(payload.messages, { smoothScroll: true });
       chatState.textContent = `Messages: ${payload.messages.length}`;
     }
   });
@@ -1058,7 +1722,24 @@ async function joinOrderByReference() {
   }
 }
 
-async function updateOrderStatus(action) {
+async function sendOrderMessage(text) {
+  if (!activeOrderId || !String(text || '').trim()) {
+    return;
+  }
+
+  const response = await fetch(`/api/p2p/orders/${activeOrderId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: String(text).trim() })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Message failed.');
+  }
+  renderMessages(data.messages, { smoothScroll: true });
+}
+
+async function updateOrderStatus(action, options = {}) {
   if (!activeOrderId) {
     return;
   }
@@ -1075,10 +1756,17 @@ async function updateOrderStatus(action) {
     }
 
     updateOrderUi(data.order);
-    await loadMessages();
+    if (action === 'mark_paid' && !options.skipNotification) {
+      await sendOrderMessage('Payment done from buyer side. Please verify and release crypto.');
+    }
+    if (action === 'cancel' && options.reason && !options.skipNotification) {
+      await sendOrderMessage(`Order cancelled. Reason: ${options.reason}`);
+    }
+    await fetchMessages();
     await loadLiveOrders();
   } catch (error) {
     chatState.textContent = error.message;
+    throw error;
   }
 }
 
@@ -1284,41 +1972,114 @@ if (closeModalBackdrop) {
   closeModalBackdrop.addEventListener('click', closeOrderModal);
 }
 if (markPaidBtn) {
-  markPaidBtn.addEventListener('click', () => updateOrderStatus('mark_paid'));
-}
-if (releaseBtn) {
-  releaseBtn.addEventListener('click', () => updateOrderStatus('release'));
+  markPaidBtn.addEventListener('click', async () => {
+    const action = markPaidBtn.dataset.action;
+    if (action === 'release') {
+      try {
+        await updateOrderStatus('release');
+      } catch (error) {
+        // Status message already updated by updateOrderStatus.
+      }
+      return;
+    }
+    if (action === 'pay') {
+      setPaymentPanelOpen(true);
+      return;
+    }
+  });
 }
 if (cancelOrderBtn) {
-  cancelOrderBtn.addEventListener('click', () => updateOrderStatus('cancel'));
+  cancelOrderBtn.addEventListener('click', () => setCancelModalOpen(true));
+}
+if (paidConfirmBtn) {
+  paidConfirmBtn.addEventListener('click', async () => {
+    if (paidConfirmBtn.disabled) {
+      return;
+    }
+    paidConfirmBtn.disabled = true;
+    try {
+      await updateOrderStatus('mark_paid');
+      setPaymentPanelOpen(false);
+    } catch (error) {
+      // Status message already updated by updateOrderStatus.
+    } finally {
+      if (!['PAID', 'RELEASED', 'CANCELLED', 'EXPIRED'].includes(normalizeStatusForUi(activeOrderSnapshot?.status))) {
+        paidConfirmBtn.disabled = false;
+      }
+    }
+  });
+}
+if (orderChatBtn) {
+  orderChatBtn.addEventListener('click', () => {
+    const chatPanel = document.querySelector('.order-chat-column');
+    if (chatPanel) {
+      chatPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    chatInput?.focus();
+  });
+}
+if (cancelModalBackdrop) {
+  cancelModalBackdrop.addEventListener('click', () => setCancelModalOpen(false));
+}
+if (cancelModalCloseBtn) {
+  cancelModalCloseBtn.addEventListener('click', () => setCancelModalOpen(false));
+}
+if (cancelReasonForm) {
+  cancelReasonForm.addEventListener('change', refreshCancelConfirmState);
+}
+if (cancelNoPaymentCheck) {
+  cancelNoPaymentCheck.addEventListener('change', refreshCancelConfirmState);
+}
+if (cancelConfirmBtn) {
+  cancelConfirmBtn.addEventListener('click', async () => {
+    if (cancelConfirmBtn.disabled) {
+      return;
+    }
+    const selectedReason = cancelReasonForm?.querySelector('input[name="cancelReason"]:checked')?.value || '';
+    cancelConfirmBtn.disabled = true;
+    try {
+      await updateOrderStatus('cancel', { reason: selectedReason });
+      setCancelModalOpen(false);
+      setPaymentPanelOpen(false);
+    } catch (error) {
+      // Status message already updated by updateOrderStatus.
+    } finally {
+      refreshCancelConfirmState();
+    }
+  });
 }
 
 if (chatForm) {
-  chatForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    if (!activeOrderId || !chatInput?.value.trim()) {
+  chatForm.addEventListener('submit', sendMessageHandler);
+}
+if (chatImageBtn && chatImageInput) {
+  chatImageBtn.addEventListener('click', () => {
+    if (!activeOrderId || chatUploading) {
       return;
     }
-
-    const text = chatInput.value.trim();
-    chatInput.value = '';
-
-    try {
-      const response = await fetch(`/api/p2p/orders/${activeOrderId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Message failed.');
-      }
-      renderMessages(data.messages);
-      chatState.textContent = 'Message delivered';
-    } catch (error) {
-      chatState.textContent = error.message;
+    chatImageInput.click();
+  });
+}
+if (chatImageInput) {
+  chatImageInput.addEventListener('change', handleChatImageSelected);
+}
+if (chatMessages) {
+  chatMessages.addEventListener('click', (event) => {
+    const previewButton = event.target.closest('.chat-image-link');
+    if (!previewButton) {
+      return;
+    }
+    const previewSrc = sanitizeImageUrl(previewButton.getAttribute('data-preview-src') || '');
+    if (previewSrc) {
+      setImagePreviewOpen(true, previewSrc);
     }
   });
+}
+if (imagePreviewBackdrop) {
+  imagePreviewBackdrop.addEventListener('click', () => setImagePreviewOpen(false));
+}
+if (imagePreviewCloseBtn) {
+  imagePreviewCloseBtn.addEventListener('click', () => setImagePreviewOpen(false));
 }
 
 if (themeToggleBtn) {
@@ -1359,6 +2120,14 @@ if (p2pMobileBottomNav) {
 
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
+    if (imagePreviewModal && !imagePreviewModal.classList.contains('hidden')) {
+      setImagePreviewOpen(false);
+      return;
+    }
+    if (cancelModal && !cancelModal.classList.contains('hidden')) {
+      setCancelModalOpen(false);
+      return;
+    }
     if (dealModal && !dealModal.classList.contains('hidden')) {
       closeDealModal();
       return;

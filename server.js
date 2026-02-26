@@ -1,13 +1,4 @@
-let dotenvLoaded = false;
-try {
-  require('dotenv').config({ override: true });
-  dotenvLoaded = true;
-} catch (error) {
-  dotenvLoaded = false;
-}
-
-const { loadEnvFile } = require('./lib/env');
-loadEnvFile(undefined, { override: true });
+require('dotenv').config({ override: true });
 
 const crypto = require('crypto');
 const express = require('express');
@@ -25,7 +16,7 @@ const { createAdminControllers } = require('./admin/controllers/admin-controller
 const { registerAdminRoutes } = require('./admin/routes/admin-routes');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number.parseInt(process.env.PORT, 10);
 
 const ADMIN_SEED_USERNAME = String(process.env.ADMIN_USERNAME || 'admin')
   .trim()
@@ -119,6 +110,8 @@ let adminStore = null;
 let adminAuthMiddleware = null;
 let adminControllers = null;
 let persistenceReady = false;
+let httpServer = null;
+let shuttingDown = false;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -137,6 +130,9 @@ function validateStartupConfig() {
   }
   if (!String(process.env.JWT_SECRET || '').trim()) {
     missing.push('JWT_SECRET');
+  }
+  if (!Number.isFinite(PORT) || PORT <= 0) {
+    missing.push('PORT');
   }
 
   if (missing.length > 0) {
@@ -1901,7 +1897,7 @@ async function boot() {
     tokenService.ensureJwtSecret();
     const mongoConfig = getMongoConfig();
     console.log(`MongoDB target URI: ${mongoConfig.maskedUri}`);
-    console.log(`Environment loader: ${dotenvLoaded ? 'dotenv' : 'built-in .env loader'}`);
+    console.log('Environment loader: dotenv');
 
     await connectToMongo();
     const collections = getCollections();
@@ -2038,16 +2034,38 @@ async function boot() {
     }, P2P_EXPIRY_SWEEP_INTERVAL_MS);
 
     persistenceReady = true;
-    app.listen(PORT, () => {
+    httpServer = app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`MongoDB connected to ${mongoConfig.dbName}`);
+    });
+
+    ['SIGINT', 'SIGTERM'].forEach((signal) => {
+      process.on(signal, () => {
+        if (shuttingDown) {
+          return;
+        }
+        shuttingDown = true;
+        console.log(`${signal} received, shutting down HTTP server...`);
+
+        if (!httpServer) {
+          return;
+        }
+
+        httpServer.close(() => {
+          console.log('HTTP server closed.');
+        });
+
+        // Ensure shutdown does not hang forever.
+        setTimeout(() => {
+          console.log('Shutdown timeout reached.');
+        }, 8000).unref();
+      });
     });
   } catch (error) {
     console.error('Failed to start server:', error.message);
     if (!IS_PRODUCTION && error.stack) {
       console.error(error.stack);
     }
-    process.exit(1);
   }
 }
 

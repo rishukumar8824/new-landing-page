@@ -2,14 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Bitegit Trade</title>
     <link rel="stylesheet" href="/trade.css" />
   </head>
   <body class="trade-page">
-    <header class="trade-topbar">
+    <header class="trade-topbar" id="tradeHeader">
       <div class="topbar-left">
-        <button class="icon-btn" type="button" aria-label="Menu">☰</button>
+        <button id="tradeMenuToggle" class="icon-btn" type="button" aria-label="Open menu" aria-controls="tradeNavDrawer" aria-expanded="false">☰</button>
+        <a href="/" class="trade-brand">BITEGIT</a>
         <div class="pair-chip">
           <span class="pair-coin">₿</span>
           <div>
@@ -19,12 +20,12 @@
         </div>
       </div>
 
-      <nav class="topbar-nav">
+      <nav class="topbar-nav" aria-label="Trade navigation">
         <a href="/">Buy Crypto</a>
-        <a href="/">Markets</a>
+        <a href="/trade/spot/BTCUSDT">Markets</a>
         <a href="/p2p">P2P</a>
-        <a href="/" class="active">Trade</a>
-        <a href="/">Derivatives</a>
+        <a href="/trade/spot/BTCUSDT" class="active">Trade</a>
+        <a href="/trade/perp/BTCUSDT">Derivatives</a>
       </nav>
 
       <div class="topbar-actions">
@@ -32,6 +33,21 @@
         <a class="solid-btn" href="/">Sign Up</a>
       </div>
     </header>
+
+    <div id="tradeNavOverlay" class="trade-nav-overlay hidden" aria-hidden="true"></div>
+    <aside id="tradeNavDrawer" class="trade-nav-drawer" aria-hidden="true">
+      <div class="trade-nav-head">
+        <strong>BITEGIT</strong>
+        <button id="tradeNavClose" type="button" aria-label="Close menu">✕</button>
+      </div>
+      <nav class="trade-nav-links" aria-label="Mobile trade navigation">
+        <a href="/">Buy Crypto</a>
+        <a href="/trade/spot/BTCUSDT">Markets</a>
+        <a href="/p2p">P2P</a>
+        <a href="/trade/spot/BTCUSDT">Trade</a>
+        <a href="/trade/perp/BTCUSDT">Derivatives</a>
+      </nav>
+    </aside>
 
     <section class="trade-stats-strip">
       <article class="stat stat-price">
@@ -60,8 +76,15 @@
       </div>
     </section>
 
+    <div id="mobileMarketTabs" class="mobile-market-tabs">
+      <button type="button" data-mobile-tab="chart" class="active">Chart</button>
+      <button type="button" data-mobile-tab="book">Order Book</button>
+      <button type="button" data-mobile-tab="trades">Trades</button>
+      <button id="mobileBookCollapseBtn" type="button" class="mobile-collapse-btn">Collapse</button>
+    </div>
+
     <main class="trade-main-grid">
-      <section class="chart-column">
+      <section id="chartColumn" class="chart-column">
         <div class="chart-tabs-top">
           <div class="chart-main-tabs">
             <button type="button" class="active">Chart</button>
@@ -97,7 +120,7 @@
         </div>
       </section>
 
-      <section class="book-column">
+      <section id="bookColumn" class="book-column">
         <div class="book-head">
           <div class="book-tabs">
             <button id="tabOrderBook" type="button" class="active">Order Book</button>
@@ -145,7 +168,7 @@
         </div>
       </section>
 
-      <aside class="trade-side-panel">
+      <aside id="desktopTradePanel" class="trade-side-panel">
         <h2>Trade</h2>
 
         <div class="market-switch-row">
@@ -217,11 +240,24 @@
       </div>
 
       <div class="orders-sub-tabs">
-        <p class="active">Limit & Market Orders</p>
+        <p class="active">Limit &amp; Market Orders</p>
         <p>Conditional</p>
         <p>TP/SL</p>
         <p>Trailing Stop</p>
         <p>Spread Trading</p>
+      </div>
+    </section>
+
+    <section id="mobileTradeSticky" class="mobile-trade-sticky">
+      <div id="mobileTradeSideSwitch" class="mobile-side-switch">
+        <button type="button" data-side="buy" class="active">Buy</button>
+        <button type="button" data-side="sell">Sell</button>
+      </div>
+
+      <div class="mobile-trade-form">
+        <label for="mobileTradeAmountUsdt" class="sr-only">Order value USDT</label>
+        <input id="mobileTradeAmountUsdt" type="number" min="10" step="0.01" value="100" placeholder="USDT" />
+        <button id="mobilePlaceTradeBtn" type="button">Buy</button>
       </div>
     </section>
 

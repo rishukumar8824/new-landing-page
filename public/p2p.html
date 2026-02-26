@@ -293,41 +293,132 @@
 
     <section id="orderModal" class="order-modal hidden" aria-hidden="true">
       <div class="order-backdrop" id="closeModalBackdrop"></div>
-      <div class="order-panel" role="dialog" aria-modal="true" aria-labelledby="orderTitle">
-        <div class="order-header">
-          <h2 id="orderTitle">P2P Order Details</h2>
-          <button id="closeModalBtn" type="button" class="secondary-btn">Close</button>
-        </div>
-
-        <div class="order-summary-grid">
-          <article><span>Order ID</span><strong id="orderRef">--</strong></article>
-          <article><span>Status</span><strong id="orderStatus" class="status-pill">--</strong></article>
-          <article><span>Timer</span><strong id="orderTimer">--:--</strong></article>
-          <article><span>Merchant</span><strong id="orderMerchant">--</strong></article>
-          <article><span>Price</span><strong id="orderPrice">--</strong></article>
-          <article><span>Amount</span><strong id="orderAmount">--</strong></article>
-          <article><span>Crypto Qty</span><strong id="orderAssetAmount">--</strong></article>
-          <article><span>Payment</span><strong id="orderPayment">--</strong></article>
-          <article><span>Participants</span><strong id="orderParticipants">--</strong></article>
-        </div>
-
-        <div class="order-action-row">
-          <button id="markPaidBtn" type="button">Mark as Paid</button>
-          <button id="releaseBtn" type="button" class="secondary-btn">Release Crypto</button>
-          <button id="cancelOrderBtn" type="button" class="danger-btn">Cancel Order</button>
-        </div>
-
-        <section class="chat-box">
-          <div class="chat-head">
-            <p>Order Chat</p>
-            <span id="chatState">Waiting for messages...</span>
+      <div class="order-page" role="dialog" aria-modal="true" aria-labelledby="orderTitle">
+        <header class="order-page-header">
+          <button id="closeModalBtn" type="button" class="order-back-btn" aria-label="Back">←</button>
+          <div class="order-counterparty">
+            <p id="orderCounterpartyName">Counterparty</p>
+            <span class="order-online">
+              <span class="online-dot"></span>
+              Online
+            </span>
           </div>
-          <div id="chatMessages" class="chat-messages"></div>
-          <form id="chatForm" class="chat-form">
-            <input id="chatInput" type="text" placeholder="Type a message..." maxlength="300" />
-            <button type="submit">Send</button>
-          </form>
-        </section>
+          <button id="orderChatBtn" type="button" class="order-chat-btn" aria-label="Open chat">💬</button>
+        </header>
+
+        <div class="order-page-body">
+          <section class="order-main-column">
+            <div class="order-main-title">
+              <h2 id="orderTitle">The order has been generated. Proceed to payment.</h2>
+              <div class="countdown-timer">
+                <strong id="orderTimer">15:00</strong>
+                <span>Time Remaining</span>
+              </div>
+            </div>
+
+            <article class="order-info-card">
+              <div class="order-info-head">
+                <div>
+                  <p class="order-info-label">Counterparty</p>
+                  <h3 id="orderMerchant">--</h3>
+                  <p id="orderCounterpartyMeta" class="order-info-meta">Verified merchant</p>
+                </div>
+                <strong id="orderStatus" class="status-pill status-created">CREATED</strong>
+              </div>
+              <div class="escrow-notice">
+                <p>Crypto is held in escrow until payment confirmed.</p>
+              </div>
+            </article>
+
+            <article class="order-details-card">
+              <h3>Order Details</h3>
+              <div class="order-details-grid">
+                <div><span>Trading Amount</span><strong id="orderAmount">--</strong></div>
+                <div><span>Price</span><strong id="orderPrice">--</strong></div>
+                <div><span>Quantity</span><strong id="orderAssetAmount">--</strong></div>
+                <div><span>Fee</span><strong id="orderFee">₹0</strong></div>
+                <div><span>Payment Method</span><strong id="orderPayment">--</strong></div>
+                <div><span>Order Number</span><strong id="orderRef">--</strong></div>
+                <div><span>Order Time</span><strong id="orderTime">--</strong></div>
+                <div><span>Participants</span><strong id="orderParticipants">--</strong></div>
+              </div>
+            </article>
+
+            <section id="paymentPanel" class="payment-panel hidden" aria-live="polite">
+              <div class="payment-panel-head">
+                <h3>Payment</h3>
+                <span id="paymentCountdown">15:00</span>
+              </div>
+              <p class="payment-amount-line">To be paid <strong id="paymentAmountDisplay">₹0</strong></p>
+              <div class="payment-instructions">
+                <p id="paymentMethodDisplay">Payment method: --</p>
+                <p id="paymentInstructions">Complete payment using selected method and click “I have paid”.</p>
+              </div>
+              <button id="paidConfirmBtn" type="button" class="paid-confirm-btn">I have paid</button>
+            </section>
+          </section>
+
+          <aside class="order-chat-column">
+            <section class="chat-panel">
+              <div class="chat-head">
+                <p>Order Chat</p>
+                <span id="chatState">Waiting for messages...</span>
+              </div>
+              <div id="chatMessages" class="chat-messages"></div>
+              <form id="chatForm" class="chat-form">
+                <button id="chatImageBtn" type="button" class="chat-image-btn" aria-label="Upload payment screenshot">🖼</button>
+                <input
+                  id="chatImageInput"
+                  class="hidden-control"
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                />
+                <input id="chatInput" type="text" placeholder="Type a message..." maxlength="300" />
+                <button id="chatSendBtn" type="submit">Send</button>
+              </form>
+              <p id="chatUploadState" class="chat-upload-state hidden">Uploading image...</p>
+            </section>
+          </aside>
+        </div>
+
+        <footer class="order-action-dock">
+          <button id="markPaidBtn" type="button" class="order-pay-btn">Pay</button>
+          <button id="cancelOrderBtn" type="button" class="order-cancel-btn">Cancel</button>
+        </footer>
+      </div>
+    </section>
+
+    <section id="cancelModal" class="cancel-modal hidden" aria-hidden="true">
+      <div id="cancelModalBackdrop" class="cancel-backdrop"></div>
+      <div class="cancel-panel" role="dialog" aria-modal="true" aria-labelledby="cancelModalTitle">
+        <div class="cancel-panel-head">
+          <h3 id="cancelModalTitle">Please select a reason for cancellation</h3>
+          <button id="cancelModalCloseBtn" type="button" aria-label="Close cancellation">✕</button>
+        </div>
+
+        <form id="cancelReasonForm" class="cancel-reason-form">
+          <label><input type="radio" name="cancelReason" value="I don't want to proceed" /> I don't want to proceed</label>
+          <label><input type="radio" name="cancelReason" value="Seller requirements issue" /> Seller requirements issue</label>
+          <label><input type="radio" name="cancelReason" value="Could not reach seller" /> Could not reach seller</label>
+          <label><input type="radio" name="cancelReason" value="Seller details incorrect" /> Seller details incorrect</label>
+          <label><input type="radio" name="cancelReason" value="I believe seller is scammer" /> I believe seller is scammer</label>
+          <label><input type="radio" name="cancelReason" value="Other" /> Other</label>
+        </form>
+
+        <label class="cancel-confirm-check">
+          <input id="cancelNoPaymentCheck" type="checkbox" />
+          I have not paid the seller
+        </label>
+
+        <button id="cancelConfirmBtn" type="button" class="cancel-confirm-btn" disabled>Confirm Cancel</button>
+      </div>
+    </section>
+
+    <section id="imagePreviewModal" class="image-preview-modal hidden" aria-hidden="true">
+      <div id="imagePreviewBackdrop" class="image-preview-backdrop"></div>
+      <div class="image-preview-panel" role="dialog" aria-modal="true" aria-label="Payment screenshot preview">
+        <button id="imagePreviewCloseBtn" type="button" class="image-preview-close" aria-label="Close preview">✕</button>
+        <img id="imagePreviewEl" src="" alt="Payment screenshot" />
       </div>
     </section>
 

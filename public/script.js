@@ -11,6 +11,11 @@ const otpRow = document.getElementById('otpRow');
 const otpInput = document.getElementById('otpInput');
 const verifyOtpBtn = document.getElementById('verifyOtpBtn');
 
+const homeNavToggle = document.getElementById('homeNavToggle');
+const homeNavClose = document.getElementById('homeNavClose');
+const homeNavDrawer = document.getElementById('homeNavDrawer');
+const homeNavOverlay = document.getElementById('homeNavOverlay');
+
 const chartModal = document.getElementById('chartModal');
 const chartModalTitle = document.getElementById('chartModalTitle');
 const orderbookSource = document.getElementById('orderbookSource');
@@ -67,6 +72,43 @@ function setMessage(text, type = '') {
   }
 }
 
+function setHomeNavOpen(open) {
+  if (!homeNavDrawer || !homeNavOverlay || !homeNavToggle) {
+    return;
+  }
+
+  const shouldOpen = Boolean(open);
+  document.body.classList.toggle('cf-nav-open', shouldOpen);
+  homeNavDrawer.classList.toggle('is-open', shouldOpen);
+  homeNavOverlay.classList.toggle('hidden', !shouldOpen);
+  homeNavDrawer.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  homeNavOverlay.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  homeNavToggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+}
+
+function setupHomeNav() {
+  if (!homeNavToggle || !homeNavDrawer || !homeNavOverlay) {
+    return;
+  }
+
+  homeNavToggle.addEventListener('click', () => setHomeNavOpen(true));
+  homeNavClose?.addEventListener('click', () => setHomeNavOpen(false));
+  homeNavOverlay.addEventListener('click', () => setHomeNavOpen(false));
+
+  homeNavDrawer.addEventListener('click', (event) => {
+    const link = event.target.closest('a[href]');
+    if (link) {
+      setHomeNavOpen(false);
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      setHomeNavOpen(false);
+    }
+  });
+}
+
 function animateCounter(targetValue) {
   if (!heroUsers) {
     return;
@@ -112,7 +154,7 @@ function initScrollReveal() {
         }
       });
     },
-    { threshold: 0.2 }
+    { threshold: 0.18 }
   );
 
   nodes.forEach((node) => {
@@ -522,6 +564,13 @@ if (marketList) {
   });
 });
 
+document.querySelectorAll('.cf-view-more[data-market]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const marketType = button.dataset.market === 'perp' ? 'perp' : 'spot';
+    openTradePage('BTCUSDT', marketType);
+  });
+});
+
 if (closeChartBtn) {
   closeChartBtn.addEventListener('click', closeChart);
 }
@@ -529,6 +578,13 @@ if (closeChartBackdrop) {
   closeChartBackdrop.addEventListener('click', closeChart);
 }
 
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && chartModal && !chartModal.classList.contains('hidden')) {
+    closeChart();
+  }
+});
+
+setupHomeNav();
 animateCounter(309497423);
 renderNews();
 initScrollReveal();
