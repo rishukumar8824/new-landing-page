@@ -392,7 +392,19 @@ function getMessageCssClasses(message) {
   const buyerName = String(activeOrderSnapshot?.buyerUsername || '').trim();
   const sellerName = String(activeOrderSnapshot?.sellerUsername || activeOrderSnapshot?.advertiser || '').trim();
   const sender = String(message.sender || '').trim();
-  const isCurrentUser = Boolean(currentUser?.username && sender === currentUser.username);
+  const normalizedSender = sender.toLowerCase();
+  const normalizedBuyer = buyerName.toLowerCase();
+  const normalizedSeller = sellerName.toLowerCase();
+  const normalizedCurrentUser = String(currentUser?.username || '')
+    .trim()
+    .toLowerCase();
+  const senderIsBuyer = Boolean(normalizedBuyer && normalizedSender === normalizedBuyer);
+  const senderIsSeller = Boolean(normalizedSeller && normalizedSender === normalizedSeller);
+  const roleBasedSelf =
+    (activeOrderRole === 'buyer' && senderIsBuyer) || (activeOrderRole === 'seller' && senderIsSeller);
+  const isCurrentUser = Boolean(
+    (normalizedCurrentUser && normalizedSender === normalizedCurrentUser) || roleBasedSelf
+  );
 
   if (sender === 'System') {
     return 'chat-system';
@@ -400,11 +412,11 @@ function getMessageCssClasses(message) {
 
   const classes = [isCurrentUser ? 'chat-self' : 'chat-other'];
 
-  if (buyerName && sender === buyerName) {
+  if (senderIsBuyer) {
     classes.push('chat-buyer');
     return classes.join(' ');
   }
-  if (sellerName && sender === sellerName) {
+  if (senderIsSeller) {
     classes.push('chat-seller');
     return classes.join(' ');
   }

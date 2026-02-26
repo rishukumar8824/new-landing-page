@@ -2192,6 +2192,7 @@ body.p2p-cancel-open {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 20px 40px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
+  color-scheme: dark;
 }
 
 .order-chat-column .chat-head {
@@ -2264,6 +2265,18 @@ body.p2p-cancel-open {
   background: linear-gradient(145deg, #1a1f2b 0%, #141a24 100%);
 }
 
+.order-chat-column .chat-item.chat-buyer.chat-other,
+.order-chat-column .chat-item.chat-seller.chat-other {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: linear-gradient(145deg, #1c2331 0%, #161c27 100%);
+}
+
+.order-chat-column .chat-item.chat-buyer.chat-self,
+.order-chat-column .chat-item.chat-seller.chat-self {
+  border-color: rgba(247, 167, 35, 0.82);
+  background: linear-gradient(145deg, #4a3410 0%, #33260f 100%);
+}
+
 .order-chat-column .chat-item.chat-system {
   margin: 0 auto;
   width: min(95%, 560px);
@@ -2294,6 +2307,7 @@ body.p2p-cancel-open {
   color: #cad2e2;
   font-weight: 600;
   letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
 }
 
 .order-chat-column .chat-item.chat-self .chat-sender {
@@ -2307,6 +2321,7 @@ body.p2p-cancel-open {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
 }
 
 .order-chat-column .chat-time {
@@ -2423,6 +2438,30 @@ body.p2p-cancel-open {
   border: 2px solid rgba(247, 167, 35, 0.25);
   border-top-color: #f7a723;
   animation: chat-upload-spin 0.7s linear infinite;
+}
+
+/* Keep order chat premium-dark even when page light theme is toggled */
+body.p2p-theme-light .order-chat-column .chat-panel {
+  background: linear-gradient(180deg, #121620 0%, #0b0b0f 68%);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+body.p2p-theme-light .order-chat-column .chat-head {
+  background: linear-gradient(180deg, rgba(13, 19, 30, 0.94) 0%, rgba(10, 13, 19, 0.92) 100%);
+}
+
+body.p2p-theme-light .order-chat-column .chat-messages {
+  background: radial-gradient(circle at top, rgba(22, 26, 37, 0.44) 0%, rgba(8, 10, 16, 0.84) 60%);
+}
+
+body.p2p-theme-light .order-chat-column .chat-item.chat-other {
+  background: linear-gradient(145deg, #1a1f2b 0%, #141a24 100%);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+body.p2p-theme-light .order-chat-column .chat-item.chat-self {
+  background: linear-gradient(145deg, #4a3410 0%, #33260f 100%);
+  border-color: rgba(247, 167, 35, 0.82);
 }
 
 @keyframes chat-upload-spin {
