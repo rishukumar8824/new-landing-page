@@ -1,5 +1,13 @@
+let dotenvLoaded = false;
+try {
+  require('dotenv').config({ override: true });
+  dotenvLoaded = true;
+} catch (error) {
+  dotenvLoaded = false;
+}
+
 const { loadEnvFile } = require('./lib/env');
-loadEnvFile();
+loadEnvFile(undefined, { override: true });
 
 const crypto = require('crypto');
 const express = require('express');
@@ -1891,6 +1899,10 @@ async function boot() {
   try {
     validateStartupConfig();
     tokenService.ensureJwtSecret();
+    const mongoConfig = getMongoConfig();
+    console.log(`MongoDB target URI: ${mongoConfig.maskedUri}`);
+    console.log(`Environment loader: ${dotenvLoaded ? 'dotenv' : 'built-in .env loader'}`);
+
     await connectToMongo();
     const collections = getCollections();
     repos = createRepositories(collections);
@@ -1965,7 +1977,6 @@ async function boot() {
       adminControllers
     });
 
-    const mongoConfig = getMongoConfig();
     await repos.ensureIndexes();
     await adminStore.ensureIndexes();
     console.log('MongoDB indexes ensured');

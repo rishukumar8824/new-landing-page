@@ -4,8 +4,14 @@
  * Usage:
  *   node admin/seed-admin.js
  */
+try {
+  require('dotenv').config({ override: true });
+} catch (error) {
+  // Fallback loader below
+}
+
 const { loadEnvFile } = require('../lib/env');
-loadEnvFile();
+loadEnvFile(undefined, { override: true });
 
 const { connectToMongo, getCollections, isDbConnected } = require('../lib/db');
 const { createRepositories } = require('../lib/repositories');
