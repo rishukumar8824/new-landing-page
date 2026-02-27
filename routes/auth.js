@@ -60,7 +60,8 @@ function registerAuthRoutes(app, deps) {
     setCookie,
     clearCookie,
     cookieNames,
-    p2pUserTtlMs
+    p2pUserTtlMs,
+    auditLogService
   } = deps;
 
   const loginLimiter = createIpRateLimiter({
@@ -72,6 +73,13 @@ function registerAuthRoutes(app, deps) {
     windowMs: 10 * 60 * 1000,
     maxAttempts: 5
   });
+
+  async function safeAuditLog(entry) {
+    if (!auditLogService || typeof auditLogService.safeLog !== 'function') {
+      return;
+    }
+    await auditLogService.safeLog(entry);
+  }
 
   async function persistRefreshToken(user, refreshToken, expiresAtMs) {
     const tokenHash = tokenService.hashRefreshToken(refreshToken);
@@ -108,17 +116,36 @@ function registerAuthRoutes(app, deps) {
   app.post('/auth/login', loginLimiter, async (req, res) => {
     const email = createEmailFromInput(req.body?.email);
     const password = String(req.body?.password || '').trim();
+    const ipAddress = normalizeIp(req);
 
     if (!isValidEmail(email)) {
+      await safeAuditLog({
+        userId: '',
+        action: 'login_failed',
+        ipAddress,
+        metadata: { reason: 'invalid_email', email }
+      });
       return res.status(400).json({ message: 'Enter a valid email address.' });
     }
     if (!isValidPassword(password)) {
+      await safeAuditLog({
+        userId: '',
+        action: 'login_failed',
+        ipAddress,
+        metadata: { reason: 'invalid_password_length', email }
+      });
       return res.status(400).json({ message: 'Password must be at least 6 characters.' });
     }
 
     try {
       const credential = await repos.getP2PCredential(email);
       if (!credential || !repos.verifyPassword(password, credential.passwordHash)) {
+        await safeAuditLog({
+          userId: '',
+          action: 'login_failed',
+          ipAddress,
+          metadata: { reason: 'invalid_credentials', email }
+        });
         return res.status(401).json({ message: 'Invalid email or password.' });
       }
 
@@ -133,6 +160,13 @@ function registerAuthRoutes(app, deps) {
         setCookie(res, cookieNames.legacyP2PSession, legacySession.token, Math.floor(p2pUserTtlMs / 1000));
       }
 
+      await safeAuditLog({
+        userId: user.id,
+        action: 'login_success',
+        ipAddress,
+        metadata: { email, role: user.role }
+      });
+
       return res.json({
         message: 'Login successful.',
         user: {
@@ -145,6 +179,12 @@ function registerAuthRoutes(app, deps) {
         refreshToken: tokenPair.refreshToken
       });
     } catch (error) {
+      await safeAuditLog({
+        userId: '',
+        action: 'login_failed',
+        ipAddress,
+        metadata: { reason: 'server_error', email }
+      });
       if (String(error.message || '').includes('JWT_SECRET')) {
         return res.status(503).json({ message: 'JWT auth is not configured.' });
       }
@@ -155,17 +195,36 @@ function registerAuthRoutes(app, deps) {
   app.post('/auth/register', registerLimiter, async (req, res) => {
     const email = createEmailFromInput(req.body?.email);
     const password = String(req.body?.password || '').trim();
+    const ipAddress = normalizeIp(req);
 
     if (!isValidEmail(email)) {
+      await safeAuditLog({
+        userId: '',
+        action: 'register_failed',
+        ipAddress,
+        metadata: { reason: 'invalid_email', email }
+      });
       return res.status(400).json({ message: 'Enter a valid email address.' });
     }
     if (!isValidPassword(password)) {
+      await safeAuditLog({
+        userId: '',
+        action: 'register_failed',
+        ipAddress,
+        metadata: { reason: 'invalid_password_length', email }
+      });
       return res.status(400).json({ message: 'Password must be at least 6 characters.' });
     }
 
     try {
       const existing = await repos.getP2PCredential(email);
       if (existing) {
+        await safeAuditLog({
+          userId: '',
+          action: 'register_failed',
+          ipAddress,
+          metadata: { reason: 'already_exists', email }
+        });
         return res.status(409).json({ message: 'Account already exists. Please login.' });
       }
 
@@ -183,6 +242,13 @@ function registerAuthRoutes(app, deps) {
         setCookie(res, cookieNames.legacyP2PSession, legacySession.token, Math.floor(p2pUserTtlMs / 1000));
       }
 
+      await safeAuditLog({
+        userId: user.id,
+        action: 'register_success',
+        ipAddress,
+        metadata: { email }
+      });
+
       return res.status(201).json({
         message: 'Registration successful.',
         user: {
@@ -195,6 +261,12 @@ function registerAuthRoutes(app, deps) {
         refreshToken: tokenPair.refreshToken
       });
     } catch (error) {
+      await safeAuditLog({
+        userId: '',
+        action: 'register_failed',
+        ipAddress,
+        metadata: { reason: 'server_error', email }
+      });
       if (String(error.message || '').includes('JWT_SECRET')) {
         return res.status(503).json({ message: 'JWT auth is not configured.' });
       }

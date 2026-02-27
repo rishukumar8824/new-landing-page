@@ -8,7 +8,11 @@ const { connectToMongo, getCollections, getMongoClient, getMongoConfig, isDbConn
 const { createRepositories } = require('./lib/repositories');
 const { createWalletService, makeSeedUserId } = require('./lib/wallet-service');
 const { createAuthMiddleware } = require('./middleware/auth');
+const { applySecurityHardening } = require('./middleware/security');
+const { sanitizeRequestPayload, validateRequest, validationRules } = require('./middleware/validation');
+const { apiNotFoundHandler, errorHandler } = require('./middleware/error-handler');
 const { registerAuthRoutes } = require('./routes/auth');
+const { createAuditLogService } = require('./services/audit-log-service');
 const tokenService = require('./services/tokenService');
 const { createAdminStore } = require('./admin/services/admin-store');
 const { createAdminAuthMiddleware } = require('./admin/middleware/admin-auth');
@@ -109,11 +113,16 @@ let authMiddleware = null;
 let adminStore = null;
 let adminAuthMiddleware = null;
 let adminControllers = null;
+let auditLogService = null;
 let persistenceReady = false;
 let httpServer = null;
 let shuttingDown = false;
 
-app.use(express.json());
+const validation = validationRules();
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(sanitizeRequestPayload);
+applySecurityHardening(app);
 app.use(express.static(path.join(__dirname, 'public')));
 
 function readLeads() {
@@ -125,6 +134,10 @@ function readLeads() {
 
 function validateStartupConfig() {
   const missing = [];
+  const isProductionEnv = String(process.env.NODE_ENV || '')
+    .trim()
+    .toLowerCase() === 'production';
+
   if (!String(process.env.MONGODB_URI || '').trim()) {
     missing.push('MONGODB_URI');
   }
@@ -134,16 +147,18 @@ function validateStartupConfig() {
   if (!Number.isFinite(PORT) || PORT <= 0) {
     missing.push('PORT');
   }
+  if (isProductionEnv && !String(process.env.ADMIN_USERNAME || '').trim()) {
+    missing.push('ADMIN_USERNAME');
+  }
+  if (isProductionEnv && !String(process.env.ADMIN_PASSWORD || '').trim()) {
+    missing.push('ADMIN_PASSWORD');
+  }
+  if (isProductionEnv && String(process.env.ADMIN_PASSWORD || '').trim().length < 10) {
+    throw new Error('ADMIN_PASSWORD must be at least 10 characters in production.');
+  }
 
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}. Configure them in .env file.`);
-  }
-
-  if (!String(process.env.ADMIN_USERNAME || '').trim()) {
-    console.warn('ADMIN_USERNAME not set. Using default "admin".');
-  }
-  if (!String(process.env.ADMIN_PASSWORD || '').trim()) {
-    console.warn('ADMIN_PASSWORD not set. Using default "admin123".');
   }
 }
 
@@ -862,8 +877,17 @@ async function withOrderMutation(orderId, mutator, maxRetries = 4) {
 }
 
 app.post('/api/p2p/login', async (req, res) => {
+  const requestIp = getRequestIp(req);
   const ipCheck = loginAttemptLimiter(`p2p_login:${getRequestIp(req)}`);
   if (!ipCheck.allowed) {
+    if (auditLogService) {
+      await auditLogService.safeLog({
+        userId: '',
+        action: 'login_failed',
+        ipAddress: requestIp,
+        metadata: { reason: 'rate_limited', route: '/api/p2p/login' }
+      });
+    }
     res.setHeader('Retry-After', String(ipCheck.retryAfterSeconds));
     return res.status(429).json({
       message: 'Too many login attempts. Please try again later.',
@@ -877,15 +901,39 @@ app.post('/api/p2p/login', async (req, res) => {
   const password = String(req.body.password || '').trim();
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (auditLogService) {
+      await auditLogService.safeLog({
+        userId: '',
+        action: 'login_failed',
+        ipAddress: requestIp,
+        metadata: { reason: 'invalid_email', route: '/api/p2p/login', email }
+      });
+    }
     return res.status(400).json({ message: 'Enter a valid email address.' });
   }
   if (password.length < 6) {
+    if (auditLogService) {
+      await auditLogService.safeLog({
+        userId: '',
+        action: 'login_failed',
+        ipAddress: requestIp,
+        metadata: { reason: 'invalid_password_length', route: '/api/p2p/login', email }
+      });
+    }
     return res.status(400).json({ message: 'Password must be at least 6 characters.' });
   }
 
   try {
     const existingCredential = await repos.getP2PCredential(email);
     if (existingCredential && !repos.verifyPassword(password, existingCredential.passwordHash)) {
+      if (auditLogService) {
+        await auditLogService.safeLog({
+          userId: '',
+          action: 'login_failed',
+          ipAddress: requestIp,
+          metadata: { reason: 'invalid_credentials', route: '/api/p2p/login', email }
+        });
+      }
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
@@ -903,6 +951,18 @@ app.post('/api/p2p/login', async (req, res) => {
     await walletService.ensureWallet(user.id, { username: user.username });
     setCookie(res, P2P_USER_COOKIE_NAME, token, P2P_USER_TTL_MS / 1000);
     setP2PAuthCookies(res, tokenPair);
+    if (auditLogService) {
+      await auditLogService.safeLog({
+        userId: user.id,
+        action: 'login_success',
+        ipAddress: requestIp,
+        metadata: {
+          route: '/api/p2p/login',
+          email: user.email,
+          role: user.role
+        }
+      });
+    }
 
     return res.json({
       message: 'P2P login successful.',
@@ -917,6 +977,18 @@ app.post('/api/p2p/login', async (req, res) => {
     });
   } catch (error) {
     clearP2PAuthCookies(res);
+    if (auditLogService) {
+      await auditLogService.safeLog({
+        userId: '',
+        action: 'login_failed',
+        ipAddress: requestIp,
+        metadata: {
+          reason: 'server_error',
+          route: '/api/p2p/login',
+          email
+        }
+      });
+    }
     if (String(error.message || '').includes('JWT_SECRET')) {
       return res.status(503).json({ message: 'JWT auth is not configured.' });
     }
@@ -1084,6 +1156,29 @@ app.get('/api/p2p/me', async (req, res) => {
   });
 });
 
+app.get('/api/security/protected-sample', requiresP2PUser, (req, res) => {
+  return res.json({
+    message: 'Protected route access granted.',
+    user: {
+      id: req.p2pUser.id,
+      username: req.p2pUser.username,
+      role: req.p2pUser.role
+    }
+  });
+});
+
+app.get(
+  '/api/security/object/:id',
+  requiresP2PUser,
+  validateRequest([validation.mongoObjectId('id', 'params', 'id')]),
+  (req, res) => {
+    return res.json({
+      message: 'Valid ObjectId.',
+      id: req.params.id
+    });
+  }
+);
+
 app.get('/api/p2p/wallet', requiresP2PUser, async (req, res) => {
   try {
     const ensured = await walletService.ensureWallet(req.p2pUser.id, {
@@ -1094,6 +1189,140 @@ app.get('/api/p2p/wallet', requiresP2PUser, async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ message: 'Server error while loading wallet.' });
+  }
+});
+
+app.post(
+  '/api/withdrawals',
+  requiresP2PUser,
+  validateRequest([
+    validation.required('amount'),
+    validation.amount('amount'),
+    validation.required('currency'),
+    validation.required('address')
+  ]),
+  async (req, res) => {
+    const amount = Number(req.body.amount);
+    const currency = String(req.body.currency || 'USDT')
+      .trim()
+      .toUpperCase();
+    const address = String(req.body.address || '').trim();
+    const requestIp = getRequestIp(req);
+
+    try {
+      const withdrawal = await walletService.createWithdrawalRequest(req.p2pUser.id, {
+        username: req.p2pUser.username,
+        amount,
+        currency,
+        address,
+        metadata: {
+          source: 'api_withdrawals',
+          ipAddress: requestIp,
+          userAgent: String(req.headers['user-agent'] || '').trim()
+        }
+      });
+
+      if (auditLogService) {
+        await auditLogService.safeLog({
+          userId: req.p2pUser.id,
+          action: 'withdrawal_request_created',
+          ipAddress: requestIp,
+          metadata: {
+            requestId: withdrawal.requestId,
+            amount: withdrawal.amount,
+            currency: withdrawal.currency
+          }
+        });
+      }
+
+      return res.status(201).json({
+        message: 'Withdrawal request created.',
+        withdrawal
+      });
+    } catch (error) {
+      if (auditLogService) {
+        await auditLogService.safeLog({
+          userId: req.p2pUser.id,
+          action: 'withdrawal_request_failed',
+          ipAddress: requestIp,
+          metadata: {
+            amount,
+            currency,
+            address,
+            errorCode: String(error.code || 'WITHDRAWAL_ERROR'),
+            errorMessage: String(error.message || 'Withdrawal request failed')
+          }
+        });
+      }
+      if (error.status) {
+        return res.status(error.status).json({ message: error.message });
+      }
+      return res.status(500).json({ message: 'Server error while creating withdrawal request.' });
+    }
+  }
+);
+
+app.get('/api/withdrawals', requiresP2PUser, async (req, res) => {
+  const limit = Number.parseInt(req.query.limit, 10) || 25;
+  try {
+    const withdrawals = await walletService.listWithdrawalRequests(req.p2pUser.id, { limit });
+    return res.json({
+      total: withdrawals.length,
+      withdrawals
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while fetching withdrawals.' });
+  }
+});
+
+app.post('/api/withdrawals/:requestId/cancel', requiresP2PUser, async (req, res) => {
+  const requestId = String(req.params.requestId || '').trim();
+  if (!requestId) {
+    return res.status(400).json({ message: 'Withdrawal request id is required.' });
+  }
+
+  const requestIp = getRequestIp(req);
+  try {
+    const withdrawal = await walletService.processWithdrawalRequest(requestId, 'rejected', {
+      userId: req.p2pUser.id,
+      username: req.p2pUser.username,
+      reason: 'User cancelled withdrawal request',
+      isAdmin: false
+    });
+
+    if (auditLogService) {
+      await auditLogService.safeLog({
+        userId: req.p2pUser.id,
+        action: 'withdrawal_request_cancelled',
+        ipAddress: requestIp,
+        metadata: {
+          requestId,
+          status: withdrawal.status
+        }
+      });
+    }
+
+    return res.json({
+      message: 'Withdrawal request cancelled.',
+      withdrawal
+    });
+  } catch (error) {
+    if (auditLogService) {
+      await auditLogService.safeLog({
+        userId: req.p2pUser.id,
+        action: 'withdrawal_request_cancel_failed',
+        ipAddress: requestIp,
+        metadata: {
+          requestId,
+          errorCode: String(error.code || 'WITHDRAWAL_CANCEL_ERROR'),
+          errorMessage: String(error.message || 'Withdrawal cancellation failed')
+        }
+      });
+    }
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    return res.status(500).json({ message: 'Server error while cancelling withdrawal request.' });
   }
 });
 
@@ -1902,7 +2131,40 @@ async function boot() {
     await connectToMongo();
     const collections = getCollections();
     repos = createRepositories(collections);
-    walletService = createWalletService(collections, getMongoClient());
+    auditLogService = createAuditLogService(collections);
+    walletService = createWalletService(collections, getMongoClient(), {
+      hooks: {
+        afterOperation: async (payload) => {
+          await auditLogService.safeLog({
+            userId: String(payload?.userId || '').trim(),
+            action: String(payload?.operation || 'wallet_operation_success').trim(),
+            ipAddress: '',
+            metadata: {
+              success: true,
+              amount: Number(payload?.amount || 0),
+              referenceId: String(payload?.referenceId || '').trim(),
+              counterpartyUserId: String(payload?.counterpartyUserId || '').trim(),
+              ...((payload?.metadata && typeof payload.metadata === 'object') ? payload.metadata : {})
+            }
+          });
+        },
+        onOperationError: async (payload, error) => {
+          await auditLogService.safeLog({
+            userId: String(payload?.userId || '').trim(),
+            action: String(payload?.operation || 'wallet_operation_failed').trim(),
+            ipAddress: '',
+            metadata: {
+              success: false,
+              amount: Number(payload?.amount || 0),
+              referenceId: String(payload?.referenceId || '').trim(),
+              counterpartyUserId: String(payload?.counterpartyUserId || '').trim(),
+              errorCode: String(error?.code || 'WALLET_ERROR'),
+              errorMessage: String(error?.message || 'Wallet operation failed')
+            }
+          });
+        }
+      }
+    });
     authMiddleware = createAuthMiddleware({
       verifyAccessToken: tokenService.verifyAccessToken,
       resolveLegacyUser: async (req) => {
@@ -1936,7 +2198,8 @@ async function boot() {
         refreshToken: P2P_REFRESH_COOKIE_NAME,
         legacyP2PSession: P2P_USER_COOKIE_NAME
       },
-      p2pUserTtlMs: P2P_USER_TTL_MS
+      p2pUserTtlMs: P2P_USER_TTL_MS,
+      auditLogService
     });
 
     adminStore = createAdminStore({
@@ -1970,7 +2233,8 @@ async function boot() {
     registerAdminRoutes(app, {
       adminStore,
       adminAuthMiddleware,
-      adminControllers
+      adminControllers,
+      auditLogService
     });
 
     await repos.ensureIndexes();
@@ -2018,9 +2282,13 @@ async function boot() {
       console.log(`Admin seed ensured for ${seededAdmin.email} (${seededAdmin.role})`);
     }
 
+    app.use(apiNotFoundHandler);
+
     app.get('*', (req, res) => {
       res.sendFile(path.join(__dirname, 'public', 'index.html'));
     });
+
+    app.use(errorHandler);
 
     setInterval(async () => {
       try {

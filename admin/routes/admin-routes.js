@@ -15,7 +15,7 @@ function safeString(value, fallback = '') {
 }
 
 function registerAdminRoutes(app, deps) {
-  const { adminStore, adminAuthMiddleware, adminControllers } = deps;
+  const { adminStore, adminAuthMiddleware, adminControllers, auditLogService } = deps;
 
   const router = express.Router();
 
@@ -94,6 +94,27 @@ function registerAdminRoutes(app, deps) {
             });
           } catch (auditError) {
             // Audit logging failures are swallowed to preserve API availability.
+          }
+
+          if (auditLogService && typeof auditLogService.safeLog === 'function') {
+            try {
+              await auditLogService.safeLog({
+                userId: String(req.adminAuth.adminId || '').trim(),
+                action: `admin_${moduleName}_${actionName}`,
+                ipAddress: ip,
+                metadata: {
+                  module: moduleName,
+                  action: actionName,
+                  statusCode,
+                  durationMs,
+                  path: req.originalUrl,
+                  method: req.method,
+                  adminRole: String(req.adminAuth.adminRole || '').trim()
+                }
+              });
+            } catch (error) {
+              // Ignore secondary audit sink failures.
+            }
           }
         }
       }
