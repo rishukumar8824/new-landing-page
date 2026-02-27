@@ -484,10 +484,20 @@ body.trade-nav-open {
   cursor: grabbing;
 }
 
+#klineCanvas.zooming {
+  cursor: zoom-in;
+}
+
 .tv-chart {
   position: absolute;
   inset: 0;
   display: none;
+  touch-action: none;
+}
+
+.tv-chart *,
+.tv-chart canvas {
+  touch-action: none !important;
 }
 
 .chart-foot {

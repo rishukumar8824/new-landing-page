@@ -1,6 +1,7 @@
 const form = document.getElementById('leadForm');
 const message = document.getElementById('message');
 const topSignupBtn = document.getElementById('topSignupBtn');
+const contactInput = document.getElementById('mobile');
 const heroUsers = document.getElementById('heroUsers');
 const marketList = document.getElementById('marketList');
 const marketTabs = document.getElementById('marketTabs');
@@ -13,6 +14,12 @@ const eventsCount = document.querySelector('.cf-events-count');
 const otpRow = document.getElementById('otpRow');
 const otpInput = document.getElementById('otpInput');
 const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+const signupPromptModal = document.getElementById('signupPromptModal');
+const signupPromptBackdrop = document.getElementById('signupPromptBackdrop');
+const signupPromptEmail = document.getElementById('signupPromptEmail');
+const signupPromptMessage = document.getElementById('signupPromptMessage');
+const signupPromptContinue = document.getElementById('signupPromptContinue');
+const signupPromptClose = document.getElementById('signupPromptClose');
 
 const homeNavToggle = document.getElementById('homeNavToggle');
 const homeNavClose = document.getElementById('homeNavClose');
@@ -84,6 +91,8 @@ let depthRefreshTimer = null;
 let marketTab = 'popular';
 let eventsAutoSlide = null;
 
+const openSignupFromQuery = new URLSearchParams(window.location.search).get('signup') === '1';
+
 function setMessage(text, type = '') {
   if (!message) {
     return;
@@ -93,6 +102,38 @@ function setMessage(text, type = '') {
   if (type) {
     message.classList.add(type);
   }
+}
+
+function setSignupPromptMessage(text, type = '') {
+  if (!signupPromptMessage) {
+    return;
+  }
+  signupPromptMessage.textContent = text;
+  signupPromptMessage.className = 'cf-signup-modal-message';
+  if (type) {
+    signupPromptMessage.classList.add(type);
+  }
+}
+
+function setSignupPromptOpen(open) {
+  if (!signupPromptModal) {
+    return;
+  }
+  const shouldOpen = Boolean(open);
+  signupPromptModal.classList.toggle('hidden', !shouldOpen);
+  signupPromptModal.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  document.body.classList.toggle('cf-signup-open', shouldOpen);
+  if (shouldOpen) {
+    setSignupPromptMessage('');
+    window.requestAnimationFrame(() => signupPromptEmail?.focus());
+  }
+}
+
+function focusLeadForm() {
+  form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  form?.classList.add('is-focus');
+  window.setTimeout(() => form?.classList.remove('is-focus'), 900);
+  window.setTimeout(() => contactInput?.focus(), 260);
 }
 
 function setHomeNavOpen(open) {
@@ -547,13 +588,8 @@ async function loadMarket() {
 
 function normalizeContact(rawValue) {
   const raw = String(rawValue || '').trim();
-  const digits = raw.replace(/\D/g, '');
-  const isPhone = /^\d{10}$/.test(digits);
   const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw);
 
-  if (isPhone) {
-    return digits;
-  }
   if (isEmail) {
     return raw.toLowerCase();
   }
@@ -586,29 +622,33 @@ async function verifyOtp(contact, name, code) {
   return data;
 }
 
+async function startEmailSignup(email, name = 'Website Lead') {
+  const data = await sendOtp(email, name);
+  pendingContact = email;
+  pendingName = name;
+  otpRow?.classList.remove('hidden');
+  setMessage(data.message, 'success');
+  if (data.devCode) {
+    setMessage(`${data.message} Demo code: ${data.devCode}`, 'success');
+  }
+  focusLeadForm();
+  return data;
+}
+
 if (form) {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
 
     const name = String(document.getElementById('name')?.value || 'Website Lead').trim() || 'Website Lead';
-    const contactInput = String(document.getElementById('mobile')?.value || '').trim();
-    const contact = normalizeContact(contactInput);
+    const contact = normalizeContact(contactInput?.value || '');
 
     if (!contact) {
-      setMessage('Please enter a valid email or 10-digit mobile number.', 'error');
+      setMessage('Please enter a valid email address.', 'error');
       return;
     }
 
     try {
-      const data = await sendOtp(contact, name);
-      pendingContact = contact;
-      pendingName = name;
-      otpRow?.classList.remove('hidden');
-      setMessage(data.message, 'success');
-
-      if (data.devCode) {
-        setMessage(`${data.message} Demo code: ${data.devCode}`, 'success');
-      }
+      await startEmailSignup(contact, name);
     } catch (error) {
       setMessage(error.message, 'error');
     }
@@ -646,9 +686,44 @@ if (verifyOtpBtn) {
 
 if (topSignupBtn) {
   topSignupBtn.addEventListener('click', () => {
-    form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setSignupPromptOpen(true);
   });
 }
+
+signupPromptContinue?.addEventListener('click', async () => {
+  const email = normalizeContact(signupPromptEmail?.value || '');
+  if (!email) {
+    setSignupPromptMessage('Please enter a valid email address.', 'error');
+    return;
+  }
+
+  signupPromptContinue.disabled = true;
+  signupPromptContinue.textContent = 'Sending...';
+  setSignupPromptMessage('');
+
+  try {
+    if (contactInput) {
+      contactInput.value = email;
+    }
+    await startEmailSignup(email, 'Website Lead');
+    setSignupPromptOpen(false);
+  } catch (error) {
+    setSignupPromptMessage(error.message, 'error');
+  } finally {
+    signupPromptContinue.disabled = false;
+    signupPromptContinue.textContent = 'Continue';
+  }
+});
+
+signupPromptClose?.addEventListener('click', () => setSignupPromptOpen(false));
+signupPromptBackdrop?.addEventListener('click', () => setSignupPromptOpen(false));
+
+signupPromptEmail?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    signupPromptContinue?.click();
+  }
+});
 
 if (marketList) {
   marketList.addEventListener('click', (event) => {
@@ -701,6 +776,9 @@ if (closeChartBackdrop) {
 }
 
 window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && signupPromptModal && !signupPromptModal.classList.contains('hidden')) {
+    setSignupPromptOpen(false);
+  }
   if (event.key === 'Escape' && chartModal && !chartModal.classList.contains('hidden')) {
     closeChart();
   }
@@ -714,3 +792,7 @@ renderNews();
 initScrollReveal();
 loadMarket();
 setInterval(loadMarket, 12000);
+
+if (openSignupFromQuery) {
+  window.setTimeout(() => setSignupPromptOpen(true), 220);
+}

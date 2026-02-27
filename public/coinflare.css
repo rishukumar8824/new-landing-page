@@ -41,6 +41,10 @@ body.coinflare-page.cf-nav-open {
   overflow: hidden;
 }
 
+body.coinflare-page.cf-signup-open {
+  overflow: hidden;
+}
+
 a {
   color: inherit;
 }
@@ -270,6 +274,95 @@ a {
   gap: 0.6rem;
 }
 
+.cf-signup-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+}
+
+.cf-signup-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 7, 13, 0.76);
+  backdrop-filter: blur(5px);
+}
+
+.cf-signup-modal-card {
+  position: relative;
+  z-index: 2;
+  width: min(430px, calc(100% - 1.1rem));
+  border-radius: 16px;
+  border: 1px solid var(--cf-line);
+  background: linear-gradient(180deg, #101925, #0b121c);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.5);
+  padding: 1rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.cf-signup-modal-card h3 {
+  margin: 0;
+  font-size: 1.12rem;
+}
+
+.cf-signup-modal-card p {
+  margin: 0;
+  color: var(--cf-muted);
+  font-size: 0.87rem;
+}
+
+.cf-signup-modal-card input {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 11px;
+  border: 1px solid var(--cf-line);
+  background: #0a111a;
+  color: #f0f6ff;
+  padding: 0 0.84rem;
+  font-size: 0.94rem;
+}
+
+.cf-signup-modal-message {
+  min-height: 1.1rem;
+  font-size: 0.82rem !important;
+}
+
+.cf-signup-modal-message.success {
+  color: var(--cf-green);
+}
+
+.cf-signup-modal-message.error {
+  color: var(--cf-red);
+}
+
+.cf-signup-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.cf-signup-modal-actions button {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 0;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cf-signup-modal-actions button:first-child {
+  background: var(--cf-brand);
+  color: #071004;
+}
+
+.cf-signup-modal-actions button.secondary {
+  border: 1px solid var(--cf-line);
+  background: #0f1623;
+  color: #edf5ff;
+}
+
 .cf-main {
   width: min(1280px, 100% - 1rem);
   margin: 1rem auto 0;
@@ -331,6 +424,10 @@ a {
   margin-top: 1.35rem;
   display: grid;
   gap: 0.65rem;
+}
+
+.cf-lead-form.is-focus {
+  animation: cf-form-focus 0.8s ease;
 }
 
 .cf-lead-form input,
@@ -431,6 +528,7 @@ a {
   flex: 1;
   overflow: hidden;
   position: relative;
+  touch-action: pan-y;
 }
 
 .cf-announcement-track {
@@ -1483,6 +1581,18 @@ a {
 .cf-reveal.is-visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+@keyframes cf-form-focus {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.01);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 @keyframes cf-float {

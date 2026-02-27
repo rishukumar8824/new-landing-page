@@ -93,6 +93,7 @@ let lightweightChart = null;
 let candleSeries = null;
 let volumeSeries = null;
 let useLightweightChart = Boolean(window.LightweightCharts && tvChartHost);
+let chartNeedsAutoFit = true;
 const COIN_ICON_CODES = {
   BTC: 'btc',
   ETH: 'eth',
@@ -116,6 +117,8 @@ const chartView = {
   dragStartOffset: 0,
   rafPending: false
 };
+const activePointers = new Map();
+let pinchState = null;
 
 function isMobileViewport() {
   return window.matchMedia('(max-width: 767px)').matches;
@@ -211,6 +214,7 @@ function setPairIdentity() {
     }
   }
   document.title = `${displayPair} | Bitegit Trade`;
+  chartNeedsAutoFit = true;
 }
 
 function setTradeActionMessage(text, type = '') {
@@ -488,6 +492,10 @@ function ensureLightweightChart() {
       pressedMouseMove: true,
       horzTouchDrag: true,
       vertTouchDrag: false
+    },
+    kineticScroll: {
+      mouse: true,
+      touch: true
     }
   });
 
@@ -515,6 +523,7 @@ function ensureLightweightChart() {
   });
 
   tvChartHost.style.display = 'block';
+  tvChartHost.style.touchAction = 'none';
   if (canvas) {
     canvas.style.display = 'none';
   }
@@ -648,11 +657,14 @@ function drawCandles(data) {
           color: item.close >= item.open ? 'rgba(0,208,132,0.45)' : 'rgba(255,77,109,0.45)'
         }))
       );
-      const visibleWindow = Math.min(96, rows.length);
-      lightweightChart.timeScale().setVisibleLogicalRange({
-        from: Math.max(0, rows.length - visibleWindow),
-        to: rows.length + 3
-      });
+      if (chartNeedsAutoFit) {
+        const visibleWindow = Math.min(96, rows.length);
+        lightweightChart.timeScale().setVisibleLogicalRange({
+          from: Math.max(0, rows.length - visibleWindow),
+          to: rows.length + 3
+        });
+        chartNeedsAutoFit = false;
+      }
       resizeLightweightChart();
       return;
     } catch (error) {
@@ -982,11 +994,35 @@ function setTradeNavOpen(open) {
 
 function setupChartInteractions() {
   if (useLightweightChart) {
+    if (tvChartHost) {
+      tvChartHost.style.touchAction = 'none';
+    }
     return;
   }
   if (!canvas) {
     return;
   }
+
+  const getPinchDistance = () => {
+    const points = Array.from(activePointers.values());
+    if (points.length < 2) {
+      return 0;
+    }
+    return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+  };
+
+  const getPinchCenterX = () => {
+    const points = Array.from(activePointers.values());
+    if (points.length < 2) {
+      return 0;
+    }
+    return (points[0].x + points[1].x) / 2;
+  };
+
+  const stopPinch = () => {
+    pinchState = null;
+    canvas.classList.remove('zooming');
+  };
 
   const stopDrag = (pointerId) => {
     if (!chartView.dragging) {
@@ -1003,16 +1039,73 @@ function setupChartInteractions() {
     if (!Array.isArray(state.klines) || state.klines.length === 0) {
       return;
     }
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    canvas.setPointerCapture?.(event.pointerId);
+
+    if (activePointers.size >= 2) {
+      chartView.dragging = false;
+      canvas.classList.remove('dragging');
+      const startDistance = Math.max(getPinchDistance(), 1);
+      pinchState = {
+        startDistance,
+        startVisible: chartView.visible,
+        startOffset: chartView.offset,
+        focusX: getPinchCenterX()
+      };
+      canvas.classList.add('zooming');
+      return;
+    }
+
     event.preventDefault();
     chartView.dragging = true;
     chartView.dragStartX = event.clientX;
     chartView.dragStartOffset = chartView.offset;
     canvas.classList.add('dragging');
-    canvas.setPointerCapture?.(event.pointerId);
   });
 
   canvas.addEventListener('pointermove', (event) => {
-    if (!chartView.dragging || !Array.isArray(state.klines) || state.klines.length === 0) {
+    if (!Array.isArray(state.klines) || state.klines.length === 0) {
+      return;
+    }
+
+    if (activePointers.has(event.pointerId)) {
+      activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+
+    if (pinchState && activePointers.size >= 2) {
+      event.preventDefault();
+      const currentDistance = Math.max(getPinchDistance(), 1);
+      const zoomRatio = pinchState.startDistance / currentDistance;
+      const bounds = getVisibleBounds(state.klines.length);
+      if (bounds.max <= 0) {
+        return;
+      }
+
+      const prevVisible = chartView.visible;
+      const nextVisible = clamp(Math.round(pinchState.startVisible * zoomRatio), bounds.min, bounds.max);
+      if (nextVisible !== prevVisible) {
+        chartView.visible = nextVisible;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const focusRatio = clamp((pinchState.focusX - rect.left) / Math.max(rect.width, 1), 0, 1);
+      const prevMaxOffset = Math.max(0, state.klines.length - pinchState.startVisible);
+      const prevOffset = clamp(pinchState.startOffset, 0, prevMaxOffset);
+      const prevStart = Math.max(0, state.klines.length - pinchState.startVisible - prevOffset);
+      const focusIndex = prevStart + Math.round(focusRatio * Math.max(pinchState.startVisible - 1, 0));
+      const nextStart = clamp(
+        focusIndex - Math.round(focusRatio * Math.max(chartView.visible - 1, 0)),
+        0,
+        Math.max(state.klines.length - chartView.visible, 0)
+      );
+      const nextOffset = state.klines.length - chartView.visible - nextStart;
+      chartView.offset = clamp(nextOffset, 0, Math.max(0, state.klines.length - chartView.visible));
+
+      requestChartRedraw();
+      return;
+    }
+
+    if (!chartView.dragging) {
       return;
     }
 
@@ -1027,9 +1120,26 @@ function setupChartInteractions() {
     requestChartRedraw();
   });
 
-  canvas.addEventListener('pointerup', (event) => stopDrag(event.pointerId));
-  canvas.addEventListener('pointercancel', (event) => stopDrag(event.pointerId));
-  canvas.addEventListener('pointerleave', () => stopDrag());
+  const stopPointer = (event) => {
+    activePointers.delete(event.pointerId);
+    if (canvas.hasPointerCapture?.(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+    if (activePointers.size < 2) {
+      stopPinch();
+    }
+    if (activePointers.size === 0) {
+      stopDrag(event.pointerId);
+    }
+  };
+
+  canvas.addEventListener('pointerup', stopPointer);
+  canvas.addEventListener('pointercancel', stopPointer);
+  canvas.addEventListener('pointerleave', () => {
+    activePointers.clear();
+    stopPinch();
+    stopDrag();
+  });
 
   canvas.addEventListener(
     'wheel',
@@ -1100,6 +1210,7 @@ function setupInteractions() {
     }
 
     state.interval = btn.dataset.interval;
+    chartNeedsAutoFit = true;
     intervalTabs.querySelectorAll('button[data-interval]').forEach((node) => {
       node.classList.toggle('active', node === btn);
     });

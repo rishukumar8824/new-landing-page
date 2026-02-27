@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Bitegit | Crypto Exchange</title>
-    <link rel="stylesheet" href="/styles.css?v=20260227b" />
-    <link rel="stylesheet" href="/coinflare.css?v=20260227b" />
-    <link rel="stylesheet" href="/mobile-nav.css?v=20260227b" />
+    <link rel="stylesheet" href="/styles.css?v=20260227c" />
+    <link rel="stylesheet" href="/coinflare.css?v=20260227c" />
+    <link rel="stylesheet" href="/mobile-nav.css?v=20260227c" />
   </head>
   <body class="coinflare-page has-mobile-nav">
     <div class="cf-bg-grid" aria-hidden="true"></div>
@@ -53,9 +53,24 @@
       </nav>
       <div class="cf-nav-drawer-actions">
         <a href="/p2p#p2pLoginCard" class="cf-login">Log In</a>
-        <a href="/#leadForm" class="cf-signup-link">Sign Up</a>
+        <a href="/?signup=1#leadForm" class="cf-signup-link">Sign Up</a>
       </div>
     </aside>
+
+    <div id="signupPromptModal" class="cf-signup-modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="signupPromptTitle">
+      <div id="signupPromptBackdrop" class="cf-signup-modal-backdrop"></div>
+      <div class="cf-signup-modal-card">
+        <h3 id="signupPromptTitle">Continue with Email</h3>
+        <p>Enter your email to receive verification code.</p>
+        <label for="signupPromptEmail" class="sr-only">Email address</label>
+        <input id="signupPromptEmail" type="email" inputmode="email" placeholder="Enter email address" autocomplete="email" />
+        <p id="signupPromptMessage" class="cf-signup-modal-message" role="status" aria-live="polite"></p>
+        <div class="cf-signup-modal-actions">
+          <button id="signupPromptContinue" type="button">Continue</button>
+          <button id="signupPromptClose" type="button" class="secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
 
     <main class="cf-main">
       <section class="cf-hero cf-reveal is-visible">
@@ -69,8 +84,8 @@
 
           <form id="leadForm" class="cf-lead-form" novalidate>
             <input id="name" name="name" type="hidden" value="Bitegit Signup Lead" />
-            <label for="mobile" class="sr-only">Email or mobile</label>
-            <input id="mobile" name="mobile" type="text" placeholder="Email or 10-digit mobile" required />
+            <label for="mobile" class="sr-only">Email address</label>
+            <input id="mobile" name="mobile" type="email" inputmode="email" placeholder="Enter email address" autocomplete="email" required />
             <button type="submit">Create Account</button>
           </form>
 
@@ -479,6 +494,6 @@
       </div>
     </section>
 
-    <script src="/script.js?v=20260227b"></script>
+    <script src="/script.js?v=20260227c"></script>
   </body>
 </html>
