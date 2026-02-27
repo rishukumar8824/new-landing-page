@@ -93,7 +93,7 @@ let lightweightChart = null;
 let candleSeries = null;
 let volumeSeries = null;
 let useLightweightChart = Boolean(window.LightweightCharts && tvChartHost);
-const COIN_ICON_SLUGS = {
+const COIN_ICON_CODES = {
   BTC: 'btc',
   ETH: 'eth',
   BNB: 'bnb',
@@ -200,10 +200,10 @@ function setPairIdentity() {
     pairMarketLabel.textContent = state.market === 'perp' ? 'Perpetual' : 'Spot';
   }
   if (pairCoin) {
-    const slug = COIN_ICON_SLUGS[base];
-    if (slug) {
+    const code = COIN_ICON_CODES[base];
+    if (code) {
       pairCoin.innerHTML = `
-        <img src="https://cryptoicons.org/api/icon/${slug}/64" alt="${base}" loading="lazy" onerror="this.remove()" />
+        <img src="https://assets.coincap.io/assets/icons/${code}@2x.png" alt="${base}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.display='none'" />
         <span class="coin-fallback">${base.slice(0, 1)}</span>
       `;
     } else {

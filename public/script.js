@@ -56,7 +56,7 @@ const COIN_ICONS = {
   ADA: '◉'
 };
 
-const COIN_ICON_SLUGS = {
+const COIN_ICON_CODES = {
   BTC: 'btc',
   ETH: 'eth',
   BNB: 'bnb',
@@ -208,15 +208,15 @@ function formatTradeTime(value) {
 function getCoinIconMarkup(base, size = 64, wrapperClass = 'bnx-coin-dot') {
   const coin = String(base || '').toUpperCase();
   const fallback = COIN_ICONS[coin] || coin.slice(0, 1) || '?';
-  const slug = COIN_ICON_SLUGS[coin];
+  const code = COIN_ICON_CODES[coin];
 
-  if (!slug) {
+  if (!code) {
     return `<span class="${wrapperClass}"><span class="coin-fallback">${fallback}</span></span>`;
   }
 
   return `
     <span class="${wrapperClass}">
-      <img src="https://cryptoicons.org/api/icon/${slug}/${size}" alt="${coin}" loading="lazy" onerror="this.remove()" />
+      <img src="https://assets.coincap.io/assets/icons/${code}@2x.png" alt="${coin}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.display='none'" />
       <span class="coin-fallback">${fallback}</span>
     </span>
   `;

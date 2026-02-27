@@ -16,7 +16,7 @@ const ICONS = {
   LTC: 'Ł'
 };
 
-const ICON_SLUGS = {
+const ICON_CODES = {
   BTC: 'btc',
   ETH: 'eth',
   BNB: 'bnb',
@@ -39,15 +39,15 @@ function formatPrice(value) {
 function getCoinIconMarkup(base, size = 64) {
   const coin = String(base || '').toUpperCase();
   const fallback = ICONS[coin] || coin.slice(0, 1) || '?';
-  const slug = ICON_SLUGS[coin];
+  const code = ICON_CODES[coin];
 
-  if (!slug) {
+  if (!code) {
     return `<span class="market-logo"><span class="coin-fallback">${fallback}</span></span>`;
   }
 
   return `
     <span class="market-logo">
-      <img src="https://cryptoicons.org/api/icon/${slug}/${size}" alt="${coin}" loading="lazy" onerror="this.remove()" />
+      <img src="https://assets.coincap.io/assets/icons/${code}@2x.png" alt="${coin}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.display='none'" />
       <span class="coin-fallback">${fallback}</span>
     </span>
   `;
