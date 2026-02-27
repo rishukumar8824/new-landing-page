@@ -492,12 +492,25 @@ body.trade-nav-open {
   position: absolute;
   inset: 0;
   display: none;
-  touch-action: none;
+  overflow: hidden;
+  background: #070c14;
 }
 
-.tv-chart *,
-.tv-chart canvas {
+.tv-chart.is-standard,
+.tv-chart.is-standard *,
+.tv-chart.is-standard canvas {
   touch-action: none !important;
+}
+
+.tv-chart.is-widget-active {
+  display: block;
+}
+
+.tv-widget-shell,
+.tv-widget-host,
+.tv-widget-host iframe {
+  width: 100%;
+  height: 100%;
 }
 
 .chart-foot {

@@ -105,10 +105,10 @@
             <button type="button">Feed</button>
             <button type="button">Trade Analysis</button>
           </div>
-          <div class="chart-view-tabs">
-            <button type="button">Standard</button>
-            <button type="button" class="active">TradingView</button>
-            <button type="button">Depth</button>
+          <div class="chart-view-tabs" id="chartViewTabs">
+            <button type="button" data-chart-view="standard">Standard</button>
+            <button type="button" data-chart-view="tradingview" class="active">TradingView</button>
+            <button type="button" data-chart-view="depth">Depth</button>
           </div>
         </div>
 
@@ -297,6 +297,6 @@
     </nav>
 
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
-    <script src="/trade.js?v=20260227c"></script>
+    <script src="/trade.js?v=20260227d"></script>
   </body>
 </html>

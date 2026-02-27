@@ -54,6 +54,7 @@ const panelTrades = document.getElementById('panelTrades');
 const tabOrderBook = document.getElementById('tabOrderBook');
 const tabRecentTrades = document.getElementById('tabRecentTrades');
 const intervalTabs = document.getElementById('intervalTabs');
+const chartViewTabs = document.getElementById('chartViewTabs');
 const flashModeBtn = document.getElementById('flashModeBtn');
 const proModeBtn = document.getElementById('proModeBtn');
 const canvas = document.getElementById('klineCanvas');
@@ -94,6 +95,10 @@ let candleSeries = null;
 let volumeSeries = null;
 let useLightweightChart = Boolean(window.LightweightCharts && tvChartHost);
 let chartNeedsAutoFit = true;
+let activeChartMode = 'tradingview';
+let tradingViewScriptPromise = null;
+let tradingViewWidget = null;
+let tvWidgetContainerId = null;
 const COIN_ICON_CODES = {
   BTC: 'btc',
   ETH: 'eth',
@@ -188,6 +193,179 @@ function formatTime(value) {
     return '--:--:--';
   }
   return date.toLocaleTimeString([], { hour12: false });
+}
+
+function getTradingViewInterval(interval) {
+  const map = {
+    '5m': '5',
+    '15m': '15',
+    '30m': '30',
+    '1h': '60',
+    '4h': '240',
+    '1d': '1D'
+  };
+  return map[interval] || '15';
+}
+
+function getTradingViewSymbol() {
+  return `BINANCE:${state.symbol}`;
+}
+
+function loadTradingViewScript() {
+  if (window.TradingView?.widget) {
+    return Promise.resolve();
+  }
+  if (tradingViewScriptPromise) {
+    return tradingViewScriptPromise;
+  }
+
+  tradingViewScriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-tv-widget="advanced"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('TradingView script failed to load.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/tv.js';
+    script.async = true;
+    script.dataset.tvWidget = 'advanced';
+    script.onload = () => {
+      if (window.TradingView?.widget) {
+        resolve();
+      } else {
+        reject(new Error('TradingView widget unavailable.'));
+      }
+    };
+    script.onerror = () => reject(new Error('TradingView script failed to load.'));
+    document.head.appendChild(script);
+  }).catch((error) => {
+    tradingViewScriptPromise = null;
+    throw error;
+  });
+
+  return tradingViewScriptPromise;
+}
+
+function destroyTradingViewWidget() {
+  if (tradingViewWidget && typeof tradingViewWidget.remove === 'function') {
+    try {
+      tradingViewWidget.remove();
+    } catch (_) {
+      // ignore widget remove errors
+    }
+  }
+  tradingViewWidget = null;
+  tvWidgetContainerId = null;
+  if (tvChartHost) {
+    tvChartHost.innerHTML = '';
+    tvChartHost.classList.remove('is-widget-active');
+  }
+}
+
+async function renderTradingViewWidget(forceRecreate = false) {
+  if (!tvChartHost || activeChartMode !== 'tradingview') {
+    return false;
+  }
+
+  if (canvas) {
+    canvas.style.display = 'none';
+  }
+
+  tvChartHost.style.display = 'block';
+  tvChartHost.style.touchAction = 'auto';
+  tvChartHost.classList.remove('is-standard');
+  tvChartHost.classList.add('is-widget-active');
+
+  await loadTradingViewScript();
+  if (!window.TradingView?.widget) {
+    throw new Error('TradingView widget unavailable.');
+  }
+
+  if (forceRecreate || tradingViewWidget) {
+    destroyTradingViewWidget();
+  }
+
+  tvChartHost.style.display = 'block';
+  tvChartHost.classList.add('is-widget-active');
+
+  tvWidgetContainerId = `tv-widget-${Date.now()}`;
+  tvChartHost.innerHTML = `<div class="tv-widget-shell"><div id="${tvWidgetContainerId}" class="tv-widget-host"></div></div>`;
+
+  tradingViewWidget = new window.TradingView.widget({
+    autosize: true,
+    symbol: getTradingViewSymbol(),
+    interval: getTradingViewInterval(state.interval),
+    timezone: 'Etc/UTC',
+    theme: 'dark',
+    style: '1',
+    locale: 'en',
+    toolbar_bg: '#070c14',
+    hide_top_toolbar: false,
+    hide_side_toolbar: false,
+    hide_legend: false,
+    withdateranges: true,
+    save_image: true,
+    allow_symbol_change: false,
+    enable_publishing: false,
+    container_id: tvWidgetContainerId,
+    studies: ['Volume@tv-basicstudies'],
+    loading_screen: {
+      backgroundColor: '#070c14'
+    }
+  });
+
+  if (chartStatus) {
+    chartStatus.textContent = `TradingView ${state.interval} • trendline/tools enabled`;
+  }
+  if (chartUpdatedAt) {
+    chartUpdatedAt.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  }
+  return true;
+}
+
+async function setChartMode(mode, options = {}) {
+  const { suppressLoad = false } = options;
+  const normalized = ['standard', 'tradingview', 'depth'].includes(mode) ? mode : 'standard';
+  activeChartMode = normalized;
+
+  chartViewTabs?.querySelectorAll('button[data-chart-view]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.chartView === normalized);
+  });
+
+  if (normalized === 'tradingview') {
+    try {
+      await renderTradingViewWidget(true);
+      return;
+    } catch (error) {
+      activeChartMode = 'standard';
+      if (chartStatus) {
+        chartStatus.textContent = `${error.message} Switching to compatibility chart.`;
+      }
+      chartViewTabs?.querySelectorAll('button[data-chart-view]').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.chartView === 'standard');
+      });
+    }
+  }
+
+  destroyTradingViewWidget();
+  if (tvChartHost) {
+    tvChartHost.style.touchAction = 'none';
+    tvChartHost.classList.add('is-standard');
+  }
+
+  chartNeedsAutoFit = true;
+  if (!suppressLoad) {
+    await loadKlines();
+    return;
+  }
+
+  if (Array.isArray(state.klines) && state.klines.length) {
+    requestChartRedraw();
+  } else {
+    drawNoChartState('Loading chart...');
+  }
 }
 
 function setPairIdentity() {
@@ -429,8 +607,13 @@ function renderTrades(trades) {
 }
 
 function ensureLightweightChart() {
+  if (activeChartMode === 'tradingview') {
+    return false;
+  }
+
   if (!useLightweightChart || !tvChartHost) {
     if (tvChartHost) {
+      tvChartHost.classList.remove('is-standard');
       tvChartHost.style.display = 'none';
     }
     if (canvas) {
@@ -439,6 +622,7 @@ function ensureLightweightChart() {
     return false;
   }
   if (lightweightChart && candleSeries && volumeSeries) {
+    tvChartHost.classList.add('is-standard');
     tvChartHost.style.display = 'block';
     if (canvas) {
       canvas.style.display = 'none';
@@ -451,6 +635,7 @@ function ensureLightweightChart() {
   const lc = window.LightweightCharts;
   if (!lc?.createChart) {
     useLightweightChart = false;
+    tvChartHost.classList.remove('is-standard');
     tvChartHost.style.display = 'none';
     if (canvas) {
       canvas.style.display = 'block';
@@ -522,6 +707,7 @@ function ensureLightweightChart() {
     }
   });
 
+  tvChartHost.classList.add('is-standard');
   tvChartHost.style.display = 'block';
   tvChartHost.style.touchAction = 'none';
   if (canvas) {
@@ -596,6 +782,13 @@ function toChartSeriesRows(data) {
 }
 
 function drawNoChartState(text) {
+  if (activeChartMode === 'tradingview') {
+    if (chartStatus) {
+      chartStatus.textContent = text;
+    }
+    return;
+  }
+
   if (ensureLightweightChart()) {
     candleSeries?.setData([]);
     volumeSeries?.setData([]);
@@ -629,6 +822,10 @@ function drawNoChartState(text) {
 }
 
 function drawCandles(data) {
+  if (activeChartMode === 'tradingview') {
+    return;
+  }
+
   if (ensureLightweightChart()) {
     try {
       const rows = toChartSeriesRows(data);
@@ -825,6 +1022,16 @@ async function loadDepth() {
 }
 
 async function loadKlines() {
+  if (activeChartMode === 'tradingview') {
+    if (chartStatus) {
+      chartStatus.textContent = `TradingView ${state.interval} • trendline/tools enabled`;
+    }
+    if (chartUpdatedAt) {
+      chartUpdatedAt.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    }
+    return;
+  }
+
   if (chartStatus) {
     chartStatus.textContent = `Loading ${state.interval} chart...`;
   }
@@ -994,7 +1201,7 @@ function setTradeNavOpen(open) {
 
 function setupChartInteractions() {
   if (useLightweightChart) {
-    if (tvChartHost) {
+    if (tvChartHost && activeChartMode !== 'tradingview') {
       tvChartHost.style.touchAction = 'none';
     }
     return;
@@ -1184,7 +1391,9 @@ function setupChartInteractions() {
 }
 
 function applyResponsiveState() {
-  resizeLightweightChart();
+  if (activeChartMode !== 'tradingview') {
+    resizeLightweightChart();
+  }
   if (!isMobileViewport()) {
     chartColumn?.classList.remove('mobile-hidden');
     bookColumn?.classList.remove('mobile-hidden');
@@ -1203,6 +1412,14 @@ function setupInteractions() {
   flashModeBtn?.addEventListener('click', () => setMode('flash'));
   proModeBtn?.addEventListener('click', () => setMode('pro'));
 
+  chartViewTabs?.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-chart-view]');
+    if (!btn) {
+      return;
+    }
+    void setChartMode(btn.dataset.chartView || 'standard');
+  });
+
   intervalTabs?.addEventListener('click', (event) => {
     const btn = event.target.closest('button[data-interval]');
     if (!btn) {
@@ -1215,7 +1432,12 @@ function setupInteractions() {
       node.classList.toggle('active', node === btn);
     });
 
-    loadKlines();
+    if (activeChartMode === 'tradingview') {
+      void renderTradingViewWidget(true);
+      return;
+    }
+
+    void loadKlines();
   });
 
   pairSelector?.addEventListener('change', () => {
@@ -1315,13 +1537,14 @@ function setupInteractions() {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       applyResponsiveState();
-      requestChartRedraw();
+      if (activeChartMode !== 'tradingview') {
+        requestChartRedraw();
+      }
     }, 120);
   });
 }
 
 async function initTradePage() {
-  ensureLightweightChart();
   setPairIdentity();
   setupInteractions();
   setOrderType(tradeOrderType?.value || 'limit');
@@ -1330,6 +1553,9 @@ async function initTradePage() {
   renderEstimatedQty();
   openBookPanel('book');
   setMobileTab('chart');
+  const defaultChartMode =
+    chartViewTabs?.querySelector('button.active[data-chart-view]')?.dataset.chartView || activeChartMode;
+  await setChartMode(defaultChartMode, { suppressLoad: true });
   applyResponsiveState();
 
   await Promise.all([loadDepth(), loadKlines()]);
