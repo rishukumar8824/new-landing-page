@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/styles.css?v=20260227-mobile-premium" />
     <link rel="stylesheet" href="/p2p.css?v=20260227-mobile-premium" />
   </head>
-  <body class="p2p-page p2p-theme-dark has-mobile-nav">
+  <body class="p2p-page p2p-theme-dark has-mobile-nav" data-mobile-tab="p2p">
     <header class="p2p-header" id="p2pHeader">
       <div class="p2p-header-inner">
         <div class="p2p-brand-wrap">
@@ -67,10 +67,22 @@
         </div>
         <div class="p2p-secondary-right">
           <a href="/p2p">User Guide</a>
-          <a href="/p2p">Ads</a>
-          <a href="/p2p">Orders</a>
-          <a href="/p2p">P2P User Center</a>
+          <a href="/p2p#ads" data-mobile-tab-target="ads">Ads</a>
+          <a href="/p2p#orders" data-mobile-tab-target="orders">Orders</a>
+          <a href="/p2p#profile" data-mobile-tab-target="profile">P2P User Center</a>
         </div>
+      </div>
+    </section>
+
+    <section class="p2p-mobile-topnav mobile-only" aria-label="Mobile P2P top navigation">
+      <div class="p2p-shell p2p-mobile-topnav-inner">
+        <a class="mobile-topnav-back" href="/" aria-label="Back">←</a>
+        <a class="mobile-topnav-link" href="/p2p">Express</a>
+        <a class="mobile-topnav-link active" href="/p2p">P2P</a>
+        <a class="mobile-topnav-link" href="/p2p">Block Trade</a>
+        <button id="mobileCurrencyBtn" class="mobile-topnav-currency" type="button" aria-label="Select currency">
+          INR ▾
+        </button>
       </div>
     </section>
 
@@ -167,6 +179,12 @@
           <p id="liveOrdersMeta">Loading live orders...</p>
         </div>
 
+        <div class="mobile-orders-tabs mobile-only" id="mobileOrdersTabs">
+          <button type="button" class="mobile-orders-tab active" data-order-filter="all">All</button>
+          <button type="button" class="mobile-orders-tab" data-order-filter="completed">Completed</button>
+          <button type="button" class="mobile-orders-tab" data-order-filter="cancelled">Cancelled</button>
+        </div>
+
         <div class="p2p-live-controls">
           <input id="orderReferenceInput" type="text" placeholder="Join by order reference" />
           <button id="joinByRefBtn" type="button">Join by Ref</button>
@@ -188,26 +206,117 @@
           </table>
         </div>
 
-        <div id="liveOrdersCards" class="p2p-cards mobile-only"></div>
+        <div id="liveOrdersCards" class="p2p-cards mobile-only mobile-orders-list"></div>
+      </section>
+
+      <section id="ads" class="p2p-mobile-panel p2p-ads-panel mobile-only">
+        <div class="mobile-panel-head">
+          <h2>Post Advertisement</h2>
+          <p>Create buy/sell ad like Bybit P2P.</p>
+        </div>
+
+        <form id="adCreateForm" class="ad-create-form">
+          <div class="ad-create-grid">
+            <label>
+              <span>Ad Type</span>
+              <select id="adTypeInput">
+                <option value="sell">Sell</option>
+                <option value="buy">Buy</option>
+              </select>
+            </label>
+            <label>
+              <span>Asset</span>
+              <select id="adAssetInput">
+                <option value="USDT">USDT</option>
+                <option value="BTC">BTC</option>
+                <option value="ETH">ETH</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="ad-create-grid">
+            <label>
+              <span>Price (INR)</span>
+              <input id="adPriceInput" type="number" step="0.0001" min="0" placeholder="96.40" />
+            </label>
+            <label>
+              <span>Available (Asset)</span>
+              <input id="adAvailableInput" type="number" step="0.0001" min="0" placeholder="500" />
+            </label>
+          </div>
+
+          <div class="ad-create-grid">
+            <label>
+              <span>Min Limit (INR)</span>
+              <input id="adMinLimitInput" type="number" step="1" min="0" placeholder="500" />
+            </label>
+            <label>
+              <span>Max Limit (INR)</span>
+              <input id="adMaxLimitInput" type="number" step="1" min="0" placeholder="50000" />
+            </label>
+          </div>
+
+          <label>
+            <span>Payment Methods (comma separated)</span>
+            <input id="adPaymentsInput" type="text" placeholder="UPI, IMPS, Bank Transfer" />
+          </label>
+
+          <button id="adCreateBtn" type="submit" class="ad-create-btn">Post Ad</button>
+          <p id="adCreateMeta" class="ad-create-meta">Fill details to publish your ad.</p>
+        </form>
+
+        <div class="my-ads-head">
+          <h3>Your Ads</h3>
+          <button id="refreshMyAdsBtn" type="button" class="secondary-btn">Refresh</button>
+        </div>
+        <div id="myAdsList" class="my-ads-list"></div>
+      </section>
+
+      <section id="profile" class="p2p-mobile-panel p2p-profile-panel mobile-only">
+        <div class="mobile-panel-head">
+          <h2>P2P Profile</h2>
+          <p>Security, KYC and trading performance overview.</p>
+        </div>
+
+        <article class="profile-identity-card">
+          <div class="profile-avatar" id="profileAvatar">U</div>
+          <div>
+            <h3 id="profileName">Guest User</h3>
+            <p id="profileEmail">Login required</p>
+          </div>
+        </article>
+
+        <div class="profile-metrics-grid">
+          <article><span>KYC Status</span><strong id="profileKyc">Pending</strong></article>
+          <article><span>Security</span><strong id="profileSecurity">Basic</strong></article>
+          <article><span>Total Orders</span><strong id="profileTotalOrders">0</strong></article>
+          <article><span>Completion Rate</span><strong id="profileCompletionRate">0%</strong></article>
+          <article><span>Total Deposit</span><strong id="profileDeposit">₹0</strong></article>
+          <article><span>Order Completion</span><strong id="profileCompletedOrders">0</strong></article>
+          <article><span>Cancelled Orders</span><strong id="profileCancelledOrders">0</strong></article>
+          <article><span>Avg Release Time</span><strong id="profileAvgReleaseTime">--</strong></article>
+        </div>
+
+        <p id="profileMeta" class="profile-meta">Profile data sync pending.</p>
       </section>
     </main>
 
-    <nav class="mobile-app-nav" aria-label="App navigation">
-      <a href="/">
+    <nav id="p2pMobileNav" class="mobile-app-nav p2p-mobile-bottom-nav" aria-label="P2P navigation">
+      <a href="/p2p" data-mobile-tab="p2p" class="active" aria-current="page">
         <span class="nav-icon">⌂</span>
-        <span class="nav-label">Home</span>
+        <span class="nav-label">P2P</span>
       </a>
-      <a href="/markets.html">
-        <span class="nav-icon">◍</span>
-        <span class="nav-label">Markets</span>
+      <a href="/p2p#orders" data-mobile-tab="orders">
+        <span class="nav-icon">☰</span>
+        <span class="nav-label">Orders</span>
       </a>
-      <a href="/trade/spot/BTCUSDT">
-        <span class="nav-icon">⇅</span>
-        <span class="nav-label">Trade</span>
+      <a href="/p2p#ads" data-mobile-tab="ads">
+        <span class="nav-icon">↗</span>
+        <span class="nav-label">Ads</span>
       </a>
-      <a href="/p2p#orders" class="active" aria-current="page">
-        <span class="nav-icon">◔</span>
-        <span class="nav-label">Assets</span>
+      <a href="/p2p#profile" data-mobile-tab="profile">
+        <span class="nav-icon">◎</span>
+        <span class="nav-label">Profile</span>
       </a>
     </nav>
 
@@ -423,6 +532,6 @@
       </div>
     </section>
 
-    <script src="/p2p.js?v=20260227-mobile-premium2"></script>
+    <script src="/p2p.js?v=20260227-mobile-premium3"></script>
   </body>
 </html>

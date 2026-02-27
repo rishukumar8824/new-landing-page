@@ -27,13 +27,20 @@ const p2pMenuToggle = document.getElementById('p2pMenuToggle');
 const p2pNavClose = document.getElementById('p2pNavClose');
 const p2pNavDrawer = document.getElementById('p2pNavDrawer');
 const p2pNavOverlay = document.getElementById('p2pNavOverlay');
+const mobileCurrencyBtn = document.getElementById('mobileCurrencyBtn');
 const p2pMobileBottomNav = document.querySelector('.mobile-app-nav');
+const p2pBoardCard = document.querySelector('.p2p-board-card');
+const ordersSection = document.getElementById('orders');
+const adsSection = document.getElementById('ads');
+const profileSection = document.getElementById('profile');
 
 const liveOrdersMeta = document.getElementById('liveOrdersMeta');
 const liveOrdersRows = document.getElementById('liveOrdersRows');
 const liveOrdersCards = document.getElementById('liveOrdersCards');
 const orderReferenceInput = document.getElementById('orderReferenceInput');
 const joinByRefBtn = document.getElementById('joinByRefBtn');
+const mobileOrdersTabs = document.getElementById('mobileOrdersTabs');
+const mobileOrdersList = document.getElementById('mobileOrdersList') || document.getElementById('liveOrdersCards');
 
 const orderModal = document.getElementById('orderModal');
 const closeModalBtn = document.getElementById('closeModalBtn');
@@ -101,6 +108,32 @@ const dealHint = document.getElementById('dealHint');
 const dealConfirmBtn = document.getElementById('dealConfirmBtn');
 const dealCancelBtn = document.getElementById('dealCancelBtn');
 
+const adCreateForm = document.getElementById('adCreateForm');
+const adTypeInput = document.getElementById('adTypeInput');
+const adAssetInput = document.getElementById('adAssetInput');
+const adPriceInput = document.getElementById('adPriceInput');
+const adAvailableInput = document.getElementById('adAvailableInput');
+const adMinLimitInput = document.getElementById('adMinLimitInput');
+const adMaxLimitInput = document.getElementById('adMaxLimitInput');
+const adPaymentsInput = document.getElementById('adPaymentsInput');
+const adCreateBtn = document.getElementById('adCreateBtn');
+const adCreateMeta = document.getElementById('adCreateMeta');
+const myAdsList = document.getElementById('myAdsList');
+const refreshMyAdsBtn = document.getElementById('refreshMyAdsBtn');
+
+const profileAvatar = document.getElementById('profileAvatar');
+const profileName = document.getElementById('profileName');
+const profileEmail = document.getElementById('profileEmail');
+const profileKyc = document.getElementById('profileKyc');
+const profileSecurity = document.getElementById('profileSecurity');
+const profileTotalOrders = document.getElementById('profileTotalOrders');
+const profileCompletionRate = document.getElementById('profileCompletionRate');
+const profileDeposit = document.getElementById('profileDeposit');
+const profileCompletedOrders = document.getElementById('profileCompletedOrders');
+const profileCancelledOrders = document.getElementById('profileCancelledOrders');
+const profileAvgReleaseTime = document.getElementById('profileAvgReleaseTime');
+const profileMeta = document.getElementById('profileMeta');
+
 let currentSide = 'buy';
 let currentAsset = 'USDT';
 let offersMap = new Map();
@@ -118,6 +151,12 @@ let activeOrderSnapshot = null;
 let autoCancelRequested = false;
 let chatUploading = false;
 let messagePollTick = 0;
+let mobileActiveTab = 'p2p';
+let mobileOrderFilter = 'all';
+const mobileOrdersCache = new Map();
+let profileWalletBalance = 0;
+let profileWalletLocked = 0;
+let profileWalletSyncedAt = 0;
 const chatMessageMap = new Map();
 const chatMessageNodes = new Map();
 const CHAT_IMAGE_MAX_SIZE = 3 * 1024 * 1024;
@@ -572,6 +611,449 @@ function renderMessages(messages = [], options = {}) {
   }
 }
 
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function normalizeMobileTabName(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (['p2p', 'orders', 'ads', 'profile'].includes(normalized)) {
+    return normalized;
+  }
+  return 'p2p';
+}
+
+function setMobileNavActive(tab) {
+  if (!p2pMobileBottomNav) {
+    return;
+  }
+
+  p2pMobileBottomNav.querySelectorAll('a[data-mobile-tab]').forEach((link) => {
+    const isActive = normalizeMobileTabName(link.dataset.mobileTab) === tab;
+    link.classList.toggle('active', isActive);
+    if (isActive) {
+      link.setAttribute('aria-current', 'page');
+    } else {
+      link.removeAttribute('aria-current');
+    }
+  });
+}
+
+function getOrderBucketByStatus(status) {
+  const normalized = normalizeStatusForUi(status);
+  if (normalized === 'RELEASED') {
+    return 'completed';
+  }
+  if (['CANCELLED', 'EXPIRED'].includes(normalized)) {
+    return 'cancelled';
+  }
+  return 'all';
+}
+
+function storeOrderForMobile(order) {
+  if (!order || !order.id) {
+    return;
+  }
+
+  const previous = mobileOrdersCache.get(order.id) || {};
+  const next = {
+    ...previous,
+    ...order,
+    status: normalizeStatusForUi(order.status),
+    updatedAt: order.updatedAt || order.createdAt || previous.updatedAt || new Date().toISOString(),
+    createdAt: order.createdAt || previous.createdAt || new Date().toISOString(),
+    participantsLabel: order.participantsLabel || previous.participantsLabel || '--',
+    paymentMethod: order.paymentMethod || previous.paymentMethod || '--',
+    isParticipant:
+      typeof order.isParticipant === 'boolean'
+        ? order.isParticipant
+        : previous.isParticipant || Boolean(currentUser && (order.buyerUserId === currentUser.id || order.sellerUserId === currentUser.id))
+  };
+
+  mobileOrdersCache.set(order.id, next);
+}
+
+function getMobileOrdersSnapshot() {
+  return Array.from(mobileOrdersCache.values()).sort(
+    (a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime()
+  );
+}
+
+function filteredMobileOrders() {
+  const orders = getMobileOrdersSnapshot();
+  if (mobileOrderFilter === 'completed') {
+    return orders.filter((order) => getOrderBucketByStatus(order.status) === 'completed');
+  }
+  if (mobileOrderFilter === 'cancelled') {
+    return orders.filter((order) => getOrderBucketByStatus(order.status) === 'cancelled');
+  }
+  return orders;
+}
+
+function renderMobileOrdersList() {
+  if (!mobileOrdersList) {
+    return;
+  }
+
+  const orders = filteredMobileOrders();
+  if (!orders.length) {
+    mobileOrdersList.innerHTML = '<p class="empty-row">No orders in this category.</p>';
+    return;
+  }
+
+  mobileOrdersList.innerHTML = orders
+    .map((order) => {
+      const actionLabel = order.isParticipant ? 'Open' : 'Join';
+      return `
+        <article class="mobile-order-card">
+          <div class="mobile-order-head">
+            <p class="mobile-order-ref">${escapeHtml(order.reference || order.id)}</p>
+            <span class="status-pill ${statusClass(order.status)}">${statusLabel(order.status)}</span>
+          </div>
+          <div class="mobile-order-grid">
+            <p>Type<strong>${escapeHtml(String(order.side || '').toUpperCase())} ${escapeHtml(order.asset || '')}</strong></p>
+            <p>Amount<strong>₹${formatNumber(order.amountInr || 0)}</strong></p>
+            <p>Price<strong>₹${formatNumber(order.price || 0)}</strong></p>
+            <p>Payment<strong>${escapeHtml(order.paymentMethod || '--')}</strong></p>
+          </div>
+          <div class="mobile-order-actions">
+            <button type="button" class="secondary-btn join-order-btn" data-order-id="${escapeHtml(order.id)}">${actionLabel}</button>
+          </div>
+        </article>
+      `;
+    })
+    .join('');
+}
+
+function formatDurationLabel(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return '--';
+  }
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) {
+    return `${mins}m`;
+  }
+  const hours = (mins / 60).toFixed(1);
+  return `${hours}h`;
+}
+
+function setAdCreateMeta(text, type = '') {
+  if (!adCreateMeta) {
+    return;
+  }
+  adCreateMeta.textContent = text;
+  adCreateMeta.className = 'ad-create-meta';
+  if (type) {
+    adCreateMeta.classList.add(type);
+  }
+}
+
+function renderMyAds(offers = []) {
+  if (!myAdsList) {
+    return;
+  }
+
+  if (!offers.length) {
+    myAdsList.innerHTML = '<p class="empty-row">No ads posted yet.</p>';
+    return;
+  }
+
+  myAdsList.innerHTML = offers
+    .map((offer) => {
+      const adType = String(offer.adType || (offer.side === 'buy' ? 'sell' : 'buy')).toUpperCase();
+      const payments = Array.isArray(offer.payments) ? offer.payments.join(', ') : '--';
+      return `
+        <article class="my-ad-card">
+          <p><strong>${adType} ${escapeHtml(offer.asset || 'USDT')}</strong> · ₹${formatNumber(offer.price || 0)}</p>
+          <p>Available: <strong>${formatNumber(offer.available || 0)} ${escapeHtml(offer.asset || 'USDT')}</strong></p>
+          <p>Limits: <strong>₹${formatNumber(offer.minLimit || 0)} - ₹${formatNumber(offer.maxLimit || 0)}</strong></p>
+          <p>Payments: <strong>${escapeHtml(payments)}</strong></p>
+        </article>
+      `;
+    })
+    .join('');
+}
+
+async function loadMyAds() {
+  if (!myAdsList) {
+    return;
+  }
+  if (!currentUser) {
+    myAdsList.innerHTML = '<p class="empty-row">Login required to view your ads.</p>';
+    return;
+  }
+
+  const assetCandidates = ['USDT', 'BTC', 'ETH'];
+  const sideCandidates = ['buy', 'sell'];
+  const requests = [];
+
+  sideCandidates.forEach((side) => {
+    assetCandidates.forEach((asset) => {
+      requests.push(fetch(`/api/p2p/offers?side=${encodeURIComponent(side)}&asset=${encodeURIComponent(asset)}`));
+    });
+  });
+
+  try {
+    const responses = await Promise.all(requests);
+    const payloads = await Promise.all(
+      responses.map(async (response) => {
+        const data = await response.json().catch(() => ({ offers: [] }));
+        return response.ok ? data : { offers: [] };
+      })
+    );
+
+    const allOffers = payloads.flatMap((item) => (Array.isArray(item.offers) ? item.offers : []));
+    const uniqueById = new Map();
+    allOffers.forEach((offer) => {
+      if (offer?.id) {
+        uniqueById.set(offer.id, offer);
+      }
+    });
+
+    const myOffers = Array.from(uniqueById.values())
+      .filter((offer) => offer.createdByUserId === currentUser.id)
+      .sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+
+    renderMyAds(myOffers);
+  } catch (error) {
+    myAdsList.innerHTML = '<p class="empty-row">Unable to load your ads right now.</p>';
+  }
+}
+
+async function handleAdCreate(event) {
+  event.preventDefault();
+  if (!currentUser) {
+    requireLoginNotice();
+    return;
+  }
+
+  const payload = {
+    adType: String(adTypeInput?.value || '').trim().toLowerCase(),
+    asset: String(adAssetInput?.value || '').trim().toUpperCase(),
+    price: Number(adPriceInput?.value || 0),
+    available: Number(adAvailableInput?.value || 0),
+    minLimit: Number(adMinLimitInput?.value || 0),
+    maxLimit: Number(adMaxLimitInput?.value || 0),
+    payments: String(adPaymentsInput?.value || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+  };
+
+  if (!payload.payments.length) {
+    setAdCreateMeta('Add at least one payment method.', 'error');
+    return;
+  }
+
+  if (adCreateBtn) {
+    adCreateBtn.disabled = true;
+    adCreateBtn.textContent = 'Posting...';
+  }
+
+  try {
+    const response = await fetch('/api/p2p/offers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Unable to post ad.');
+    }
+
+    setAdCreateMeta('Ad posted successfully.', 'success');
+    adCreateForm?.reset();
+    await loadOffers();
+    await loadMyAds();
+  } catch (error) {
+    setAdCreateMeta(error.message, 'error');
+  } finally {
+    if (adCreateBtn) {
+      adCreateBtn.disabled = false;
+      adCreateBtn.textContent = 'Post Ad';
+    }
+  }
+}
+
+async function loadProfilePanel(options = {}) {
+  if (!profileSection) {
+    return;
+  }
+
+  if (!currentUser) {
+    profileWalletBalance = 0;
+    profileWalletLocked = 0;
+    profileWalletSyncedAt = 0;
+    if (profileAvatar) {
+      profileAvatar.textContent = 'U';
+    }
+    if (profileName) {
+      profileName.textContent = 'Guest User';
+    }
+    if (profileEmail) {
+      profileEmail.textContent = 'Login required';
+    }
+    if (profileKyc) {
+      profileKyc.textContent = 'Pending';
+    }
+    if (profileSecurity) {
+      profileSecurity.textContent = 'Basic';
+    }
+    if (profileTotalOrders) {
+      profileTotalOrders.textContent = '0';
+    }
+    if (profileCompletionRate) {
+      profileCompletionRate.textContent = '0%';
+    }
+    if (profileDeposit) {
+      profileDeposit.textContent = '₹0';
+    }
+    if (profileCompletedOrders) {
+      profileCompletedOrders.textContent = '0';
+    }
+    if (profileCancelledOrders) {
+      profileCancelledOrders.textContent = '0';
+    }
+    if (profileAvgReleaseTime) {
+      profileAvgReleaseTime.textContent = '--';
+    }
+    if (profileMeta) {
+      profileMeta.textContent = 'Login to view profile analytics.';
+    }
+    return;
+  }
+
+  const initial = String(currentUser.username || currentUser.email || 'U')
+    .trim()
+    .slice(0, 1)
+    .toUpperCase();
+
+  if (profileAvatar) {
+    profileAvatar.textContent = initial || 'U';
+  }
+  if (profileName) {
+    profileName.textContent = currentUser.username || 'P2P User';
+  }
+  if (profileEmail) {
+    profileEmail.textContent = currentUser.email || '--';
+  }
+  if (profileKyc) {
+    profileKyc.textContent = 'Verified';
+  }
+  if (profileSecurity) {
+    profileSecurity.textContent = 'Email Protected';
+  }
+
+  const shouldRefreshWallet =
+    Boolean(options.refreshWallet) || Date.now() - profileWalletSyncedAt > 30 * 1000;
+
+  if (shouldRefreshWallet) {
+    try {
+      const response = await fetch('/api/p2p/wallet');
+      const data = await response.json();
+      if (response.ok && data.wallet) {
+        profileWalletBalance = Number(data.wallet.balance || 0);
+        profileWalletLocked = Number(data.wallet.lockedBalance || 0);
+        profileWalletSyncedAt = Date.now();
+      }
+    } catch (error) {
+      // Wallet panel remains with previous values.
+    }
+  }
+
+  const orders = getMobileOrdersSnapshot();
+  const completedOrders = orders.filter((order) => normalizeStatusForUi(order.status) === 'RELEASED');
+  const cancelledOrders = orders.filter((order) =>
+    ['CANCELLED', 'EXPIRED'].includes(normalizeStatusForUi(order.status))
+  );
+  const totalOrders = orders.length;
+  const completionRateValue = totalOrders ? (completedOrders.length / totalOrders) * 100 : 0;
+
+  const releaseDurations = completedOrders
+    .map((order) => new Date(order.updatedAt || 0).getTime() - new Date(order.createdAt || 0).getTime())
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const avgReleaseMs =
+    releaseDurations.length > 0
+      ? releaseDurations.reduce((sum, value) => sum + value, 0) / releaseDurations.length
+      : 0;
+
+  if (profileTotalOrders) {
+    profileTotalOrders.textContent = String(totalOrders);
+  }
+  if (profileCompletionRate) {
+    profileCompletionRate.textContent = `${completionRateValue.toFixed(1)}%`;
+  }
+  if (profileDeposit) {
+    profileDeposit.textContent = `₹${formatNumber(profileWalletBalance + profileWalletLocked)}`;
+  }
+  if (profileCompletedOrders) {
+    profileCompletedOrders.textContent = String(completedOrders.length);
+  }
+  if (profileCancelledOrders) {
+    profileCancelledOrders.textContent = String(cancelledOrders.length);
+  }
+  if (profileAvgReleaseTime) {
+    profileAvgReleaseTime.textContent = formatDurationLabel(avgReleaseMs);
+  }
+  if (profileMeta) {
+    profileMeta.textContent = `Wallet balance: ${formatNumber(profileWalletBalance)} | Escrow locked: ${formatNumber(
+      profileWalletLocked
+    )}`;
+  }
+}
+
+function syncMobileTabFromHash(options = {}) {
+  const tabFromHash = normalizeMobileTabName(String(window.location.hash || '').replace('#', ''));
+  const resolvedTab = tabFromHash || 'p2p';
+  mobileActiveTab = resolvedTab;
+  document.body.dataset.mobileTab = resolvedTab;
+  setMobileNavActive(resolvedTab);
+
+  if (!isMobileViewport()) {
+    return;
+  }
+
+  if (resolvedTab === 'orders') {
+    renderMobileOrdersList();
+    loadLiveOrders();
+  } else if (resolvedTab === 'ads') {
+    loadMyAds();
+  } else if (resolvedTab === 'profile') {
+    loadProfilePanel();
+  } else if (options.refreshP2P !== false) {
+    loadOffers();
+  }
+}
+
+function setMobileTab(tab, options = {}) {
+  const normalized = normalizeMobileTabName(tab);
+  mobileActiveTab = normalized;
+  document.body.dataset.mobileTab = normalized;
+  setMobileNavActive(normalized);
+
+  if (isMobileViewport()) {
+    if (options.updateHash !== false) {
+      const nextHash = normalized === 'p2p' ? '' : `#${normalized}`;
+      if (`${window.location.hash}` !== nextHash) {
+        history.replaceState(null, '', `${window.location.pathname}${nextHash}`);
+      }
+    }
+
+    if (normalized === 'orders') {
+      renderMobileOrdersList();
+      loadLiveOrders();
+    } else if (normalized === 'ads') {
+      loadMyAds();
+    } else if (normalized === 'profile') {
+      loadProfilePanel();
+    } else {
+      loadOffers();
+    }
+  }
+}
+
 function setP2PNavOpen(open) {
   if (!p2pNavDrawer || !p2pNavOverlay || !p2pMenuToggle) {
     return;
@@ -821,6 +1303,14 @@ function updateUserUi() {
   if (logoutBtn) {
     logoutBtn.style.display = currentUser ? 'inline-flex' : 'none';
   }
+
+  if (!currentUser) {
+    if (myAdsList) {
+      myAdsList.innerHTML = '<p class="empty-row">Login required to view your ads.</p>';
+    }
+  }
+
+  loadProfilePanel();
 }
 
 function setModalOpen(open) {
@@ -967,6 +1457,8 @@ async function loginUser() {
     setP2PNavOpen(false);
     await loadOffers();
     await loadLiveOrders();
+    await loadMyAds();
+    await loadProfilePanel({ refreshWallet: true });
   } catch (error) {
     setUserStatus(error.message, 'user-error');
   }
@@ -977,9 +1469,11 @@ async function logoutUser() {
     await fetch('/api/p2p/logout', { method: 'POST' });
   } finally {
     currentUser = null;
+    mobileOrdersCache.clear();
     updateUserUi();
     await loadOffers();
     await loadLiveOrders();
+    renderMobileOrdersList();
     closeOrderModal();
     closeDealModal();
   }
@@ -1285,8 +1779,12 @@ function renderLiveOrders(orders) {
     if (liveOrdersCards) {
       liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">No live orders available.</p></article>';
     }
+    renderMobileOrdersList();
+    loadProfilePanel();
     return;
   }
+
+  orders.forEach((order) => storeOrderForMobile(order));
 
   if (liveOrdersRows) {
     liveOrdersRows.innerHTML = orders
@@ -1334,6 +1832,9 @@ function renderLiveOrders(orders) {
       )
       .join('');
   }
+
+  renderMobileOrdersList();
+  loadProfilePanel();
 }
 
 async function loadLiveOrders() {
@@ -1349,6 +1850,10 @@ async function loadLiveOrders() {
       liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">Login to view live orders.</p></article>';
     }
     liveOrdersMeta.textContent = 'Live Orders: login required';
+    if (mobileOrdersList) {
+      mobileOrdersList.innerHTML = '<p class="empty-row">Login to view orders.</p>';
+    }
+    loadProfilePanel();
     return;
   }
 
@@ -1374,6 +1879,7 @@ async function loadLiveOrders() {
       liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">Unable to load live orders.</p></article>';
     }
     liveOrdersMeta.textContent = error.message;
+    renderMobileOrdersList();
   }
 }
 
@@ -1383,6 +1889,9 @@ function updateOrderUi(order) {
   }
 
   activeOrderSnapshot = order;
+  storeOrderForMobile(order);
+  renderMobileOrdersList();
+  loadProfilePanel();
   activeOrderRole = getOrderRole(order);
   const normalizedStatus = normalizeStatusForUi(order.status);
   const counterpartyName =
@@ -1826,6 +2335,7 @@ async function updateOrderStatus(action, options = {}) {
     }
     await fetchMessages();
     await loadLiveOrders();
+    await loadProfilePanel({ refreshWallet: true });
   } catch (error) {
     chatState.textContent = error.message;
     throw error;
@@ -1865,6 +2375,23 @@ function bindJoinOrderDelegation(container) {
 
 bindJoinOrderDelegation(liveOrdersRows);
 bindJoinOrderDelegation(liveOrdersCards);
+if (mobileOrdersList && mobileOrdersList !== liveOrdersCards) {
+  bindJoinOrderDelegation(mobileOrdersList);
+}
+
+if (mobileOrdersTabs) {
+  mobileOrdersTabs.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-order-filter]');
+    if (!target) {
+      return;
+    }
+    mobileOrderFilter = String(target.dataset.orderFilter || 'all').trim().toLowerCase();
+    mobileOrdersTabs.querySelectorAll('[data-order-filter]').forEach((button) => {
+      button.classList.toggle('active', button === target);
+    });
+    renderMobileOrdersList();
+  });
+}
 
 if (sideTabs) {
   sideTabs.addEventListener('click', (event) => {
@@ -2015,6 +2542,16 @@ if (dealBackdrop) {
   dealBackdrop.addEventListener('click', closeDealModal);
 }
 
+if (adCreateForm) {
+  adCreateForm.addEventListener('submit', handleAdCreate);
+}
+
+if (refreshMyAdsBtn) {
+  refreshMyAdsBtn.addEventListener('click', () => {
+    loadMyAds();
+  });
+}
+
 if (joinByRefBtn) {
   joinByRefBtn.addEventListener('click', joinOrderByReference);
 }
@@ -2153,6 +2690,16 @@ if (themeToggleBtn) {
   });
 }
 
+if (mobileCurrencyBtn) {
+  mobileCurrencyBtn.addEventListener('click', () => {
+    if (!currencyFilter) {
+      return;
+    }
+    currencyFilter.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    currencyFilter.focus({ preventScroll: true });
+  });
+}
+
 p2pMenuToggle?.addEventListener('click', () => setP2PNavOpen(true));
 p2pNavClose?.addEventListener('click', () => setP2PNavOpen(false));
 p2pNavOverlay?.addEventListener('click', () => setP2PNavOpen(false));
@@ -2166,21 +2713,40 @@ p2pNavDrawer?.addEventListener('click', (event) => {
 
 if (p2pMobileBottomNav) {
   p2pMobileBottomNav.addEventListener('click', (event) => {
-    const targetLink = event.target.closest('a');
+    const targetLink = event.target.closest('a[data-mobile-tab]');
     if (!targetLink) {
       return;
     }
-
-    p2pMobileBottomNav.querySelectorAll('a').forEach((link) => {
-      link.classList.toggle('active', link === targetLink);
-      if (link === targetLink) {
-        link.setAttribute('aria-current', 'page');
-      } else {
-        link.removeAttribute('aria-current');
-      }
-    });
+    if (isMobileViewport()) {
+      event.preventDefault();
+      setMobileTab(targetLink.dataset.mobileTab);
+    }
   });
 }
+
+document.querySelectorAll('[data-mobile-tab-target]').forEach((link) => {
+  link.addEventListener('click', (event) => {
+    if (!isMobileViewport()) {
+      return;
+    }
+    const tab = normalizeMobileTabName(link.getAttribute('data-mobile-tab-target'));
+    event.preventDefault();
+    setMobileTab(tab);
+  });
+});
+
+window.addEventListener('hashchange', () => {
+  syncMobileTabFromHash({ refreshP2P: false });
+});
+
+window.addEventListener('resize', () => {
+  if (!isMobileViewport()) {
+    setMobileNavActive('p2p');
+    document.body.dataset.mobileTab = 'p2p';
+    return;
+  }
+  syncMobileTabFromHash({ refreshP2P: false });
+});
 
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
@@ -2213,7 +2779,10 @@ window.addEventListener('keydown', (event) => {
   await loadCurrentUser();
   await loadOffers();
   await loadLiveOrders();
+  await loadMyAds();
+  await loadProfilePanel({ refreshWallet: true });
   await loadExchangeTicker();
+  syncMobileTabFromHash();
 })();
 
 setInterval(() => {
