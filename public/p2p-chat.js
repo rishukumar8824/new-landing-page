@@ -29,7 +29,7 @@ const imagePreviewCloseBtn = document.getElementById('imagePreviewCloseBtn');
 const imagePreviewEl = document.getElementById('imagePreviewEl');
 
 const CHAT_IMAGE_MAX_SIZE = 3 * 1024 * 1024;
-const CHAT_MAX_PAYLOAD_BYTES = 60 * 1024;
+const CHAT_MAX_PAYLOAD_BYTES = 80 * 1024;
 const CHAT_IMAGE_ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 const CHAT_PAYLOAD_PREFIX = '__P2P_MSG__:';
 
@@ -149,36 +149,56 @@ function loadImageFromFile(file) {
 
 async function compressImageForChat(file) {
   const image = await loadImageFromFile(file);
-  const maxDimension = 1280;
-  const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
-  const width = Math.max(1, Math.round(image.width * scale));
-  const height = Math.max(1, Math.round(image.height * scale));
-
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-
   const context = canvas.getContext('2d');
   if (!context) {
     throw new Error('Unable to initialize image processor.');
   }
 
-  context.drawImage(image, 0, 0, width, height);
+  const maxDimensions = [1280, 1024, 900, 768, 640, 512, 420];
+  const qualitySteps = [0.86, 0.78, 0.7, 0.62, 0.54, 0.46, 0.4, 0.34, 0.28];
+  let bestCandidate = '';
+  let bestBytes = Number.POSITIVE_INFINITY;
 
-  const mimeType = 'image/webp';
-  let quality = 0.9;
-  let dataUrl = canvas.toDataURL(mimeType, quality);
+  const tryEncode = (mimeType, quality) => {
+    const encoded = canvas.toDataURL(mimeType, quality);
+    const bytes = estimateDataUrlBytes(encoded);
+    if (bytes < bestBytes) {
+      bestCandidate = encoded;
+      bestBytes = bytes;
+    }
+    return { encoded, bytes };
+  };
 
-  while (estimateDataUrlBytes(dataUrl) > CHAT_MAX_PAYLOAD_BYTES && quality > 0.4) {
-    quality -= 0.08;
-    dataUrl = canvas.toDataURL(mimeType, quality);
+  for (const maxDimension of maxDimensions) {
+    const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    canvas.width = width;
+    canvas.height = height;
+    context.clearRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    for (const quality of qualitySteps) {
+      const webpAttempt = tryEncode('image/webp', quality);
+      if (webpAttempt.bytes <= CHAT_MAX_PAYLOAD_BYTES) {
+        return webpAttempt.encoded;
+      }
+
+      if (!webpAttempt.encoded.startsWith('data:image/webp')) {
+        const jpegAttempt = tryEncode('image/jpeg', quality);
+        if (jpegAttempt.bytes <= CHAT_MAX_PAYLOAD_BYTES) {
+          return jpegAttempt.encoded;
+        }
+      }
+    }
   }
 
-  if (estimateDataUrlBytes(dataUrl) > CHAT_MAX_PAYLOAD_BYTES) {
-    throw new Error('Image is too large after compression. Try a smaller screenshot.');
+  if (bestCandidate && bestBytes <= CHAT_IMAGE_MAX_SIZE) {
+    return bestCandidate;
   }
 
-  return dataUrl;
+  throw new Error('Image too large after compression. Please crop and upload again.');
 }
 
 function generateClientId() {
@@ -313,10 +333,18 @@ function scrollChatToBottom(smooth = false) {
 }
 
 function getMessageClass(message) {
-  const sender = String(message.sender || '').trim().toLowerCase();
-  const buyer = String(activeOrder?.buyerUsername || '').trim().toLowerCase();
-  const seller = String(activeOrder?.sellerUsername || activeOrder?.advertiser || '').trim().toLowerCase();
-  const me = String(currentUser?.username || '').trim().toLowerCase();
+  const sender = String(message.sender || '')
+    .trim()
+    .toLowerCase();
+  const buyer = String(activeOrder?.buyerUsername || '')
+    .trim()
+    .toLowerCase();
+  const seller = String(activeOrder?.sellerUsername || activeOrder?.advertiser || '')
+    .trim()
+    .toLowerCase();
+  const me = String(currentUser?.username || '')
+    .trim()
+    .toLowerCase();
 
   if (sender === 'system') {
     return 'chat-system';
@@ -324,8 +352,9 @@ function getMessageClass(message) {
 
   const senderIsBuyer = Boolean(buyer && sender === buyer);
   const senderIsSeller = Boolean(seller && sender === seller);
+  const directSelf = Boolean(me && sender === me);
   const roleBasedSelf = (activeRole === 'buyer' && senderIsBuyer) || (activeRole === 'seller' && senderIsSeller);
-  const isSelf = Boolean((me && sender === me) || roleBasedSelf);
+  const isSelf = directSelf || roleBasedSelf;
 
   return isSelf ? 'chat-self' : 'chat-other';
 }
@@ -498,19 +527,32 @@ function getRoleForOrder(order) {
     return '';
   }
 
-  if (currentUser.id && currentUser.id === order.buyerUserId) {
+  const currentId = String(currentUser.id || '').trim();
+  const buyerId = String(order.buyerUserId || '').trim();
+  const sellerId = String(order.sellerUserId || '').trim();
+  const currentUsername = String(currentUser.username || '')
+    .trim()
+    .toLowerCase();
+  const buyerUsername = String(order.buyerUsername || '')
+    .trim()
+    .toLowerCase();
+  const sellerUsername = String(order.sellerUsername || '')
+    .trim()
+    .toLowerCase();
+
+  if (currentId && buyerId && currentId === buyerId) {
     return 'buyer';
   }
 
-  if (currentUser.id && currentUser.id === order.sellerUserId) {
+  if (currentId && sellerId && currentId === sellerId) {
     return 'seller';
   }
 
-  if (currentUser.username && currentUser.username === order.buyerUsername) {
+  if (currentUsername && buyerUsername && currentUsername === buyerUsername) {
     return 'buyer';
   }
 
-  if (currentUser.username && currentUser.username === order.sellerUsername) {
+  if (currentUsername && sellerUsername && currentUsername === sellerUsername) {
     return 'seller';
   }
 

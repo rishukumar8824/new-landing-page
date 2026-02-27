@@ -3067,6 +3067,10 @@ body.p2p-theme-light .order-chat-column .chat-item.chat-self {
     align-items: start;
   }
 
+  .order-page-body.single-column {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .order-chat-column {
     height: 100%;
     min-height: 530px;

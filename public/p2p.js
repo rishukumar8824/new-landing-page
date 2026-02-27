@@ -37,8 +37,6 @@ const profileSection = document.getElementById('profile');
 const liveOrdersMeta = document.getElementById('liveOrdersMeta');
 const liveOrdersRows = document.getElementById('liveOrdersRows');
 const liveOrdersCards = document.getElementById('liveOrdersCards');
-const orderReferenceInput = document.getElementById('orderReferenceInput');
-const joinByRefBtn = document.getElementById('joinByRefBtn');
 const mobileOrdersTabs = document.getElementById('mobileOrdersTabs');
 const mobileOrdersList = document.getElementById('mobileOrdersList') || document.getElementById('liveOrdersCards');
 
@@ -652,6 +650,11 @@ function getOrderBucketByStatus(status) {
   return 'all';
 }
 
+function isOngoingOrderStatus(status) {
+  const normalized = normalizeStatusForUi(status);
+  return normalized === 'CREATED' || normalized === 'PAID' || normalized === 'DISPUTED';
+}
+
 function storeOrderForMobile(order) {
   if (!order || !order.id) {
     return;
@@ -676,20 +679,13 @@ function storeOrderForMobile(order) {
 }
 
 function getMobileOrdersSnapshot() {
-  return Array.from(mobileOrdersCache.values()).sort(
-    (a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime()
-  );
+  return Array.from(mobileOrdersCache.values())
+    .filter((order) => Boolean(order?.isParticipant) && isOngoingOrderStatus(order.status))
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
 }
 
 function filteredMobileOrders() {
-  const orders = getMobileOrdersSnapshot();
-  if (mobileOrderFilter === 'completed') {
-    return orders.filter((order) => getOrderBucketByStatus(order.status) === 'completed');
-  }
-  if (mobileOrderFilter === 'cancelled') {
-    return orders.filter((order) => getOrderBucketByStatus(order.status) === 'cancelled');
-  }
-  return orders;
+  return getMobileOrdersSnapshot();
 }
 
 function renderMobileOrdersList() {
@@ -699,13 +695,12 @@ function renderMobileOrdersList() {
 
   const orders = filteredMobileOrders();
   if (!orders.length) {
-    mobileOrdersList.innerHTML = '<p class="empty-row">No orders in this category.</p>';
+    mobileOrdersList.innerHTML = '<p class="empty-row">No ongoing orders.</p>';
     return;
   }
 
   mobileOrdersList.innerHTML = orders
     .map((order) => {
-      const actionLabel = order.isParticipant ? 'Open' : 'Join';
       return `
         <article class="mobile-order-card">
           <div class="mobile-order-head">
@@ -719,7 +714,7 @@ function renderMobileOrdersList() {
             <p>Payment<strong>${escapeHtml(order.paymentMethod || '--')}</strong></p>
           </div>
           <div class="mobile-order-actions">
-            <button type="button" class="secondary-btn join-order-btn" data-order-id="${escapeHtml(order.id)}">${actionLabel}</button>
+            <button type="button" class="secondary-btn open-order-btn" data-order-id="${escapeHtml(order.id)}">Open</button>
           </div>
         </article>
       `;
@@ -1772,22 +1767,25 @@ async function submitDealOrder() {
 }
 
 function renderLiveOrders(orders) {
-  if (!Array.isArray(orders) || orders.length === 0) {
+  const incomingOrders = Array.isArray(orders) ? orders : [];
+  const visibleOrders = incomingOrders.filter((order) => Boolean(order?.isParticipant) && isOngoingOrderStatus(order.status));
+  mobileOrdersCache.clear();
+  visibleOrders.forEach((order) => storeOrderForMobile(order));
+
+  if (!visibleOrders.length) {
     if (liveOrdersRows) {
-      liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">No live orders available.</td></tr>';
+      liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">No ongoing orders available.</td></tr>';
     }
     if (liveOrdersCards) {
-      liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">No live orders available.</p></article>';
+      liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">No ongoing orders available.</p></article>';
     }
     renderMobileOrdersList();
     loadProfilePanel();
-    return;
+    return 0;
   }
 
-  orders.forEach((order) => storeOrderForMobile(order));
-
   if (liveOrdersRows) {
-    liveOrdersRows.innerHTML = orders
+    liveOrdersRows.innerHTML = visibleOrders
       .map((order) => {
         return `
           <tr>
@@ -1797,8 +1795,8 @@ function renderLiveOrders(orders) {
             <td><span class="status-pill ${statusClass(order.status)}">${statusLabel(order.status)}</span></td>
             <td>${escapeHtml(order.participantsLabel)}</td>
             <td>
-              <button type="button" class="secondary-btn join-order-btn" data-order-id="${order.id}">
-                ${order.isParticipant ? 'Open' : 'Join'}
+              <button type="button" class="secondary-btn open-order-btn" data-order-id="${order.id}">
+                Open
               </button>
             </td>
           </tr>
@@ -1808,7 +1806,7 @@ function renderLiveOrders(orders) {
   }
 
   if (liveOrdersCards) {
-    liveOrdersCards.innerHTML = orders
+    liveOrdersCards.innerHTML = visibleOrders
       .map(
         (order) => `
           <article class="p2p-live-order-card">
@@ -1823,8 +1821,8 @@ function renderLiveOrders(orders) {
               <p>Merchant<strong>${escapeHtml(order.advertiser || '--')}</strong></p>
             </div>
             <div class="p2p-card-actions">
-              <button type="button" class="secondary-btn join-order-btn" data-order-id="${order.id}">
-                ${order.isParticipant ? 'Open' : 'Join'}
+              <button type="button" class="secondary-btn open-order-btn" data-order-id="${order.id}">
+                Open
               </button>
             </div>
           </article>
@@ -1835,6 +1833,7 @@ function renderLiveOrders(orders) {
 
   renderMobileOrdersList();
   loadProfilePanel();
+  return visibleOrders.length;
 }
 
 async function loadLiveOrders() {
@@ -1844,12 +1843,12 @@ async function loadLiveOrders() {
 
   if (!currentUser) {
     if (liveOrdersRows) {
-      liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Login to view live orders.</td></tr>';
+      liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Login to view ongoing orders.</td></tr>';
     }
     if (liveOrdersCards) {
-      liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">Login to view live orders.</p></article>';
+      liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">Login to view ongoing orders.</p></article>';
     }
-    liveOrdersMeta.textContent = 'Live Orders: login required';
+    liveOrdersMeta.textContent = 'Ongoing Orders: login required';
     if (mobileOrdersList) {
       mobileOrdersList.innerHTML = '<p class="empty-row">Login to view orders.</p>';
     }
@@ -1866,17 +1865,17 @@ async function loadLiveOrders() {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Unable to load live orders.');
+      throw new Error(data.message || 'Unable to load ongoing orders.');
     }
 
-    renderLiveOrders(data.orders);
-    liveOrdersMeta.textContent = `Live Orders: ${data.total}`;
+    const visibleCount = renderLiveOrders(data.orders);
+    liveOrdersMeta.textContent = `Ongoing Orders: ${visibleCount}`;
   } catch (error) {
     if (liveOrdersRows) {
-      liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Unable to load live orders.</td></tr>';
+      liveOrdersRows.innerHTML = '<tr><td colspan="6" class="empty-row">Unable to load ongoing orders.</td></tr>';
     }
     if (liveOrdersCards) {
-      liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">Unable to load live orders.</p></article>';
+      liveOrdersCards.innerHTML = '<article class="p2p-live-order-card"><p class="empty-row">Unable to load ongoing orders.</p></article>';
     }
     liveOrdersMeta.textContent = error.message;
     renderMobileOrdersList();
@@ -2241,7 +2240,7 @@ function openOrder(order) {
   });
 }
 
-async function joinOrderById(orderId) {
+async function openOrderById(orderId) {
   if (!liveOrdersMeta) {
     return;
   }
@@ -2252,42 +2251,16 @@ async function joinOrderById(orderId) {
   }
 
   try {
-    const response = await fetch(`/api/p2p/orders/${orderId}/join`, { method: 'POST' });
+    const response = await fetch(`/api/p2p/orders/${orderId}`);
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.message || 'Unable to join order.');
+      throw new Error(data.message || 'Unable to open order.');
+    }
+    if (!isOngoingOrderStatus(data?.order?.status)) {
+      throw new Error('Only ongoing orders can be opened.');
     }
     openOrder(data.order);
     await loadLiveOrders();
-  } catch (error) {
-    liveOrdersMeta.textContent = error.message;
-  }
-}
-
-async function joinOrderByReference() {
-  if (!liveOrdersMeta) {
-    return;
-  }
-
-  if (!currentUser) {
-    requireLoginNotice();
-    return;
-  }
-
-  const reference = String(orderReferenceInput?.value || '').trim();
-  if (!reference) {
-    liveOrdersMeta.textContent = 'Enter order reference first.';
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/p2p/orders/by-reference/${encodeURIComponent(reference)}`);
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.message || 'Unable to fetch order.');
-    }
-    openOrder(data.order);
-    liveOrdersMeta.textContent = `Joined order ${data.order.reference}`;
   } catch (error) {
     liveOrdersMeta.textContent = error.message;
   }
@@ -2359,24 +2332,24 @@ function bindOfferActionDelegation(container) {
 bindOfferActionDelegation(rowsEl);
 bindOfferActionDelegation(cardsEl);
 
-function bindJoinOrderDelegation(container) {
+function bindOpenOrderDelegation(container) {
   if (!container) {
     return;
   }
 
   container.addEventListener('click', (event) => {
-    const joinBtn = event.target.closest('.join-order-btn');
-    if (!joinBtn) {
+    const openBtn = event.target.closest('.open-order-btn');
+    if (!openBtn) {
       return;
     }
-    joinOrderById(joinBtn.dataset.orderId);
+    openOrderById(openBtn.dataset.orderId);
   });
 }
 
-bindJoinOrderDelegation(liveOrdersRows);
-bindJoinOrderDelegation(liveOrdersCards);
+bindOpenOrderDelegation(liveOrdersRows);
+bindOpenOrderDelegation(liveOrdersCards);
 if (mobileOrdersList && mobileOrdersList !== liveOrdersCards) {
-  bindJoinOrderDelegation(mobileOrdersList);
+  bindOpenOrderDelegation(mobileOrdersList);
 }
 
 if (mobileOrdersTabs) {
@@ -2549,18 +2522,6 @@ if (adCreateForm) {
 if (refreshMyAdsBtn) {
   refreshMyAdsBtn.addEventListener('click', () => {
     loadMyAds();
-  });
-}
-
-if (joinByRefBtn) {
-  joinByRefBtn.addEventListener('click', joinOrderByReference);
-}
-if (orderReferenceInput) {
-  orderReferenceInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      joinOrderByReference();
-    }
   });
 }
 

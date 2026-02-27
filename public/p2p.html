@@ -175,19 +175,8 @@
 
       <section id="orders" class="p2p-live-card">
         <div class="p2p-live-head">
-          <h2>Live Orders</h2>
-          <p id="liveOrdersMeta">Loading live orders...</p>
-        </div>
-
-        <div class="mobile-orders-tabs mobile-only" id="mobileOrdersTabs">
-          <button type="button" class="mobile-orders-tab active" data-order-filter="all">All</button>
-          <button type="button" class="mobile-orders-tab" data-order-filter="completed">Completed</button>
-          <button type="button" class="mobile-orders-tab" data-order-filter="cancelled">Cancelled</button>
-        </div>
-
-        <div class="p2p-live-controls">
-          <input id="orderReferenceInput" type="text" placeholder="Join by order reference" />
-          <button id="joinByRefBtn" type="button">Join by Ref</button>
+          <h2>Ongoing Orders</h2>
+          <p id="liveOrdersMeta">Loading ongoing orders...</p>
         </div>
 
         <div class="p2p-live-table-wrap desktop-only">
@@ -416,7 +405,7 @@
           <button id="orderChatBtn" type="button" class="order-chat-btn" aria-label="Open chat">💬</button>
         </header>
 
-        <div class="order-page-body">
+        <div class="order-page-body single-column">
           <section class="order-main-column">
             <div class="order-main-title">
               <h2 id="orderTitle">The order has been generated. Proceed to payment.</h2>
@@ -468,28 +457,18 @@
             </section>
           </section>
 
-          <aside class="order-chat-column">
-            <section class="chat-panel">
-              <div class="chat-head">
-                <p>Order Chat</p>
-                <span id="chatState">Waiting for messages...</span>
-              </div>
-              <div id="chatMessages" class="chat-messages" role="log" aria-live="polite" aria-label="Order chat messages"></div>
-              <form id="chatForm" class="chat-form">
-                <button id="chatImageBtn" type="button" class="chat-image-btn" aria-label="Upload payment screenshot">🖼</button>
-                <input
-                  id="chatImageInput"
-                  class="hidden-control"
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg,image/webp"
-                />
-                <input id="chatInput" type="text" placeholder="Type a message..." maxlength="300" autocomplete="off" />
-                <button id="chatSendBtn" type="submit">Send</button>
-              </form>
-              <p id="chatUploadState" class="chat-upload-state hidden">Uploading image...</p>
-            </section>
-          </aside>
         </div>
+
+        <section class="hidden legacy-chat-shadow" aria-hidden="true">
+          <div id="chatState"></div>
+          <div id="chatMessages"></div>
+          <form id="chatForm"></form>
+          <input id="chatInput" type="text" />
+          <button id="chatSendBtn" type="button"></button>
+          <button id="chatImageBtn" type="button"></button>
+          <input id="chatImageInput" class="hidden-control" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" />
+          <p id="chatUploadState" class="hidden"></p>
+        </section>
 
         <footer class="order-action-dock">
           <button id="markPaidBtn" type="button" class="order-pay-btn">Pay</button>
