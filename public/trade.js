@@ -532,32 +532,58 @@ function resizeLightweightChart() {
 
 function toChartSeriesRows(data) {
   const rows = Array.isArray(data) ? data : [];
-  return rows
+  const mapped = rows
     .map((item) => {
       const rawTime = item.openTime ?? item.time ?? item.closeTime;
       let unixTime = Number(rawTime);
-      if (!Number.isFinite(unixTime)) {
+      if (!Number.isFinite(unixTime) && rawTime) {
         unixTime = new Date(rawTime).getTime();
       }
-      const time = Math.floor(unixTime / 1000);
+
+      let time = 0;
+      if (Number.isFinite(unixTime)) {
+        if (unixTime > 100000000000) {
+          time = Math.floor(unixTime / 1000);
+        } else {
+          time = Math.floor(unixTime);
+        }
+      }
+
       return {
         time,
         open: Number(item.open),
         high: Number(item.high),
         low: Number(item.low),
         close: Number(item.close),
-        volume: Number(item.volume)
+        volume: Number(item.volume || 0)
       };
     })
     .filter(
       (item) =>
         Number.isFinite(item.time) &&
+        item.time > 0 &&
         Number.isFinite(item.open) &&
         Number.isFinite(item.high) &&
         Number.isFinite(item.low) &&
         Number.isFinite(item.close)
     )
     .sort((a, b) => a.time - b.time);
+
+  if (!mapped.length) {
+    return mapped;
+  }
+
+  const deduped = [];
+  for (const row of mapped) {
+    const last = deduped[deduped.length - 1];
+    if (last && last.time === row.time) {
+      deduped[deduped.length - 1] = row;
+    } else {
+      deduped.push(row);
+    }
+  }
+
+  return deduped;
 }
 
 function drawNoChartState(text) {
@@ -595,36 +621,54 @@ function drawNoChartState(text) {
 
 function drawCandles(data) {
   if (ensureLightweightChart()) {
-    const rows = toChartSeriesRows(data);
-    if (!rows.length) {
-      candleSeries?.setData([]);
-      volumeSeries?.setData([]);
+    try {
+      const rows = toChartSeriesRows(data);
+      if (!rows.length) {
+        candleSeries?.setData([]);
+        volumeSeries?.setData([]);
+        if (chartStatus) {
+          chartStatus.textContent = 'No chart data';
+        }
+        return;
+      }
+
+      candleSeries.setData(
+        rows.map((item) => ({
+          time: item.time,
+          open: item.open,
+          high: item.high,
+          low: item.low,
+          close: item.close
+        }))
+      );
+      volumeSeries.setData(
+        rows.map((item) => ({
+          time: item.time,
+          value: item.volume,
+          color: item.close >= item.open ? 'rgba(0,208,132,0.45)' : 'rgba(255,77,109,0.45)'
+        }))
+      );
+      const visibleWindow = Math.min(96, rows.length);
+      lightweightChart.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, rows.length - visibleWindow),
+        to: rows.length + 3
+      });
+      resizeLightweightChart();
+      return;
+    } catch (error) {
+      useLightweightChart = false;
+      if (tvChartHost) {
+        tvChartHost.style.display = 'none';
+      }
+      if (canvas) {
+        canvas.style.display = 'block';
+      }
+      drawCandles(data);
+      if (chartStatus) {
+        chartStatus.textContent = 'Compatibility chart mode enabled';
+      }
       return;
     }
-
-    candleSeries.setData(
-      rows.map((item) => ({
-        time: item.time,
-        open: item.open,
-        high: item.high,
-        low: item.low,
-        close: item.close
-      }))
-    );
-    volumeSeries.setData(
-      rows.map((item) => ({
-        time: item.time,
-        value: item.volume,
-        color: item.close >= item.open ? 'rgba(0,208,132,0.45)' : 'rgba(255,77,109,0.45)'
-      }))
-    );
-    const visibleWindow = Math.min(96, rows.length);
-    lightweightChart.timeScale().setVisibleLogicalRange({
-      from: Math.max(0, rows.length - visibleWindow),
-      to: rows.length + 3
-    });
-    resizeLightweightChart();
-    return;
   }
 
   if (!canvas) {

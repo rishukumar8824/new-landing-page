@@ -392,14 +392,14 @@ function renderMiniMarketRows(ticker) {
       const base = symbol.replace('USDT', '');
       const name = COIN_NAMES[symbol] || base;
       return `
-        <button type="button" class="bnx-market-row" data-symbol="${symbol}">
+        <a class="bnx-market-row" href="/trade/spot/${encodeURIComponent(symbol)}" data-symbol="${symbol}">
           <div class="bnx-market-symbol">
             ${getCoinIconMarkup(base, 64, 'bnx-coin-dot')}
             <p>${base} <small>${name}</small></p>
           </div>
           <p class="bnx-market-price">$${formatPrice(item.lastPrice)}</p>
           <p class="bnx-market-change ${cls}">${sign}${change.toFixed(2)}%</p>
-        </button>
+        </a>
       `;
     })
     .join('');
@@ -424,14 +424,14 @@ function renderOpportunities(ticker) {
           const sign = change >= 0 ? '+' : '';
 
           return `
-            <button type="button" class="cf-pair-row" data-market="spot" data-symbol="${item.symbol}">
+            <a class="cf-pair-row" href="/trade/spot/${encodeURIComponent(item.symbol)}" data-market="spot" data-symbol="${item.symbol}">
               <div class="cf-pair-main">
                 ${getCoinIconMarkup(base, 64, 'cf-pair-icon')}
                 <p>${base}/USDT</p>
               </div>
               <p class="cf-pair-price">${formatPrice(item.lastPrice)}</p>
               <p class="cf-pair-change ${cls}">${sign}${change.toFixed(2)}%</p>
-            </button>
+            </a>
           `;
         })
         .join('');
@@ -450,14 +450,14 @@ function renderOpportunities(ticker) {
           const sign = change >= 0 ? '+' : '';
 
           return `
-            <button type="button" class="cf-pair-row" data-market="perp" data-symbol="${item.symbol}">
+            <a class="cf-pair-row" href="/trade/perp/${encodeURIComponent(item.symbol)}" data-market="perp" data-symbol="${item.symbol}">
               <div class="cf-pair-main">
                 ${getCoinIconMarkup(base, 64, 'cf-pair-icon')}
                 <p>${base}USDT-P</p>
               </div>
               <p class="cf-pair-price">${formatPrice(item.lastPrice)}</p>
               <p class="cf-pair-change ${cls}">${sign}${change.toFixed(2)}%</p>
-            </button>
+            </a>
           `;
         })
         .join('');
@@ -502,7 +502,12 @@ function setupEventsCarousel() {
 
   const scrollToCard = (index) => {
     const safeIndex = ((index % cards.length) + cards.length) % cards.length;
-    cards[safeIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+    const nextCard = cards[safeIndex];
+    if (!nextCard) {
+      return;
+    }
+    const left = Math.max(0, nextCard.offsetLeft - eventsTrack.offsetLeft);
+    eventsTrack.scrollTo({ left, behavior: 'smooth' });
   };
 
   eventsTrack.addEventListener('scroll', updateEventsCount, { passive: true });

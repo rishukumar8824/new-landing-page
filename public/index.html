@@ -94,7 +94,12 @@
           <div class="cf-mobile-events">
             <div class="cf-announcement-bar">
               <span class="cf-announcement-tag">Important notice</span>
-              <p>[Announcement] Bitegit rewards and platform updates are live now.</p>
+              <div class="cf-announcement-marquee" aria-label="Latest announcement">
+                <div class="cf-announcement-track">
+                  <span>[Announcement] Bitegit rewards and platform updates are live now.</span>
+                  <span aria-hidden="true">[Announcement] Bitegit rewards and platform updates are live now.</span>
+                </div>
+              </div>
               <a href="/">More</a>
             </div>
 
@@ -130,6 +135,11 @@
               <button type="button" data-market-tab="trends" role="tab" aria-selected="false">Market Trends</button>
               <button type="button" data-market-tab="change" role="tab" aria-selected="false">24H Change</button>
               <button type="button" data-market-tab="new" role="tab" aria-selected="false">New</button>
+            </div>
+            <div class="cf-market-head" aria-hidden="true">
+              <span>Trading Pair</span>
+              <span>Price</span>
+              <span>24H Change</span>
             </div>
             <div id="marketList" class="cf-mini-market-list">
               <p class="bnx-loading">Loading markets...</p>
