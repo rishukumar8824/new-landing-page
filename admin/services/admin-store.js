@@ -20,6 +20,16 @@ function toNumber(value, fallback = 0) {
   return parsed;
 }
 
+function getAvailableBalance(wallet) {
+  if (!wallet) {
+    return 0;
+  }
+  if (wallet.availableBalance !== undefined && wallet.availableBalance !== null) {
+    return toNumber(wallet.availableBalance, 0);
+  }
+  return toNumber(wallet.balance, 0);
+}
+
 function makeId(prefix) {
   return `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 }
@@ -650,7 +660,7 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
         role: String(item.role || 'USER').toUpperCase(),
         status: normalizeUserStatus(profile?.status || 'ACTIVE'),
         kycStatus: String(profile?.kycStatus || 'PENDING').toUpperCase(),
-        balance: toNumber(wallet?.balance, 0),
+        balance: getAvailableBalance(wallet),
         lockedBalance: toNumber(wallet?.lockedBalance, 0),
         updatedAt: toDate(item.updatedAt || item.createdAt || Date.now()).toISOString()
       };
@@ -697,7 +707,7 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       kycRemarks: String(profile?.kycRemarks || ''),
       role: String(credential?.role || 'USER').toUpperCase(),
       wallet: {
-        balance: toNumber(wallet?.balance, 0),
+        balance: getAvailableBalance(wallet),
         lockedBalance: toNumber(wallet?.lockedBalance, 0)
       },
       stats: {
@@ -755,17 +765,18 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       username: String(profile?.email || normalizedUserId).split('@')[0]
     });
 
-    const result = await wallets.findOneAndUpdate(
-      { userId: normalizedUserId },
+    const updatedWallet = await walletService.adminAdjustBalance(
+      normalizedUserId,
+      normalizedAmount,
+      String(reason || ''),
       {
-        $inc: {
-          balance: normalizedAmount
-        },
-        $set: {
-          updatedAt: new Date()
+        type: 'admin_adjustment',
+        currency: String(coin || 'USDT').toUpperCase(),
+        referenceId: makeId('adj'),
+        metadata: {
+          source: 'admin_store.adjust_user_balance'
         }
-      },
-      { returnDocument: 'after' }
+      }
     );
 
     await adminDeposits.insertOne({
@@ -780,7 +791,7 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       updatedAt: new Date()
     });
 
-    return result.value;
+    return updatedWallet;
   }
 
   async function getUserKyc(userId) {
@@ -837,7 +848,11 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
         {
           $group: {
             _id: null,
-            totalBalance: { $sum: '$balance' },
+            totalBalance: {
+              $sum: {
+                $ifNull: ['$availableBalance', '$balance']
+              }
+            },
             totalLockedBalance: { $sum: '$lockedBalance' },
             userCount: { $sum: 1 }
           }
