@@ -1558,7 +1558,9 @@ app.get('/api/p2p/offers', async (req, res) => {
       activeOnly: true,
       merchantDepositLocked: true,
       availableOnly: true,
-      excludeDemo: true
+      excludeDemo: true,
+      escrowBackedOnly: true,
+      merchantOwnedOnly: true
     });
     const filtered = allOffers
       .filter((offer) => {
@@ -1610,7 +1612,9 @@ app.get('/api/p2p/ads', async (req, res) => {
       activeOnly: true,
       merchantDepositLocked: true,
       availableOnly: true,
-      excludeDemo: true
+      excludeDemo: true,
+      escrowBackedOnly: true,
+      merchantOwnedOnly: true
     });
 
     return res.json({

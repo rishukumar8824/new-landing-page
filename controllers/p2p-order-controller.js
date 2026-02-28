@@ -60,7 +60,14 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
       }
 
       const isDemo = offer.isDemo === true || String(offer.environment || '').trim().toLowerCase() === 'demo';
-      if (String(offer.status || '').trim().toUpperCase() !== 'ACTIVE' || isDemo || offer.merchantDepositLocked !== true) {
+      const fundingSource = String(offer.fundingSource || '').trim().toLowerCase();
+      if (
+        String(offer.status || '').trim().toUpperCase() !== 'ACTIVE' ||
+        isDemo ||
+        offer.merchantDepositLocked !== true ||
+        fundingSource !== 'ad_locked' ||
+        !String(offer.createdByUserId || '').trim()
+      ) {
         return res.status(400).json({ success: false, message: 'Ad is not available for trading.' });
       }
 
