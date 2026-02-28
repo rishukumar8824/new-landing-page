@@ -5,9 +5,11 @@ function createP2POrderExpiryService({ walletService } = {}) {
 
   async function runExpirySweep() {
     const result = await walletService.expireOrders();
+    const expiredCount = Number(result?.expired || 0);
     return {
       success: true,
-      cancelledCount: Number(result?.expired || 0)
+      expiredCount,
+      cancelledCount: expiredCount
     };
   }
 
@@ -19,4 +21,3 @@ function createP2POrderExpiryService({ walletService } = {}) {
 module.exports = {
   createP2POrderExpiryService
 };
-

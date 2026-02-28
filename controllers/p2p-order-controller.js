@@ -61,12 +61,14 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
 
       const isDemo = offer.isDemo === true || String(offer.environment || '').trim().toLowerCase() === 'demo';
       const fundingSource = String(offer.fundingSource || '').trim().toLowerCase();
+      const adType = String(offer.type || '').trim().toUpperCase();
       if (
         String(offer.status || '').trim().toUpperCase() !== 'ACTIVE' ||
         isDemo ||
         offer.merchantDepositLocked !== true ||
         fundingSource !== 'ad_locked' ||
-        !String(offer.createdByUserId || '').trim()
+        !String(offer.createdByUserId || '').trim() ||
+        !['BUY', 'SELL'].includes(adType)
       ) {
         return res.status(400).json({ success: false, message: 'Ad is not available for trading.' });
       }
@@ -111,8 +113,8 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
       }
 
       const owner = resolveOfferOwner(offer);
-      const buyer = String(offer.side || '').trim().toLowerCase() === 'buy' ? req.p2pUser : owner;
-      const seller = String(offer.side || '').trim().toLowerCase() === 'buy' ? owner : req.p2pUser;
+      const buyer = adType === 'SELL' ? req.p2pUser : owner;
+      const seller = adType === 'SELL' ? owner : req.p2pUser;
 
       if (String(buyer.id || '').trim() === String(seller.id || '').trim()) {
         return res.status(400).json({ success: false, message: 'Buyer and seller cannot be same account.' });
@@ -132,11 +134,12 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
         id: createOrderId(),
         reference: createOrderReference(),
         adId,
+        type: adType,
         buyerId: buyer.id,
         sellerId: seller.id,
         buyerUsername: buyer.username || buyer.id,
         sellerUsername: seller.username || seller.id,
-        side: offer.side || 'buy',
+        side: adType === 'SELL' ? 'buy' : 'sell',
         asset: offer.asset || 'USDT',
         paymentMethod,
         price,
@@ -153,7 +156,7 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
           {
             id: `msg_${now}_welcome`,
             sender: 'System',
-            text: 'Order created. Escrow locked from seller wallet. Complete payment before timer ends.',
+            text: 'Order created. Complete payment before timer ends.',
             createdAt: now
           }
         ]
@@ -228,10 +231,36 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
     }
   }
 
+  async function cancelOrder(req, res) {
+    try {
+      const orderId = String(req.params.id || req.params.orderId || '').trim();
+      if (!orderId) {
+        return res.status(400).json({ success: false, message: 'Order id is required.' });
+      }
+
+      const updatedOrder = await walletService.cancelOrder(orderId, req.p2pUser, 'CANCELLED');
+      return res.json({
+        ...toOrderResponse(updatedOrder),
+        order: updatedOrder
+      });
+    } catch (error) {
+      const knownStatus = Number(error?.status || 0);
+      if (knownStatus >= 400 && knownStatus < 500) {
+        return res.status(knownStatus).json({
+          success: false,
+          message: String(error.message || 'Unable to cancel order.'),
+          code: String(error.code || 'P2P_CANCEL_FAILED')
+        });
+      }
+      return res.status(500).json({ success: false, message: 'Server error while cancelling order.' });
+    }
+  }
+
   return {
     createOrder,
     markPaymentSent,
-    releaseCrypto
+    releaseCrypto,
+    cancelOrder
   };
 }
 

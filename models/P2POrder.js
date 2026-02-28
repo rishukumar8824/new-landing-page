@@ -1,8 +1,9 @@
 const ORDER_STATUS = {
-  CREATED: 'created',
-  PAYMENT_SENT: 'payment_sent',
-  COMPLETED: 'completed',
-  CANCELLED: 'cancelled'
+  CREATED: 'CREATED',
+  PAYMENT_SENT: 'PAYMENT_SENT',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+  EXPIRED: 'EXPIRED'
 };
 
 const INTERNAL_TO_PUBLIC_STATUS = {
@@ -13,7 +14,7 @@ const INTERNAL_TO_PUBLIC_STATUS = {
   COMPLETED: ORDER_STATUS.COMPLETED,
   RELEASED: ORDER_STATUS.COMPLETED,
   CANCELLED: ORDER_STATUS.CANCELLED,
-  EXPIRED: ORDER_STATUS.CANCELLED
+  EXPIRED: ORDER_STATUS.EXPIRED
 };
 
 function toAmount(value, precision = 8) {
@@ -56,6 +57,16 @@ function buildP2POrderDocument(input = {}) {
   const fiatAmount = ensurePositiveNumber(input.fiatAmount || input.amountInr, 'fiatAmount');
   const expiresAt = Number(input.expiresAt || now + 15 * 60 * 1000);
 
+  const type = String(input.type || '').trim().toUpperCase();
+  if (!['BUY', 'SELL'].includes(type)) {
+    throw new Error('type must be BUY or SELL.');
+  }
+
+  const asset = String(input.asset || 'USDT').trim().toUpperCase();
+  if (asset !== 'USDT') {
+    throw new Error('asset must be USDT.');
+  }
+
   return {
     id: ensureString(input.id, 'id'),
     reference: ensureString(input.reference, 'reference'),
@@ -67,8 +78,9 @@ function buildP2POrderDocument(input = {}) {
     sellerUserId: sellerId,
     buyerUsername: ensureString(input.buyerUsername || buyerId, 'buyerUsername'),
     sellerUsername: ensureString(input.sellerUsername || sellerId, 'sellerUsername'),
-    side: String(input.side || '').trim().toLowerCase() || 'buy',
-    asset: String(input.asset || 'USDT').trim().toUpperCase(),
+    type,
+    side: String(input.side || '').trim().toLowerCase() || (type === 'SELL' ? 'buy' : 'sell'),
+    asset,
     paymentMethod: ensureString(input.paymentMethod || 'UPI', 'paymentMethod'),
     price: toAmount(price, 8),
     cryptoAmount: toAmount(cryptoAmount, 8),
@@ -76,7 +88,7 @@ function buildP2POrderDocument(input = {}) {
     escrowAmount: toAmount(cryptoAmount, 8),
     fiatAmount: toAmount(fiatAmount, 2),
     amountInr: toAmount(fiatAmount, 2),
-    status: 'CREATED',
+    status: ORDER_STATUS.CREATED,
     expiresAt,
     createdAt: now,
     updatedAt: now,
@@ -101,4 +113,3 @@ module.exports = {
   buildP2POrderDocument,
   toOrderResponse
 };
-
