@@ -394,13 +394,14 @@ a {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  filter: brightness(1.15) contrast(1.05);
   z-index: 1;
 }
 
 .cf-hero-video-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.25);
   z-index: 2;
 }
 
@@ -1908,6 +1909,30 @@ a {
   .cf-main {
     margin-top: 0.75rem;
     gap: 1.2rem;
+  }
+
+  .feature-container,
+  .cf-feature-grid {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 12px;
+    padding-right: 12px;
+    box-sizing: border-box;
+  }
+
+  .feature-card,
+  .cf-feature-card {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .cf-everyone {
+    padding-left: 12px;
+    padding-right: 12px;
   }
 
   .cf-hero-video-section {
