@@ -1061,6 +1061,25 @@ a {
   padding: 1rem;
 }
 
+.cf-feature-media-card {
+  padding: 0;
+  overflow: hidden;
+  background: #060b13;
+}
+
+.cf-feature-media-video {
+  width: 100%;
+  display: block;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #000;
+  transition: transform 0.35s ease;
+}
+
+.cf-feature-media-card:hover .cf-feature-media-video {
+  transform: scale(1.01);
+}
+
 .cf-feature-card h3 {
   margin: 0;
   font-size: clamp(1.12rem, 2.8vw, 1.65rem);
