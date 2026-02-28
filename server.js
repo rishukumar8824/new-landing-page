@@ -6,14 +6,17 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 const { connectToMongo, getCollections, getMongoClient, getMongoConfig, isDbConnected } = require('./lib/db');
 const { createRepositories } = require('./lib/repositories');
-const { createWalletService, makeSeedUserId } = require('./lib/wallet-service');
+const { createWalletService } = require('./lib/wallet-service');
 const { createAuthMiddleware } = require('./middleware/auth');
 const { applySecurityHardening } = require('./middleware/security');
 const { sanitizeRequestPayload, validateRequest, validationRules } = require('./middleware/validation');
 const { apiNotFoundHandler, errorHandler } = require('./middleware/error-handler');
 const { registerAuthRoutes } = require('./routes/auth');
+const { registerP2POrderRoutes } = require('./routes/p2p-orders');
 const { createAuditLogService } = require('./services/audit-log-service');
+const { createP2POrderExpiryService } = require('./services/p2p-order-expiry-service');
 const tokenService = require('./services/tokenService');
+const { createP2POrderController } = require('./controllers/p2p-order-controller');
 const { createAdminStore } = require('./admin/services/admin-store');
 const { createAdminAuthMiddleware } = require('./admin/middleware/admin-auth');
 const { createAdminControllers } = require('./admin/controllers/admin-controller');
@@ -45,7 +48,7 @@ const P2P_REFRESH_COOKIE_NAME = 'p2p_refresh_token';
 const P2P_ORDER_TTL_MS = 1000 * 60 * 15;
 const P2P_EXPIRY_SWEEP_INTERVAL_MS = 30 * 1000;
 const SIGNUP_OTP_TTL_MS = 1000 * 60 * 10;
-const P2P_ORDER_ACTIVE_STATUSES = ['PENDING', 'PAID', 'DISPUTED'];
+const P2P_ORDER_ACTIVE_STATUSES = ['CREATED', 'PENDING', 'PAID', 'PAYMENT_SENT', 'DISPUTED'];
 const IS_PRODUCTION = String(process.env.NODE_ENV || '')
   .trim()
   .toLowerCase() === 'production';
@@ -129,6 +132,8 @@ let adminStore = null;
 let adminAuthMiddleware = null;
 let adminControllers = null;
 let auditLogService = null;
+let p2pOrderExpiryService = null;
+let p2pOrderController = null;
 let persistenceReady = false;
 let httpServer = null;
 let shuttingDown = false;
@@ -737,37 +742,12 @@ async function requiresP2PUser(req, res, next) {
   }
 }
 
-function createOrderReference() {
-  const randomPart = Math.floor(1000 + Math.random() * 9000);
-  return `P2P-${Date.now().toString().slice(-6)}-${randomPart}`;
-}
-
-function findOfferById(offerId) {
-  return repos.getOfferById(offerId);
-}
-
 function createOfferId() {
   return repos.nextCounterValue('p2p_offer_seq').then((sequence) => `ofr_${sequence}`);
 }
 
 function findOrderByReference(reference) {
   return repos.getP2POrderByReference(reference);
-}
-
-function resolveOfferOwner(offer) {
-  const ownerId = String(offer?.createdByUserId || '').trim() || makeSeedUserId(offer?.advertiser);
-  const ownerUsername = String(offer?.createdByUsername || offer?.advertiser || ownerId).trim();
-  return {
-    id: ownerId,
-    username: ownerUsername
-  };
-}
-
-function buildOrderParticipants({ sellerId, sellerUsername, buyerId, buyerUsername }) {
-  return [
-    { id: buyerId, username: buyerUsername, role: 'buyer' },
-    { id: sellerId, username: sellerUsername, role: 'seller' }
-  ];
 }
 
 function getParticipantsText(order) {
@@ -1712,104 +1692,6 @@ async function createP2PAdController(req, res) {
 app.post('/api/p2p/offers', requiresP2PUser, createP2PAdController);
 app.post('/api/p2p/ads', requiresP2PUser, createP2PAdController);
 
-app.post('/api/p2p/orders', requiresP2PUser, async (req, res) => {
-  const offerId = String(req.body.offerId || '').trim();
-  const amountInr = Number(req.body.amountInr || 0);
-  const selectedPaymentMethod = String(req.body.paymentMethod || '').trim();
-
-  const offer = await findOfferById(offerId);
-
-  if (!offer) {
-    return res.status(404).json({ message: 'Offer not found.' });
-  }
-
-  if (offer.createdByUserId && offer.createdByUserId === req.p2pUser.id) {
-    return res.status(400).json({ message: 'You cannot create order on your own ad.' });
-  }
-
-  const fallbackAmount = offer.minLimit;
-  const finalAmount = Number.isFinite(amountInr) && amountInr > 0 ? amountInr : fallbackAmount;
-
-  if (finalAmount < offer.minLimit || finalAmount > offer.maxLimit) {
-    return res.status(400).json({
-      message: `Amount must be between ₹${offer.minLimit.toLocaleString('en-IN')} and ₹${offer.maxLimit.toLocaleString('en-IN')}.`
-    });
-  }
-
-  const exactPayment = offer.payments.find((method) => method.toLowerCase() === selectedPaymentMethod.toLowerCase());
-  if (selectedPaymentMethod && !exactPayment) {
-    return res.status(400).json({ message: 'Selected payment method is not available for this ad.' });
-  }
-  const paymentMethod = exactPayment || offer.payments[0];
-
-  const assetAmount = finalAmount / offer.price;
-  const now = Date.now();
-  const owner = resolveOfferOwner(offer);
-  const buyer = offer.side === 'buy' ? req.p2pUser : { id: owner.id, username: owner.username };
-  const seller = offer.side === 'buy' ? { id: owner.id, username: owner.username } : req.p2pUser;
-
-  if (buyer.id === seller.id) {
-    return res.status(400).json({ message: 'Buyer and seller cannot be same account.' });
-  }
-
-  const participants = buildOrderParticipants({
-    sellerId: seller.id,
-    sellerUsername: seller.username,
-    buyerId: buyer.id,
-    buyerUsername: buyer.username
-  });
-
-  const order = {
-    id: `ord_${now}_${Math.floor(Math.random() * 10000)}`,
-    reference: createOrderReference(),
-    offerId: offer.id,
-    side: offer.side,
-    asset: offer.asset,
-    advertiser: offer.advertiser,
-    paymentMethod,
-    price: offer.price,
-    amountInr: Number(finalAmount.toFixed(2)),
-    assetAmount: Number(assetAmount.toFixed(6)),
-    escrowAmount: Number(assetAmount.toFixed(6)),
-    sellerUserId: seller.id,
-    sellerUsername: seller.username,
-    buyerUserId: buyer.id,
-    buyerUsername: buyer.username,
-    createdAt: now,
-    expiresAt: now + P2P_ORDER_TTL_MS,
-    updatedAt: now,
-    status: 'PENDING',
-    participants,
-    messages: [
-      {
-        id: `msg_${now}_welcome`,
-        sender: 'System',
-        text: 'Order created. Escrow locked from seller wallet. Complete payment before timer ends.',
-        createdAt: now
-      }
-    ]
-  };
-
-  try {
-    const savedOrder = await walletService.createEscrowOrder(order);
-    return res.status(201).json({
-      message: 'Order created successfully.',
-      order: normalizeOrderState(savedOrder)
-    });
-  } catch (error) {
-    if (error.status) {
-      return res.status(error.status).json({ message: error.message });
-    }
-    if (error.code === 'SELLER_ALREADY_HAS_ACTIVE_ORDER') {
-      return res.status(409).json({ message: error.message });
-    }
-    if (error.code === 'INSUFFICIENT_BALANCE') {
-      return res.status(400).json({ message: error.message });
-    }
-    return res.status(500).json({ message: 'Server error while creating order.' });
-  }
-});
-
 app.get('/api/p2p/orders/live', requiresP2PUser, async (req, res) => {
   const side = String(req.query.side || '').trim().toLowerCase();
   const asset = String(req.query.asset || '').trim().toUpperCase();
@@ -2158,6 +2040,7 @@ async function boot() {
         }
       }
     });
+    p2pOrderExpiryService = createP2POrderExpiryService({ walletService });
     authMiddleware = createAuthMiddleware({
       verifyAccessToken: tokenService.verifyAccessToken,
       resolveLegacyUser: async (req) => {
@@ -2193,6 +2076,16 @@ async function boot() {
       },
       p2pUserTtlMs: P2P_USER_TTL_MS,
       auditLogService
+    });
+
+    p2pOrderController = createP2POrderController({
+      repos,
+      walletService,
+      orderTtlMs: P2P_ORDER_TTL_MS
+    });
+    registerP2POrderRoutes(app, {
+      requiresP2PUser,
+      controller: p2pOrderController
     });
 
     adminStore = createAdminStore({
@@ -2285,9 +2178,9 @@ async function boot() {
 
     setInterval(async () => {
       try {
-        const result = await walletService.expireOrders();
-        if (result.expired > 0) {
-          console.log(`Auto-expired P2P orders: ${result.expired}`);
+        const result = await p2pOrderExpiryService.runExpirySweep();
+        if (result.cancelledCount > 0) {
+          console.log(`Auto-cancelled expired P2P orders: ${result.cancelledCount}`);
         }
       } catch (error) {
         console.error('Failed to run P2P expiry sweep:', error.message);
