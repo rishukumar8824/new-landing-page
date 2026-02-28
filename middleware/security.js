@@ -52,9 +52,18 @@ function buildRateLimiter({ windowMs, max, message }) {
     max,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.method === 'OPTIONS',
     handler: (req, res) => {
-      const retryAfterHeader = Number(res.getHeader('Retry-After'));
-      const retryAfterSeconds = Number.isFinite(retryAfterHeader) ? retryAfterHeader : undefined;
+      const retryAfterFromHeader = Number(res.getHeader('Retry-After'));
+      const retryAfterFromRateLimit = req?.rateLimit?.resetTime
+        ? Math.max(
+            1,
+            Math.ceil((new Date(req.rateLimit.resetTime).getTime() - Date.now()) / 1000)
+          )
+        : undefined;
+      const retryAfterSeconds = Number.isFinite(retryAfterFromHeader)
+        ? retryAfterFromHeader
+        : retryAfterFromRateLimit;
       return res.status(429).json({
         message,
         ...(retryAfterSeconds ? { retryAfterSeconds } : {})
@@ -67,7 +76,7 @@ function createRateLimiters() {
   return {
     global: buildRateLimiter({
       windowMs: 15 * 60 * 1000,
-      max: 100,
+      max: 600,
       message: 'Too many requests. Please try again in a few minutes.'
     }),
     login: buildRateLimiter({
@@ -153,7 +162,8 @@ function applySecurityHardening(app) {
   const limiters = createRateLimiters();
   applySecurityHeaders(app);
 
-  app.use(limiters.global);
+  // Scope global limiter to API endpoints to avoid throttling normal page/assets rendering.
+  app.use('/api', limiters.global);
   app.use(['/auth/login', '/auth/register', '/api/p2p/login', '/api/admin/auth/login', '/api/admin/login'], limiters.login);
   app.use(['/api/signup/send-code', '/api/signup/verify-code'], limiters.otp);
   app.use(['/api/withdrawals', '/api/admin/wallet/withdrawals'], limiters.withdrawal);

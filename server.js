@@ -21,6 +21,7 @@ const { registerAdminRoutes } = require('./admin/routes/admin-routes');
 
 const app = express();
 const PORT = Number.parseInt(process.env.PORT, 10);
+app.set('trust proxy', 1);
 
 const ADMIN_SEED_USERNAME = String(process.env.ADMIN_USERNAME || 'admin')
   .trim()
