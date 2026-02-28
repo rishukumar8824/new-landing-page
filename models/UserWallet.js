@@ -23,7 +23,18 @@ function resolveLockedBalance(walletDoc) {
     return 0;
   }
 
+  if (walletDoc.p2pLocked !== undefined && walletDoc.p2pLocked !== null) {
+    return toAmount(walletDoc.p2pLocked);
+  }
+
   return toAmount(walletDoc.lockedBalance);
+}
+
+function resolveMerchantDepositLocked(walletDoc) {
+  if (!walletDoc) {
+    return false;
+  }
+  return Boolean(walletDoc.merchantDepositLocked);
 }
 
 function computeTotalBalance(walletDoc) {
@@ -43,7 +54,9 @@ function sanitizeWallet(walletDoc) {
     username: String(walletDoc.username || '').trim(),
     availableBalance,
     balance: availableBalance,
+    p2pLocked: lockedBalance,
     lockedBalance,
+    merchantDepositLocked: resolveMerchantDepositLocked(walletDoc),
     totalBalance: toAmount(availableBalance + lockedBalance),
     createdAt: walletDoc.createdAt ? new Date(walletDoc.createdAt).toISOString() : null,
     updatedAt: walletDoc.updatedAt ? new Date(walletDoc.updatedAt).toISOString() : null
@@ -54,6 +67,7 @@ module.exports = {
   toAmount,
   resolveAvailableBalance,
   resolveLockedBalance,
+  resolveMerchantDepositLocked,
   computeTotalBalance,
   sanitizeWallet
 };

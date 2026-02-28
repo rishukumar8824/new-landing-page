@@ -194,6 +194,7 @@ function registerAdminRoutes(app, deps) {
   router.post('/p2p/orders/:orderId/freeze', protect(ROLE_GROUPS.COMPLIANCE), withLogging({ module: 'p2p', action: 'freeze_escrow' }, adminControllers.freezeEscrow));
   router.get('/p2p/settings', protect(ROLE_GROUPS.OPS), withLogging({ module: 'p2p', action: 'get_p2p_settings' }, adminControllers.getP2PSettings));
   router.put('/p2p/settings', protect(ROLE_GROUPS.OPS), withLogging({ module: 'p2p', action: 'update_p2p_settings' }, adminControllers.updateP2PSettings));
+  router.post('/p2p/cleanup-demo', protect(ROLE_GROUPS.OPS), withLogging({ module: 'p2p', action: 'cleanup_demo_ads' }, adminControllers.cleanupDemoP2PAds));
 
   // -------------------------
   // Revenue

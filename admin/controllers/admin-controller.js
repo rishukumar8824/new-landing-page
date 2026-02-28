@@ -550,6 +550,26 @@ function createAdminControllers({
     return res.json({ message: 'P2P settings updated.', settings });
   }
 
+  async function cleanupDemoP2PAds(req, res) {
+    const result = await adminStore.cleanupDemoP2PAds({
+      id: req.adminAuth.adminId,
+      email: req.adminAuth.adminEmail
+    });
+
+    await logAudit(req, {
+      module: 'p2p',
+      action: 'cleanup_demo_ads',
+      entityType: 'p2p_offer',
+      entityId: 'demo_ads_cleanup',
+      meta: result
+    });
+
+    return res.json({
+      cleanedCount: result.cleanedCount,
+      unlockedCount: result.unlockedCount
+    });
+  }
+
   async function revenueSummary(req, res) {
     const data = await adminStore.getRevenueSummary();
     return res.json(data);
@@ -722,6 +742,7 @@ function createAdminControllers({
     freezeEscrow,
     getP2PSettings,
     updateP2PSettings,
+    cleanupDemoP2PAds,
     revenueSummary,
     getPlatformSettings,
     updatePlatformSettings,

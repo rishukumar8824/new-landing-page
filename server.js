@@ -97,13 +97,27 @@ const seedP2POffers = [
     id: `ofr_${1001 + index}`,
     side: 'buy',
     asset: 'USDT',
-    ...offer
+    ...offer,
+    availableAmount: offer.available,
+    escrowLockedAmount: offer.available,
+    adType: 'sell',
+    status: 'active',
+    merchantDepositLocked: true,
+    isDemo: false,
+    environment: 'production'
   })),
   ...seedSellOffers.map((offer, index) => ({
     id: `ofr_${1011 + index}`,
     side: 'sell',
     asset: 'USDT',
-    ...offer
+    ...offer,
+    availableAmount: offer.available,
+    escrowLockedAmount: offer.available,
+    adType: 'buy',
+    status: 'active',
+    merchantDepositLocked: true,
+    isDemo: false,
+    environment: 'production'
   }))
 ];
 
@@ -1609,7 +1623,15 @@ app.get('/api/p2p/offers', async (req, res) => {
   const normalizedSide = side === 'sell' ? 'sell' : 'buy';
 
   try {
-    const allOffers = await repos.listOffers({ side: normalizedSide, asset });
+    // Step-1 secure listing: only production escrow-backed active ads.
+    const allOffers = await repos.listOffers({
+      side: normalizedSide,
+      asset,
+      activeOnly: true,
+      merchantDepositLocked: true,
+      availableOnly: true,
+      excludeDemo: true
+    });
     const filtered = allOffers
       .filter((offer) => {
         if (!payment) {
@@ -1648,76 +1670,46 @@ app.get('/api/p2p/offers', async (req, res) => {
   }
 });
 
-app.post('/api/p2p/offers', requiresP2PUser, async (req, res) => {
-  const asset = String(req.body.asset || '').trim().toUpperCase();
-  const adType = String(req.body.adType || 'sell').trim().toLowerCase();
-  const price = Number(req.body.price || 0);
-  const available = Number(req.body.available || 0);
-  const minLimit = Number(req.body.minLimit || 0);
-  const maxLimit = Number(req.body.maxLimit || 0);
-  const rawPayments = Array.isArray(req.body.payments) ? req.body.payments : [];
-
-  if (!['USDT', 'BTC', 'ETH'].includes(asset)) {
-    return res.status(400).json({ message: 'Asset must be USDT, BTC or ETH.' });
-  }
-
-  if (!['sell', 'buy'].includes(adType)) {
-    return res.status(400).json({ message: 'adType must be either sell or buy.' });
-  }
-
-  if (!Number.isFinite(price) || price <= 0) {
-    return res.status(400).json({ message: 'Price must be greater than 0.' });
-  }
-
-  if (!Number.isFinite(available) || available <= 0) {
-    return res.status(400).json({ message: 'Available quantity must be greater than 0.' });
-  }
-
-  if (!Number.isFinite(minLimit) || !Number.isFinite(maxLimit) || minLimit <= 0 || maxLimit < minLimit) {
-    return res.status(400).json({ message: 'Enter valid min/max limits.' });
-  }
-
-  const payments = rawPayments
-    .map((method) => String(method).trim())
-    .filter((method) => method.length > 0)
-    .slice(0, 4);
-
-  if (payments.length === 0) {
-    return res.status(400).json({ message: 'Add at least one payment method.' });
-  }
-
-  const takerActionSide = adType === 'sell' ? 'buy' : 'sell';
-  const normalizedPrice = Number(price.toFixed(asset === 'USDT' ? 2 : 0));
-  const normalizedAvailable = Number(available.toFixed(asset === 'USDT' ? 2 : 6));
-
+async function createP2PAdController(req, res) {
   try {
-    const newOffer = {
-      id: await createOfferId(),
-      side: takerActionSide,
-      asset,
-      advertiser: req.p2pUser.username,
-      price: normalizedPrice,
-      available: normalizedAvailable,
-      minLimit: Math.floor(minLimit),
-      maxLimit: Math.floor(maxLimit),
-      completionRate: 100,
-      orders: 0,
-      payments,
-      createdByUserId: req.p2pUser.id,
-      createdByUsername: req.p2pUser.username,
-      adType
-    };
-
-    const savedOffer = await repos.createOffer(newOffer);
+    const savedOffer = await walletService.createEscrowAd({
+      actor: req.p2pUser,
+      offerId: await createOfferId(),
+      payload: req.body || {}
+    });
 
     return res.status(201).json({
       message: 'Ad created successfully.',
       offer: savedOffer
     });
   } catch (error) {
+    const knownStatus = Number(error?.status || 0);
+    const knownCode = String(error?.code || '').trim().toUpperCase();
+    if (knownStatus >= 400 && knownStatus < 500) {
+      return res.status(knownStatus).json({
+        message: String(error.message || 'Request validation failed.'),
+        code: knownCode || 'P2P_AD_CREATE_FAILED'
+      });
+    }
+
+    const validationLikeMessage = String(error?.message || '').toLowerCase();
+    if (
+      validationLikeMessage.includes('must') ||
+      validationLikeMessage.includes('invalid') ||
+      validationLikeMessage.includes('add at least one payment method')
+    ) {
+      return res.status(400).json({
+        message: String(error.message || 'Invalid ad payload.')
+      });
+    }
+
     return res.status(500).json({ message: 'Server error while creating ad.' });
   }
-});
+}
+
+// Backward compatible + new secure endpoint.
+app.post('/api/p2p/offers', requiresP2PUser, createP2PAdController);
+app.post('/api/p2p/ads', requiresP2PUser, createP2PAdController);
 
 app.post('/api/p2p/orders', requiresP2PUser, async (req, res) => {
   const offerId = String(req.body.offerId || '').trim();

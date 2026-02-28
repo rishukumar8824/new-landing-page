@@ -1223,6 +1223,22 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     return next;
   }
 
+  async function cleanupDemoP2PAds(actor = {}) {
+    if (!walletService || typeof walletService.cleanupDemoAds !== 'function') {
+      throw new Error('Wallet service cleanup action is not configured.');
+    }
+
+    const result = await walletService.cleanupDemoAds({
+      id: actor.id,
+      email: actor.email
+    });
+
+    return {
+      cleanedCount: Number(result?.cleanedCount || 0),
+      unlockedCount: Number(result?.unlockedCount || 0)
+    };
+  }
+
   async function getRevenueSummary() {
     const now = Date.now();
     const dayStart = new Date(now - 24 * 60 * 60 * 1000);
@@ -1663,6 +1679,7 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     freezeEscrow,
     getP2PSettings,
     updateP2PSettings,
+    cleanupDemoP2PAds,
     getRevenueSummary,
     getPlatformSettings,
     updatePlatformSettings,
