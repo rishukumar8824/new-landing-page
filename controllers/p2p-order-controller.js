@@ -60,7 +60,7 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
       }
 
       const isDemo = offer.isDemo === true || String(offer.environment || '').trim().toLowerCase() === 'demo';
-      if (String(offer.status || '').trim().toLowerCase() !== 'active' || isDemo || offer.merchantDepositLocked !== true) {
+      if (String(offer.status || '').trim().toUpperCase() !== 'ACTIVE' || isDemo || offer.merchantDepositLocked !== true) {
         return res.status(400).json({ success: false, message: 'Ad is not available for trading.' });
       }
 
@@ -231,4 +231,3 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
 module.exports = {
   createP2POrderController
 };
-

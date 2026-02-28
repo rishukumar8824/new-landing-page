@@ -47,6 +47,7 @@ const P2P_ACCESS_COOKIE_NAME = 'p2p_access_token';
 const P2P_REFRESH_COOKIE_NAME = 'p2p_refresh_token';
 const P2P_ORDER_TTL_MS = 1000 * 60 * 15;
 const P2P_EXPIRY_SWEEP_INTERVAL_MS = 30 * 1000;
+const MERCHANT_ACTIVATION_DEPOSIT = 200;
 const SIGNUP_OTP_TTL_MS = 1000 * 60 * 10;
 const P2P_ORDER_ACTIVE_STATUSES = ['CREATED', 'PENDING', 'PAID', 'PAYMENT_SENT', 'DISPUTED'];
 const IS_PRODUCTION = String(process.env.NODE_ENV || '')
@@ -70,60 +71,6 @@ const DEFAULT_SYMBOL_PRICES = {
 
 const dataDir = path.join(__dirname, 'data');
 const dataFile = path.join(dataDir, 'leads.json');
-const seedBuyOffers = [
-  { advertiser: 'TecnoSeller', price: 98.19, available: 213.9145, minLimit: 1900, maxLimit: 21004, completionRate: 100, orders: 756, payments: ['Digital eRupee'] },
-  { advertiser: 'suraj12', price: 96.1, available: 87.8692, minLimit: 8400, maxLimit: 8444, completionRate: 100, orders: 1, payments: ['UPI'] },
-  { advertiser: 'lamohitverma786', price: 96.2, available: 790, minLimit: 70000, maxLimit: 73000, completionRate: 100, orders: 105, payments: ['Cash Deposit', 'Bank'] },
-  { advertiser: 'CryptoDeskPro', price: 96.32, available: 5250, minLimit: 500, maxLimit: 100000, completionRate: 99.2, orders: 1893, payments: ['UPI', 'IMPS'] },
-  { advertiser: 'SecureTrades', price: 96.38, available: 11800, minLimit: 1000, maxLimit: 200000, completionRate: 98.5, orders: 2144, payments: ['Bank Transfer', 'NEFT'] },
-  { advertiser: 'QuickUPIHub', price: 96.42, available: 3200, minLimit: 300, maxLimit: 50000, completionRate: 97.8, orders: 911, payments: ['UPI', 'Paytm'] },
-  { advertiser: 'INRMerchantOne', price: 96.48, available: 6450, minLimit: 1500, maxLimit: 95000, completionRate: 98.2, orders: 804, payments: ['UPI', 'IMPS'] },
-  { advertiser: 'FastBankDesk', price: 96.55, available: 9200, minLimit: 2000, maxLimit: 130000, completionRate: 99.1, orders: 1488, payments: ['Bank Transfer', 'NEFT'] },
-  { advertiser: 'UPIPrimeHub', price: 96.63, available: 2750, minLimit: 500, maxLimit: 45000, completionRate: 97.9, orders: 506, payments: ['UPI'] },
-  { advertiser: 'TrustP2PIndia', price: 96.71, available: 15800, minLimit: 2500, maxLimit: 250000, completionRate: 99.4, orders: 2871, payments: ['UPI', 'RTGS', 'NEFT'] }
-];
-
-const seedSellOffers = [
-  { advertiser: 'AlphaBuyer', price: 95.9, available: 7100, minLimit: 500, maxLimit: 150000, completionRate: 99.1, orders: 1440, payments: ['UPI', 'Bank Transfer'] },
-  { advertiser: 'MarketMitra', price: 95.84, available: 4500, minLimit: 1000, maxLimit: 120000, completionRate: 98.9, orders: 1320, payments: ['IMPS', 'NEFT'] },
-  { advertiser: 'SellNowDesk', price: 95.8, available: 8800, minLimit: 1200, maxLimit: 98000, completionRate: 98.7, orders: 1218, payments: ['UPI', 'IMPS'] },
-  { advertiser: 'INRBridgePro', price: 95.76, available: 11200, minLimit: 5000, maxLimit: 180000, completionRate: 99.2, orders: 1642, payments: ['Bank Transfer', 'NEFT'] },
-  { advertiser: 'QuickSettlement', price: 95.72, available: 2600, minLimit: 700, maxLimit: 60000, completionRate: 97.5, orders: 412, payments: ['UPI', 'Paytm'] },
-  { advertiser: 'PrimeCashflow', price: 95.68, available: 3900, minLimit: 1000, maxLimit: 74000, completionRate: 98.8, orders: 879, payments: ['UPI'] },
-  { advertiser: 'NeonExchangeIN', price: 95.64, available: 6200, minLimit: 2000, maxLimit: 90000, completionRate: 98.1, orders: 953, payments: ['IMPS', 'NEFT'] },
-  { advertiser: 'USDTLiquidDesk', price: 95.58, available: 10300, minLimit: 1500, maxLimit: 170000, completionRate: 99, orders: 1701, payments: ['Bank Transfer', 'RTGS'] },
-  { advertiser: 'RupeeRouteX', price: 95.53, available: 5100, minLimit: 900, maxLimit: 85000, completionRate: 97.6, orders: 693, payments: ['UPI', 'IMPS'] },
-  { advertiser: 'BharatP2PLine', price: 95.48, available: 7400, minLimit: 1200, maxLimit: 115000, completionRate: 98.4, orders: 1182, payments: ['UPI', 'NEFT'] }
-];
-
-const seedP2POffers = [
-  ...seedBuyOffers.map((offer, index) => ({
-    id: `ofr_${1001 + index}`,
-    side: 'buy',
-    asset: 'USDT',
-    ...offer,
-    availableAmount: offer.available,
-    escrowLockedAmount: offer.available,
-    adType: 'sell',
-    status: 'active',
-    merchantDepositLocked: true,
-    isDemo: false,
-    environment: 'production'
-  })),
-  ...seedSellOffers.map((offer, index) => ({
-    id: `ofr_${1011 + index}`,
-    side: 'sell',
-    asset: 'USDT',
-    ...offer,
-    availableAmount: offer.available,
-    escrowLockedAmount: offer.available,
-    adType: 'buy',
-    status: 'active',
-    merchantDepositLocked: true,
-    isDemo: false,
-    environment: 'production'
-  }))
-];
 
 let repos = null;
 let walletService = null;
@@ -1651,6 +1598,31 @@ app.get('/api/p2p/offers', async (req, res) => {
   }
 });
 
+app.get('/api/p2p/ads', async (req, res) => {
+  const side = String(req.query.side || '').trim().toLowerCase();
+  const asset = String(req.query.asset || 'USDT').trim().toUpperCase();
+  const normalizedSide = side === 'sell' ? 'sell' : side === 'buy' ? 'buy' : '';
+
+  try {
+    const offers = await repos.listOffers({
+      side: normalizedSide || undefined,
+      asset,
+      activeOnly: true,
+      merchantDepositLocked: true,
+      availableOnly: true,
+      excludeDemo: true
+    });
+
+    return res.json({
+      success: true,
+      total: offers.length,
+      ads: offers
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while fetching ads.' });
+  }
+});
+
 async function createP2PAdController(req, res) {
   try {
     const savedOffer = await walletService.createEscrowAd({
@@ -1691,6 +1663,35 @@ async function createP2PAdController(req, res) {
 // Backward compatible + new secure endpoint.
 app.post('/api/p2p/offers', requiresP2PUser, createP2PAdController);
 app.post('/api/p2p/ads', requiresP2PUser, createP2PAdController);
+
+app.post('/api/merchant/activate', requiresP2PUser, async (req, res) => {
+  try {
+    const activation = await walletService.activateMerchant({
+      actor: req.p2pUser,
+      depositAmount: MERCHANT_ACTIVATION_DEPOSIT
+    });
+
+    return res.json({
+      success: true,
+      message: 'Merchant activated successfully.',
+      merchant: activation.merchant,
+      wallet: activation.wallet
+    });
+  } catch (error) {
+    const knownStatus = Number(error?.status || 0);
+    if (knownStatus >= 400 && knownStatus < 500) {
+      return res.status(knownStatus).json({
+        success: false,
+        message: String(error.message || 'Merchant activation failed.'),
+        code: String(error.code || 'MERCHANT_ACTIVATION_FAILED')
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while activating merchant.'
+    });
+  }
+});
 
 app.get('/api/p2p/orders/live', requiresP2PUser, async (req, res) => {
   const side = String(req.query.side || '').trim().toLowerCase();
@@ -2134,15 +2135,7 @@ async function boot() {
       console.log(`Legacy leads migration skipped (${migration.reason || 'n/a'}).`);
     }
 
-    const seedInfo = await repos.ensureSeedOffers(seedP2POffers);
-    if (seedInfo.seeded) {
-      console.log(`P2P offers seeded: ${seedInfo.count}`);
-    } else {
-      console.log(`P2P offers already present: ${seedInfo.count}`);
-    }
-
-    const walletSeedInfo = await walletService.ensureSeedWallets(seedP2POffers);
-    console.log(`Wallets ensured for seed advertisers: ${walletSeedInfo.ensured}`);
+    await repos.ensureSeedOffers([]);
 
     await adminStore.ensureDefaults();
     await adminStore.ensureDemoSupportTicket();

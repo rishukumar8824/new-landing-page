@@ -1513,10 +1513,10 @@ function renderOffers(data) {
 
   if (!Array.isArray(data.offers) || data.offers.length === 0) {
     if (rowsEl) {
-      rowsEl.innerHTML = '<tr><td colspan="6" class="empty-row">No offers found for selected filters.</td></tr>';
+      rowsEl.innerHTML = '<tr><td colspan="6" class="empty-row">No active ads available</td></tr>';
     }
     if (cardsEl) {
-      cardsEl.innerHTML = '<article class="p2p-offer-card"><p class="empty-row">No offers found for selected filters.</p></article>';
+      cardsEl.innerHTML = '<article class="p2p-offer-card"><p class="empty-row">No active ads available</p></article>';
     }
     return;
   }

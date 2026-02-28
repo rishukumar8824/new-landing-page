@@ -1,4 +1,4 @@
-const SUPPORTED_P2P_ASSETS = ['USDT', 'BTC', 'ETH'];
+const SUPPORTED_P2P_ASSETS = ['USDT'];
 
 function toAmount(value, precision = 8) {
   const parsed = Number(value);
@@ -13,7 +13,7 @@ function normalizeP2PAsset(rawAsset) {
     .trim()
     .toUpperCase();
   if (!SUPPORTED_P2P_ASSETS.includes(asset)) {
-    throw new Error('Asset must be USDT, BTC or ETH.');
+    throw new Error('Asset must be USDT.');
   }
   return asset;
 }
@@ -21,15 +21,15 @@ function normalizeP2PAsset(rawAsset) {
 function normalizeAdType(rawAdType) {
   const adType = String(rawAdType || '')
     .trim()
-    .toLowerCase();
-  if (!['buy', 'sell'].includes(adType)) {
-    throw new Error('adType must be either buy or sell.');
+    .toUpperCase();
+  if (!['BUY', 'SELL'].includes(adType)) {
+    throw new Error('type must be either BUY or SELL.');
   }
   return adType;
 }
 
 function normalizeActionSideFromAdType(adType) {
-  return adType === 'sell' ? 'buy' : 'sell';
+  return adType === 'SELL' ? 'buy' : 'sell';
 }
 
 function normalizePaymentMethods(rawPayments) {
@@ -54,8 +54,11 @@ function normalizeAdPricing({ asset, price, availableAmount, minLimit, maxLimit 
   if (!Number.isFinite(normalizedAvailable) || normalizedAvailable <= 0) {
     throw new Error('availableAmount must be greater than 0.');
   }
-  if (!Number.isFinite(normalizedMin) || !Number.isFinite(normalizedMax) || normalizedMin <= 0 || normalizedMax < normalizedMin) {
-    throw new Error('minLimit must be <= maxLimit and both must be valid positive numbers.');
+  if (!Number.isFinite(normalizedMin) || !Number.isFinite(normalizedMax) || normalizedMin <= 0 || normalizedMax <= 0) {
+    throw new Error('minLimit and maxLimit must be valid positive numbers.');
+  }
+  if (normalizedMin >= normalizedMax) {
+    throw new Error('minLimit must be less than maxLimit.');
   }
 
   return {
@@ -68,7 +71,7 @@ function normalizeAdPricing({ asset, price, availableAmount, minLimit, maxLimit 
 
 function normalizeP2PAdPayload(payload = {}) {
   const asset = normalizeP2PAsset(payload.asset);
-  const adType = normalizeAdType(payload.adType || 'sell');
+  const adType = normalizeAdType(payload.type || payload.adType || 'SELL');
   const side = normalizeActionSideFromAdType(adType);
   const payments = normalizePaymentMethods(payload.payments);
   if (payments.length === 0) {
@@ -85,6 +88,7 @@ function normalizeP2PAdPayload(payload = {}) {
 
   return {
     asset,
+    type: adType,
     adType,
     side,
     payments,
@@ -94,12 +98,18 @@ function normalizeP2PAdPayload(payload = {}) {
 
 function buildP2PAdDocument(input = {}) {
   const now = new Date();
+  const type = normalizeAdType(input.type || input.adType || 'SELL');
+  const side = String(input.side || normalizeActionSideFromAdType(type))
+    .trim()
+    .toLowerCase();
   const availableAmount = toAmount(input.availableAmount, 8);
 
   return {
     id: String(input.id || '').trim(),
-    side: String(input.side || 'buy').trim().toLowerCase(),
-    adType: String(input.adType || 'sell').trim().toLowerCase(),
+    merchantId: String(input.merchantId || input.createdByUserId || '').trim(),
+    type,
+    side,
+    adType: type.toLowerCase(),
     asset: String(input.asset || 'USDT').trim().toUpperCase(),
     advertiser: String(input.advertiser || '').trim(),
     price: toAmount(input.price, 8),
@@ -115,7 +125,7 @@ function buildP2PAdDocument(input = {}) {
     createdByUserId: String(input.createdByUserId || '').trim(),
     createdByUsername: String(input.createdByUsername || '').trim(),
     createdByEmail: String(input.createdByEmail || '').trim().toLowerCase(),
-    status: 'active',
+    status: 'ACTIVE',
     moderationStatus: 'APPROVED',
     merchantDepositLocked: true,
     isDemo: false,
