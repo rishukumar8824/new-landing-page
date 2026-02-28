@@ -487,6 +487,10 @@ a {
   gap: 0.65rem;
 }
 
+.cf-hero-left .cf-lead-form:first-child {
+  margin-top: 0;
+}
+
 .cf-lead-form.is-focus {
   animation: cf-form-focus 0.8s ease;
 }
