@@ -379,6 +379,67 @@ a {
   box-shadow: var(--cf-shadow);
 }
 
+.cf-hero-video-section {
+  position: relative;
+  min-height: 60vh;
+  overflow: hidden;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+}
+
+.cf-hero-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.cf-hero-video-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 2;
+}
+
+.cf-hero-video-content {
+  position: relative;
+  z-index: 3;
+  text-align: center;
+  padding: 1rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.cf-hero-video-content h2 {
+  margin: 0;
+  color: var(--cf-text);
+  font-size: clamp(1.65rem, 5.2vw, 3.15rem);
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+
+.cf-hero-video-cta {
+  justify-self: center;
+  min-height: 48px;
+  border-radius: 999px;
+  padding: 0.75rem 1.35rem;
+  background: var(--cf-brand);
+  color: #081005;
+  font-weight: 800;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: transform 0.25s ease, filter 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: 0 10px 24px rgba(139, 243, 0, 0.24);
+}
+
+.cf-hero-video-cta:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
 .cf-hero {
   padding: clamp(1rem, 3.5vw, 2.4rem);
   display: grid;
@@ -1386,6 +1447,38 @@ a {
   background-clip: text;
 }
 
+.cf-mobile-promo-video {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.cf-mobile-promo-video-shell {
+  width: min(380px, 90%);
+  aspect-ratio: 9 / 16;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--cf-line);
+  background: #070c14;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.42);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.cf-mobile-promo-video-shell:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.5);
+}
+
+.cf-mobile-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .cf-partners {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -1794,6 +1887,20 @@ a {
     gap: 1.2rem;
   }
 
+  .cf-hero-video-section {
+    min-height: 40vh;
+  }
+
+  .cf-hero-video-content h2 {
+    font-size: clamp(1.35rem, 8vw, 2.05rem);
+  }
+
+  .cf-hero-video-cta {
+    min-height: 46px;
+    padding: 0.68rem 1.18rem;
+    font-size: 0.92rem;
+  }
+
   .cf-hero {
     border-radius: 20px;
     background: linear-gradient(180deg, #080d15 0%, #08111c 100%);
@@ -1922,6 +2029,7 @@ a {
   .cf-trading-exp,
   .cf-app-block,
   .cf-testimonials,
+  .cf-mobile-promo-video,
   .cf-neon-strip,
   .cf-partners,
   .cf-footer {
