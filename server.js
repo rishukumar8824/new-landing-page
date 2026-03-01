@@ -2,7 +2,6 @@ require('dotenv').config({ override: true });
 
 const crypto = require('crypto');
 const express = require('express');
-const nodemailer = require('nodemailer');
 const path = require('path');
 const { connectToMongo, getCollections, getMongoClient, getMongoConfig, isDbConnected } = require('./lib/db');
 const { createRepositories } = require('./lib/repositories');
@@ -330,112 +329,15 @@ function createOtpCode() {
 }
 
 async function trySendSignupEmailOtp(email, code) {
-  const subject = 'Your TradeNova verification code';
-  const text = `Your verification code is ${code}. This code expires in 10 minutes.`;
-  const html = `<p>Your verification code is <strong>${code}</strong>.</p><p>This code expires in 10 minutes.</p>`;
-
-  const resendApiKey = String(process.env.RESEND_API_KEY || process.env.RESEND || '').trim();
-  const resendFromEmail = String(
-    process.env.RESEND_FROM_EMAIL || process.env.MAIL_FROM || process.env.SMTP_FROM_EMAIL || ''
-  ).trim();
-  const smtpHost = String(process.env.SMTP_HOST || '').trim();
-  const smtpPortRaw = String(process.env.SMTP_PORT || '').trim();
-  const smtpUser = String(process.env.SMTP_USER || '').trim();
-  const smtpPass = String(process.env.SMTP_PASS || '').trim();
-  const smtpFromEmail = String(
-    process.env.SMTP_FROM_EMAIL || process.env.MAIL_FROM || ''
-  ).trim();
-  const smtpSecureRaw = String(process.env.SMTP_SECURE || '')
-    .trim()
-    .toLowerCase();
-  const gmailUser = String(process.env.GMAIL_USER || '').trim();
-  const gmailAppPassword = String(process.env.GMAIL_APP_PASSWORD || '').trim();
-
-  console.log('[otp-email] runtime provider env detection', {
-    hasResendApiKey: Boolean(resendApiKey),
-    hasResendFromEmail: Boolean(resendFromEmail),
-    hasResendAliasKey: Boolean(String(process.env.RESEND || '').trim()),
-    hasMailFromAlias: Boolean(String(process.env.MAIL_FROM || '').trim()),
-    hasSmtpHost: Boolean(smtpHost),
-    hasSmtpUser: Boolean(smtpUser),
-    hasSmtpPass: Boolean(smtpPass),
-    hasSmtpFromEmail: Boolean(smtpFromEmail),
-    hasGmailUser: Boolean(gmailUser),
-    hasGmailAppPassword: Boolean(gmailAppPassword),
-    nodeEnv: String(process.env.NODE_ENV || 'development')
-  });
-
-  if (resendApiKey && resendFromEmail) {
-    try {
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: resendFromEmail,
-          to: [email],
-          subject,
-          html
-        })
-      });
-
-      if (response.ok) {
-        return { delivered: true, reason: 'sent_via_resend' };
-      }
-
-      const errorText = await response.text();
-      return { delivered: false, reason: `resend_error:${errorText}` };
-    } catch (error) {
-      return { delivered: false, reason: `resend_error:${error.message}` };
-    }
-  }
-
-  let transporter = null;
-  let fromEmail = '';
-
-  if (smtpHost && smtpUser && smtpPass) {
-    const parsedPort = Number.parseInt(smtpPortRaw || '587', 10);
-    const smtpPort = Number.isFinite(parsedPort) ? parsedPort : 587;
-    const secure = smtpSecureRaw ? smtpSecureRaw === 'true' : smtpPort === 465;
-
-    transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass
-      }
-    });
-    fromEmail = smtpFromEmail || smtpUser;
-  } else if (gmailUser && gmailAppPassword) {
-    transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: gmailUser,
-        pass: gmailAppPassword
-      }
-    });
-    fromEmail = smtpFromEmail || gmailUser;
-  }
-
-  if (!transporter || !fromEmail) {
+  if (!authEmailService || typeof authEmailService.sendSignupOtpEmail !== 'function') {
     return { delivered: false, reason: 'missing_email_provider_config' };
   }
 
   try {
-    await transporter.sendMail({
-      from: fromEmail,
-      to: email,
-      subject,
-      text,
-      html
-    });
-    return { delivered: true, reason: 'sent_via_smtp' };
+    const expiresInMinutes = Math.max(1, Math.floor(SIGNUP_OTP_TTL_MS / (60 * 1000)));
+    return await authEmailService.sendSignupOtpEmail(email, code, { expiresInMinutes });
   } catch (error) {
-    return { delivered: false, reason: `smtp_error:${error.message}` };
+    return { delivered: false, reason: `provider_error:${error.message}` };
   }
 }
 
