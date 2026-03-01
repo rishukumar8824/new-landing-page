@@ -32,8 +32,7 @@ body.coinflare-page {
   min-height: 100vh;
   font-family: 'Manrope', 'Segoe UI', sans-serif;
   color: var(--cf-text);
-  background: radial-gradient(circle at 18% 2%, rgba(148, 255, 13, 0.13), transparent 42%),
-    radial-gradient(circle at 80% 6%, rgba(105, 173, 255, 0.12), transparent 38%), var(--cf-bg);
+  background: #000;
   position: relative;
 }
 
@@ -89,7 +88,7 @@ a {
   background-image: linear-gradient(rgba(139, 243, 0, 0.06) 1px, transparent 1px),
     linear-gradient(90deg, rgba(139, 243, 0, 0.06) 1px, transparent 1px);
   background-size: 84px 84px;
-  opacity: 0.23;
+  opacity: 0;
 }
 
 .cf-header {
@@ -374,7 +373,7 @@ a {
 .cf-main section,
 .cf-footer {
   border: 1px solid var(--cf-line);
-  background: linear-gradient(180deg, rgba(16, 23, 34, 0.95), rgba(9, 14, 22, 0.95));
+  background: #000;
   border-radius: 20px;
   box-shadow: var(--cf-shadow);
 }
@@ -1056,16 +1055,17 @@ a {
 }
 
 .cf-feature-card {
-  border: 1px solid var(--cf-line);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  background: #0d141f;
+  background: #000;
   padding: 1rem;
 }
 
 .cf-feature-media-card {
   padding: 0;
   overflow: hidden;
-  background: #060b13;
+  background: #000;
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .cf-feature-media-video {
@@ -1078,7 +1078,7 @@ a {
 }
 
 .cf-feature-media-card:hover .cf-feature-media-video {
-  transform: scale(1.01);
+  transform: none;
 }
 
 .cf-feature-card h3 {
@@ -1946,7 +1946,7 @@ a {
   }
 
   .cf-hero-video-section {
-    min-height: 32vh;
+    min-height: 28vh;
   }
 
   .cf-hero-video-content h2 {
@@ -1961,7 +1961,7 @@ a {
 
   .cf-hero {
     border-radius: 20px;
-    background: linear-gradient(180deg, #080d15 0%, #08111c 100%);
+    background: #000;
   }
 
   .cf-hero h1 {
