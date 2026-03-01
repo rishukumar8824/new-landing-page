@@ -1917,8 +1917,8 @@ a {
     max-width: 100%;
     margin-left: 0;
     margin-right: 0;
-    padding-left: 12px;
-    padding-right: 12px;
+    padding-left: 0;
+    padding-right: 0;
     box-sizing: border-box;
   }
 
@@ -1933,6 +1933,15 @@ a {
   .cf-everyone {
     padding-left: 12px;
     padding-right: 12px;
+  }
+
+  .cf-feature-grid {
+    gap: 12px;
+  }
+
+  .cf-feature-media-video {
+    aspect-ratio: 9 / 16;
+    object-fit: cover;
   }
 
   .cf-hero-video-section {
