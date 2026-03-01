@@ -8,6 +8,7 @@ const marketsNavClose = document.getElementById('marketsNavClose');
 const marketsThemeToggle = document.getElementById('marketsThemeToggle');
 const marketsDrawerThemeToggle = document.getElementById('marketsDrawerThemeToggle');
 const marketsLoginBtn = document.getElementById('marketsLoginBtn');
+const marketsSignupBtn = document.getElementById('marketsSignupBtn');
 
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT', 'LINKUSDT', 'LTCUSDT'];
 
@@ -152,10 +153,17 @@ function setLoginUi() {
   if (marketsLoginBtn) {
     marketsLoginBtn.style.display = loggedIn ? 'none' : 'inline-flex';
   }
+  if (marketsSignupBtn) {
+    marketsSignupBtn.style.display = loggedIn ? 'none' : 'inline-flex';
+  }
 
-  const drawerLogin = marketsNavDrawer?.querySelector('a[href*="/p2p?redirect="]');
+  const drawerLogin = marketsNavDrawer?.querySelector('[data-drawer-login]');
+  const drawerSignup = marketsNavDrawer?.querySelector('[data-drawer-signup]');
   if (drawerLogin) {
     drawerLogin.style.display = loggedIn ? 'none' : 'inline-flex';
+  }
+  if (drawerSignup) {
+    drawerSignup.style.display = loggedIn ? 'none' : 'inline-flex';
   }
 }
 

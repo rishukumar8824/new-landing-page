@@ -1162,7 +1162,10 @@ body.trade-nav-open {
   }
 
   .topbar-actions .solid-btn {
-    display: none;
+    display: inline-flex;
+    min-height: 34px;
+    padding: 0 0.72rem;
+    font-size: 0.78rem;
   }
 
   .pair-chip p {

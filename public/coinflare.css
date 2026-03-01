@@ -728,6 +728,162 @@ a {
   overflow-x: clip;
 }
 
+.cf-hot-market-shell {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid var(--cf-line);
+  border-radius: 16px;
+  background: #0b111a;
+  padding: 0.9rem;
+}
+
+.cf-hot-market-tabs {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  border-bottom: 1px solid rgba(224, 234, 248, 0.15);
+  padding-bottom: 0.52rem;
+}
+
+.cf-hot-market-tabs button {
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: #9aa8c1;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.cf-hot-market-tabs button.active {
+  color: #d9ff8c;
+  border-bottom-color: #d9ff8c;
+}
+
+.cf-hot-market-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  color: #8f9db5;
+  font-size: 0.82rem;
+}
+
+.cf-hot-market-head span:nth-child(2),
+.cf-hot-market-head span:nth-child(3) {
+  justify-self: end;
+}
+
+.cf-hot-market-list {
+  display: grid;
+  gap: 0.52rem;
+}
+
+.cf-hot-market-row {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 0.62rem 0.56rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  gap: 0.72rem;
+  align-items: center;
+  color: #f2f6ff;
+  text-decoration: none;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.cf-hot-market-row:hover {
+  border-color: rgba(156, 255, 0, 0.3);
+  background: #111a28;
+  transform: translateY(-1px);
+}
+
+.cf-hot-market-pair {
+  display: flex;
+  align-items: center;
+  gap: 0.56rem;
+  min-width: 0;
+}
+
+.cf-hot-market-pair p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cf-hot-coin-dot {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  background: #1a2538;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cf-hot-coin-dot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: relative;
+  z-index: 2;
+}
+
+.cf-hot-market-price {
+  justify-self: end;
+  min-width: 0;
+  display: grid;
+  justify-items: end;
+  gap: 0.08rem;
+}
+
+.cf-hot-market-price strong {
+  font-size: 1.03rem;
+  font-weight: 800;
+}
+
+.cf-hot-market-price span {
+  font-size: 0.8rem;
+  color: #8d9bb2;
+}
+
+.cf-hot-market-change {
+  min-width: 102px;
+  min-height: 40px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.99rem;
+  font-weight: 800;
+}
+
+.cf-hot-market-change.positive {
+  color: #10160f;
+  background: #c7f14e;
+}
+
+.cf-hot-market-change.negative {
+  color: #fff2f3;
+  background: #f1516f;
+}
+
+.cf-hot-market-more {
+  justify-self: center;
+  color: #aeb8cb;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .cf-market-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;

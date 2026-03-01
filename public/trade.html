@@ -10,7 +10,6 @@
   <body class="trade-page has-mobile-nav">
     <header class="trade-topbar" id="tradeHeader">
       <div class="topbar-left">
-        <button id="tradeMenuToggle" class="icon-btn" type="button" aria-label="Open menu" aria-controls="tradeNavDrawer" aria-expanded="false">☰</button>
         <a href="/" class="trade-brand">BITEGIT</a>
         <div class="pair-chip">
           <span class="pair-coin" id="pairCoin"><span class="coin-fallback">₿</span></span>
@@ -41,8 +40,10 @@
       </nav>
 
       <div class="topbar-actions">
-        <a id="tradeLoginBtn" class="link-btn" href="/p2p?redirect=%2Ftrade%2Fspot%2FBTCUSDT#p2pLoginCard">Log In</a>
+        <a id="tradeLoginBtn" class="link-btn" href="/auth.html">Log In</a>
+        <a id="tradeSignupBtn" class="solid-btn trade-signup-btn" href="/auth.html?mode=signup">Sign Up</a>
         <button id="tradeThemeToggle" type="button" class="theme-toggle-btn" aria-label="Toggle theme">🌙</button>
+        <button id="tradeMenuToggle" class="icon-btn" type="button" aria-label="Open menu" aria-controls="tradeNavDrawer" aria-expanded="false">☰</button>
         <button id="tradeUserAvatar" type="button" class="avatar-btn" aria-label="Open account menu">U</button>
       </div>
     </header>
@@ -63,7 +64,8 @@
         <a href="/#events">ICO</a>
         <a href="/#support">Support</a>
         <a href="/p2p#orders">Assets</a>
-        <a href="/p2p?redirect=%2Ftrade%2Fspot%2FBTCUSDT#p2pLoginCard">Log In</a>
+        <a data-drawer-login href="/auth.html">Log In</a>
+        <a data-drawer-signup href="/auth.html?mode=signup">Sign Up</a>
         <button id="tradeDrawerLogout" type="button">Logout</button>
       </nav>
       <div class="trade-nav-extra">

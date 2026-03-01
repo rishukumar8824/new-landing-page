@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bitegit Auth</title>
+    <link rel="stylesheet" href="/auth.css?v=20260301a" />
+  </head>
+  <body class="auth-page">
+    <header class="auth-topbar">
+      <a class="auth-brand" href="/">BITEGIT</a>
+      <div class="auth-top-actions">
+        <button id="authTopModeBtn" type="button" class="auth-top-primary">Log In</button>
+        <button id="authThemeToggle" type="button" class="auth-icon-btn" aria-label="Toggle theme">🌙</button>
+        <button id="authMenuToggle" type="button" class="auth-icon-btn" aria-label="Open menu" aria-controls="authNavDrawer" aria-expanded="false">☰</button>
+      </div>
+    </header>
+
+    <div id="authNavOverlay" class="auth-nav-overlay hidden" aria-hidden="true"></div>
+    <aside id="authNavDrawer" class="auth-nav-drawer" aria-hidden="true">
+      <div class="auth-nav-head">
+        <strong>BITEGIT</strong>
+        <button id="authNavClose" type="button" aria-label="Close menu">✕</button>
+      </div>
+      <nav class="auth-nav-links" aria-label="Mobile navigation">
+        <a href="/">Buy Crypto</a>
+        <a href="/markets.html">Markets</a>
+        <a href="/trade/spot/BTCUSDT">Spot</a>
+        <a href="/trade/perp/BTCUSDT">Futures</a>
+        <a href="/p2p">P2P</a>
+        <a href="/#crypto-for-everyone">Earn</a>
+        <a href="/#events">ICO</a>
+        <a href="/#support">Support</a>
+        <a href="/p2p#orders">Assets</a>
+      </nav>
+      <div class="auth-nav-extra">
+        <button id="authDrawerThemeToggle" type="button" class="auth-theme-row">🌙 Theme</button>
+        <label class="auth-lang-row" for="authLanguageSelect">
+          <span>Language</span>
+          <select id="authLanguageSelect">
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+          </select>
+        </label>
+        <a href="/#app-download" class="auth-download-row">Download App</a>
+      </div>
+    </aside>
+
+    <main class="auth-main">
+      <section class="auth-card" aria-live="polite">
+        <h1 id="authTitle">Welcome to Bitegit</h1>
+
+        <div class="auth-mode-tabs" role="tablist" aria-label="Auth mode">
+          <button id="modeLoginBtn" type="button" data-mode="login" class="active" role="tab" aria-selected="true">Log In</button>
+          <button id="modeSignupBtn" type="button" data-mode="signup" role="tab" aria-selected="false">Sign Up</button>
+        </div>
+
+        <div class="auth-channel-tabs" role="tablist" aria-label="Channel">
+          <button id="channelEmailBtn" type="button" data-channel="email" class="active" role="tab" aria-selected="true">Email</button>
+          <button id="channelMobileBtn" type="button" data-channel="mobile" role="tab" aria-selected="false">Mobile</button>
+        </div>
+
+        <form id="authForm" class="auth-form" novalidate>
+          <label id="contactLabel" for="contactInput">Email</label>
+          <input id="contactInput" name="contact" type="email" autocomplete="email" placeholder="Enter Email" required />
+          <p id="contactError" class="auth-error hidden">Enter a valid email.</p>
+
+          <label for="passwordInput">Password</label>
+          <div class="auth-password-wrap">
+            <input id="passwordInput" name="password" type="password" autocomplete="current-password" placeholder="Enter Password" required minlength="6" />
+            <button id="togglePasswordBtn" type="button" class="auth-password-toggle" aria-label="Toggle password visibility">👁</button>
+          </div>
+          <p id="passwordError" class="auth-error hidden">Password must be at least 6 characters.</p>
+
+          <button id="forgotBtn" type="button" class="auth-link">Forgot password?</button>
+
+          <button id="submitAuthBtn" type="submit" class="auth-submit">Log In</button>
+
+          <p id="authStatus" class="auth-status hidden"></p>
+        </form>
+
+        <p class="auth-switch-copy">
+          <span id="authSwitchPrefix">No account?</span>
+          <button id="authSwitchBtn" type="button">Sign Up</button>
+        </p>
+
+        <div class="auth-social-divider"><span>Or continue with</span></div>
+        <div class="auth-social-row">
+          <button type="button" aria-label="Login with Google">G</button>
+          <button type="button" aria-label="Login with Telegram">T</button>
+          <button type="button" aria-label="Login with Apple"></button>
+        </div>
+      </section>
+    </main>
+
+    <script src="/theme.js?v=20260301a"></script>
+    <script src="/auth.js?v=20260301a"></script>
+  </body>
+</html>

@@ -90,6 +90,7 @@ const tradeThemeToggle = document.getElementById('tradeThemeToggle');
 const tradeDrawerThemeToggle = document.getElementById('tradeDrawerThemeToggle');
 const tradeDrawerLogout = document.getElementById('tradeDrawerLogout');
 const tradeLoginBtn = document.getElementById('tradeLoginBtn');
+const tradeSignupBtn = document.getElementById('tradeSignupBtn');
 const tradeUserAvatar = document.getElementById('tradeUserAvatar');
 
 let depthTimer = null;
@@ -223,7 +224,11 @@ function getThemeMode() {
 }
 
 function getDrawerLoginLink() {
-  return tradeNavDrawer?.querySelector('a[href*="/p2p?redirect="]') || null;
+  return tradeNavDrawer?.querySelector('[data-drawer-login]') || null;
+}
+
+function getDrawerSignupLink() {
+  return tradeNavDrawer?.querySelector('[data-drawer-signup]') || null;
 }
 
 function setAccountUi() {
@@ -242,13 +247,20 @@ function setAccountUi() {
   if (tradeLoginBtn) {
     tradeLoginBtn.style.display = loggedIn ? 'none' : 'inline-flex';
   }
+  if (tradeSignupBtn) {
+    tradeSignupBtn.style.display = loggedIn ? 'none' : 'inline-flex';
+  }
   if (tradeDrawerLogout) {
     tradeDrawerLogout.style.display = loggedIn ? 'inline-flex' : 'none';
   }
 
   const drawerLogin = getDrawerLoginLink();
+  const drawerSignup = getDrawerSignupLink();
   if (drawerLogin) {
     drawerLogin.style.display = loggedIn ? 'none' : 'inline-flex';
+  }
+  if (drawerSignup) {
+    drawerSignup.style.display = loggedIn ? 'none' : 'inline-flex';
   }
 }
 

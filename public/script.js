@@ -40,10 +40,10 @@ const obAsksRows = document.getElementById('obAsksRows');
 const obBidsRows = document.getElementById('obBidsRows');
 const obTradesRows = document.getElementById('obTradesRows');
 
-const MARKET_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'ADAUSDT'];
+const MARKET_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'XRPUSDT', 'SOLUSDT', 'XAUTUSDT', 'DOGEUSDT', 'WIFUSDT', 'BNBUSDT'];
 const MARKET_TAB_ORDER = {
-  popular: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'],
-  new: ['ADAUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT', 'ETHUSDT', 'BTCUSDT']
+  hotspot: ['BTCUSDT', 'ETHUSDT', 'XRPUSDT', 'SOLUSDT', 'XAUTUSDT', 'DOGEUSDT', 'WIFUSDT'],
+  hotfutures: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'WIFUSDT']
 };
 const COIN_NAMES = {
   BTCUSDT: 'Bitcoin',
@@ -51,7 +51,10 @@ const COIN_NAMES = {
   BNBUSDT: 'BNB',
   XRPUSDT: 'XRP',
   SOLUSDT: 'Solana',
-  ADAUSDT: 'Cardano'
+  ADAUSDT: 'Cardano',
+  XAUTUSDT: 'Tether Gold',
+  DOGEUSDT: 'Dogecoin',
+  WIFUSDT: 'Dogwifhat'
 };
 
 const COIN_ICONS = {
@@ -60,7 +63,10 @@ const COIN_ICONS = {
   BNB: '⬢',
   XRP: '✕',
   SOL: '◎',
-  ADA: '◉'
+  ADA: '◉',
+  XAUT: '✦',
+  DOGE: 'Ð',
+  WIF: 'W'
 };
 
 const COIN_ICON_CODES = {
@@ -71,6 +77,8 @@ const COIN_ICON_CODES = {
   SOL: 'sol',
   ADA: 'ada',
   DOGE: 'doge',
+  XAUT: 'xaut',
+  WIF: 'wif',
   AVAX: 'avax',
   LINK: 'link',
   LTC: 'ltc',
@@ -88,7 +96,7 @@ let pendingContact = '';
 let pendingName = 'Website Lead';
 let activeBookSymbol = '';
 let depthRefreshTimer = null;
-let marketTab = 'popular';
+let marketTab = 'hotspot';
 let eventsAutoSlide = null;
 
 const openSignupFromQuery = new URLSearchParams(window.location.search).get('signup') === '1';
@@ -415,31 +423,33 @@ function renderMiniMarketRows(ticker) {
   const tickerBySymbol = new Map(ticker.map((item) => [item.symbol, item]));
   let selectedRows = [...ticker];
 
-  if (marketTab === 'trends') {
-    selectedRows.sort((a, b) => Number(b.volume24h || 0) - Number(a.volume24h || 0));
-  } else if (marketTab === 'change') {
-    selectedRows.sort((a, b) => Math.abs(Number(b.change24h || 0)) - Math.abs(Number(a.change24h || 0)));
-  } else if (MARKET_TAB_ORDER[marketTab]) {
+  if (MARKET_TAB_ORDER[marketTab]) {
     selectedRows = MARKET_TAB_ORDER[marketTab].map((symbol) => tickerBySymbol.get(symbol)).filter(Boolean);
   }
 
+  const rowMarket = marketTab === 'hotfutures' ? 'perp' : 'spot';
+  const isFuturesTab = rowMarket === 'perp';
+
   marketList.innerHTML = selectedRows
-    .slice(0, 6)
+    .slice(0, 7)
     .map((item) => {
       const change = Number(item.change24h || 0);
       const sign = change >= 0 ? '+' : '';
-      const cls = change >= 0 ? 'up' : 'down';
+      const cls = change >= 0 ? 'positive' : 'negative';
       const symbol = item.symbol;
       const base = symbol.replace('USDT', '');
-      const name = COIN_NAMES[symbol] || base;
+      const formattedPair = `${base}/USDT${isFuturesTab ? '-P' : ''}`;
       return `
-        <a class="bnx-market-row" href="/trade/spot/${encodeURIComponent(symbol)}" data-symbol="${symbol}">
-          <div class="bnx-market-symbol">
-            ${getCoinIconMarkup(base, 64, 'bnx-coin-dot')}
-            <p>${base} <small>${name}</small></p>
+        <a class="cf-hot-market-row" href="/trade/${rowMarket}/${encodeURIComponent(symbol)}" data-market="${rowMarket}" data-symbol="${symbol}">
+          <div class="cf-hot-market-pair">
+            ${getCoinIconMarkup(base, 64, 'cf-hot-coin-dot')}
+            <p>${formattedPair}</p>
           </div>
-          <p class="bnx-market-price">$${formatPrice(item.lastPrice)}</p>
-          <p class="bnx-market-change ${cls}">${sign}${change.toFixed(2)}%</p>
+          <div class="cf-hot-market-price">
+            <strong>${formatLarge(item.lastPrice, 4)}</strong>
+            <span>$ ${formatLarge(item.lastPrice, 4)}</span>
+          </div>
+          <p class="cf-hot-market-change ${cls}">${sign}${change.toFixed(2)}%</p>
         </a>
       `;
     })
@@ -507,7 +517,7 @@ function renderOpportunities(ticker) {
 }
 
 function setMarketTab(tab) {
-  const safeTab = ['popular', 'trends', 'change', 'new'].includes(tab) ? tab : 'popular';
+  const safeTab = ['hotspot', 'hotfutures'].includes(tab) ? tab : 'hotspot';
   marketTab = safeTab;
 
   if (marketTabs) {
@@ -685,8 +695,9 @@ if (verifyOtpBtn) {
 }
 
 if (topSignupBtn) {
-  topSignupBtn.addEventListener('click', () => {
-    setSignupPromptOpen(true);
+  topSignupBtn.addEventListener('click', (event) => {
+    event.preventDefault();
+    window.location.href = '/auth.html?mode=signup';
   });
 }
 
@@ -731,7 +742,7 @@ if (marketList) {
     if (!row?.dataset?.symbol) {
       return;
     }
-    openTradePage(row.dataset.symbol, 'spot');
+    openTradePage(row.dataset.symbol, row.dataset.market === 'perp' ? 'perp' : 'spot');
   });
 }
 
@@ -786,7 +797,7 @@ window.addEventListener('keydown', (event) => {
 
 setupHomeNav();
 setupEventsCarousel();
-setMarketTab('popular');
+setMarketTab('hotspot');
 animateCounter(309497423);
 renderNews();
 initScrollReveal();
@@ -794,5 +805,7 @@ loadMarket();
 setInterval(loadMarket, 12000);
 
 if (openSignupFromQuery) {
-  window.setTimeout(() => setSignupPromptOpen(true), 220);
+  window.setTimeout(() => {
+    window.location.href = '/auth.html?mode=signup';
+  }, 120);
 }

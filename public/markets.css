@@ -98,6 +98,20 @@ body.markets-page {
   font-weight: 700;
 }
 
+.markets-signup {
+  min-height: 36px;
+  border-radius: 999px;
+  background: #c6ff00;
+  color: #0d1408;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.95rem;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
 .markets-theme-btn,
 .markets-menu-btn {
   width: 36px;
@@ -443,6 +457,12 @@ body.markets-page {
 
   .markets-login {
     display: none;
+  }
+
+  .markets-signup {
+    min-height: 34px;
+    padding: 0 0.84rem;
+    font-size: 0.8rem;
   }
 
   .markets-header h1 {

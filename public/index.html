@@ -25,8 +25,8 @@
         </nav>
 
         <div class="cf-actions">
-          <a class="cf-login" href="/p2p#p2pLoginCard">Log In</a>
-          <button id="topSignupBtn" type="button" class="cf-signup">Sign Up</button>
+          <a class="cf-login" href="/auth.html">Log In</a>
+          <a id="topSignupBtn" href="/auth.html?mode=signup" class="cf-signup">Sign Up</a>
           <button id="homeNavToggle" class="cf-nav-toggle" type="button" aria-label="Open navigation" aria-controls="homeNavDrawer" aria-expanded="false">
             <span></span>
             <span></span>
@@ -46,14 +46,22 @@
       <nav class="cf-nav-drawer-links" aria-label="Mobile navigation">
         <a href="/">Buy Crypto</a>
         <a href="/trade/spot/BTCUSDT">Markets</a>
+        <a href="/trade/spot/BTCUSDT">Spot</a>
+        <a href="/trade/perp/BTCUSDT">Futures</a>
         <a href="/p2p">P2P</a>
-        <a href="/trade/perp/BTCUSDT">Derivatives</a>
+        <a href="/">Event Contract</a>
+        <a href="/">Alpha Pass</a>
+        <a href="/">Alpha Pool</a>
+        <a href="/">Benefits Center</a>
+        <a href="/">US Stocks RWA</a>
         <a href="/">Earn</a>
-        <a href="/">Learn</a>
+        <a href="/">ICO</a>
+        <a href="/">Support</a>
+        <a href="/p2p#orders">Assets</a>
       </nav>
       <div class="cf-nav-drawer-actions">
-        <a href="/p2p#p2pLoginCard" class="cf-login">Log In</a>
-        <a href="/?signup=1#leadForm" class="cf-signup-link">Sign Up</a>
+        <a href="/auth.html" class="cf-login">Log In</a>
+        <a href="/auth.html?mode=signup" class="cf-signup-link">Sign Up</a>
       </div>
     </aside>
 
@@ -140,25 +148,20 @@
             <p class="cf-events-count">1/3</p>
           </div>
 
-          <div class="cf-mini-head">
-            <h3>Live Market</h3>
-            <a href="/markets.html">View all</a>
-          </div>
-          <div class="cf-market-shell">
-            <div id="marketTabs" class="cf-market-tabs" role="tablist" aria-label="Market categories">
-              <button type="button" class="active" data-market-tab="popular" role="tab" aria-selected="true">Popular</button>
-              <button type="button" data-market-tab="trends" role="tab" aria-selected="false">Market Trends</button>
-              <button type="button" data-market-tab="change" role="tab" aria-selected="false">24H Change</button>
-              <button type="button" data-market-tab="new" role="tab" aria-selected="false">New</button>
+          <div class="cf-hot-market-shell">
+            <div id="marketTabs" class="cf-hot-market-tabs" role="tablist" aria-label="Market categories">
+              <button type="button" class="active" data-market-tab="hotspot" role="tab" aria-selected="true">Hot Spot</button>
+              <button type="button" data-market-tab="hotfutures" role="tab" aria-selected="false">Hot Futures</button>
             </div>
-            <div class="cf-market-head" aria-hidden="true">
-              <span>Trading Pair</span>
-              <span>Price</span>
-              <span>24H Change</span>
+            <div class="cf-hot-market-head" aria-hidden="true">
+              <span>Trading Pairs</span>
+              <span>Last price</span>
+              <span>24h chg%</span>
             </div>
-            <div id="marketList" class="cf-mini-market-list">
+            <div id="marketList" class="cf-hot-market-list">
               <p class="bnx-loading">Loading markets...</p>
             </div>
+            <a class="cf-hot-market-more" href="/markets.html">View more</a>
           </div>
 
           <div class="cf-news-card">
