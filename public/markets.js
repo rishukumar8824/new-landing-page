@@ -1,6 +1,14 @@
 const marketsRows = document.getElementById('marketsRows');
 const marketsTabs = document.getElementById('marketsTabs');
 
+const marketsMenuToggle = document.getElementById('marketsMenuToggle');
+const marketsNavDrawer = document.getElementById('marketsNavDrawer');
+const marketsNavOverlay = document.getElementById('marketsNavOverlay');
+const marketsNavClose = document.getElementById('marketsNavClose');
+const marketsThemeToggle = document.getElementById('marketsThemeToggle');
+const marketsDrawerThemeToggle = document.getElementById('marketsDrawerThemeToggle');
+const marketsLoginBtn = document.getElementById('marketsLoginBtn');
+
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT', 'LINKUSDT', 'LTCUSDT'];
 
 const ICONS = {
@@ -31,12 +39,13 @@ const ICON_CODES = {
 
 let currentTab = 'popular';
 let cacheRows = [];
+let currentUser = null;
 
 function formatPrice(value) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 5 });
 }
 
-function getCoinIconMarkup(base, size = 64) {
+function getCoinIconMarkup(base) {
   const coin = String(base || '').toUpperCase();
   const fallback = ICONS[coin] || coin.slice(0, 1) || '?';
   const code = ICON_CODES[coin];
@@ -124,6 +133,43 @@ function setTab(nextTab) {
   renderRows(cacheRows);
 }
 
+function setMarketsNavOpen(open) {
+  if (!marketsNavDrawer || !marketsNavOverlay || !marketsMenuToggle) {
+    return;
+  }
+
+  const shouldOpen = Boolean(open);
+  marketsNavDrawer.classList.toggle('is-open', shouldOpen);
+  marketsNavOverlay.classList.toggle('hidden', !shouldOpen);
+  marketsNavDrawer.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  marketsNavOverlay.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  marketsMenuToggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+  document.body.classList.toggle('trade-nav-open', shouldOpen);
+}
+
+function setLoginUi() {
+  const loggedIn = Boolean(currentUser);
+  if (marketsLoginBtn) {
+    marketsLoginBtn.style.display = loggedIn ? 'none' : 'inline-flex';
+  }
+
+  const drawerLogin = marketsNavDrawer?.querySelector('a[href*="/p2p?redirect="]');
+  if (drawerLogin) {
+    drawerLogin.style.display = loggedIn ? 'none' : 'inline-flex';
+  }
+}
+
+async function loadCurrentUser() {
+  try {
+    const response = await fetch('/api/p2p/me');
+    const data = await response.json();
+    currentUser = response.ok && data?.loggedIn ? data.user : null;
+  } catch (_) {
+    currentUser = null;
+  }
+  setLoginUi();
+}
+
 async function loadMarkets() {
   try {
     const params = new URLSearchParams({ symbols: SYMBOLS.join(',') });
@@ -136,8 +182,14 @@ async function loadMarkets() {
 
     cacheRows = payload.ticker;
     renderRows(cacheRows);
-  } catch (error) {
+  } catch (_) {
     renderRows([]);
+  }
+}
+
+function initThemeControls() {
+  if (window.BitegitTheme?.initThemeToggle) {
+    window.BitegitTheme.initThemeToggle([marketsThemeToggle, marketsDrawerThemeToggle]);
   }
 }
 
@@ -158,6 +210,25 @@ marketsRows?.addEventListener('click', (event) => {
   window.location.href = `/trade/spot/${encodeURIComponent(symbol || 'BTCUSDT')}`;
 });
 
+marketsMenuToggle?.addEventListener('click', () => setMarketsNavOpen(true));
+marketsNavClose?.addEventListener('click', () => setMarketsNavOpen(false));
+marketsNavOverlay?.addEventListener('click', () => setMarketsNavOpen(false));
+
+marketsNavDrawer?.addEventListener('click', (event) => {
+  const link = event.target.closest('a[href]');
+  if (link) {
+    setMarketsNavOpen(false);
+  }
+});
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    setMarketsNavOpen(false);
+  }
+});
+
+initThemeControls();
 setTab('popular');
+loadCurrentUser();
 loadMarkets();
 setInterval(loadMarkets, 10000);

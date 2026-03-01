@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Bitegit Trade</title>
-    <link rel="stylesheet" href="/mobile-nav.css?v=20260227c" />
-    <link rel="stylesheet" href="/trade.css?v=20260227c" />
+    <link rel="stylesheet" href="/mobile-nav.css?v=20260301a" />
+    <link rel="stylesheet" href="/trade.css?v=20260301a" />
   </head>
   <body class="trade-page has-mobile-nav">
     <header class="trade-topbar" id="tradeHeader">
@@ -41,8 +41,9 @@
       </nav>
 
       <div class="topbar-actions">
-        <a class="link-btn" href="/p2p#p2pLoginCard">Log In</a>
-        <a class="solid-btn" href="/?signup=1">Sign Up</a>
+        <a id="tradeLoginBtn" class="link-btn" href="/p2p?redirect=%2Ftrade%2Fspot%2FBTCUSDT#p2pLoginCard">Log In</a>
+        <button id="tradeThemeToggle" type="button" class="theme-toggle-btn" aria-label="Toggle theme">🌙</button>
+        <button id="tradeUserAvatar" type="button" class="avatar-btn" aria-label="Open account menu">U</button>
       </div>
     </header>
 
@@ -55,10 +56,27 @@
       <nav class="trade-nav-links" aria-label="Mobile trade navigation">
         <a href="/">Buy Crypto</a>
         <a href="/markets.html">Markets</a>
+        <a href="/trade/spot/BTCUSDT">Spot</a>
+        <a href="/trade/perp/BTCUSDT">Futures</a>
         <a href="/p2p">P2P</a>
-        <a href="/trade/spot/BTCUSDT">Trade</a>
-        <a href="/trade/perp/BTCUSDT">Derivatives</a>
+        <a href="/#crypto-for-everyone">Earn</a>
+        <a href="/#events">ICO</a>
+        <a href="/#support">Support</a>
+        <a href="/p2p#orders">Assets</a>
+        <a href="/p2p?redirect=%2Ftrade%2Fspot%2FBTCUSDT#p2pLoginCard">Log In</a>
+        <button id="tradeDrawerLogout" type="button">Logout</button>
       </nav>
+      <div class="trade-nav-extra">
+        <button id="tradeDrawerThemeToggle" type="button" class="theme-toggle-row">🌙 Theme</button>
+        <label class="trade-lang-row" for="tradeLanguageSelect">
+          <span>Language</span>
+          <select id="tradeLanguageSelect">
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+          </select>
+        </label>
+        <a href="/#app-download" class="trade-download-row">Download App</a>
+      </div>
     </aside>
 
     <section class="trade-stats-strip">
@@ -297,6 +315,7 @@
     </nav>
 
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
-    <script src="/trade.js?v=20260227d"></script>
+    <script src="/theme.js?v=20260301a"></script>
+    <script src="/trade.js?v=20260301a"></script>
   </body>
 </html>

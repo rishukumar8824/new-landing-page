@@ -194,6 +194,22 @@ function formatDateTime(value) {
   return date.toLocaleString();
 }
 
+function getPostLoginRedirectPath() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const redirect = String(params.get('redirect') || '').trim();
+    if (!redirect) {
+      return '';
+    }
+    if (!redirect.startsWith('/') || redirect.startsWith('//')) {
+      return '';
+    }
+    return redirect;
+  } catch (_) {
+    return '';
+  }
+}
+
 function normalizeStatusForUi(status) {
   if (status === 'PENDING' || status === 'OPEN') {
     return 'CREATED';
@@ -1454,6 +1470,12 @@ async function loginUser() {
     await loadLiveOrders();
     await loadMyAds();
     await loadProfilePanel({ refreshWallet: true });
+
+    const redirectPath = getPostLoginRedirectPath();
+    if (redirectPath) {
+      window.location.href = redirectPath;
+      return;
+    }
   } catch (error) {
     setUserStatus(error.message, 'user-error');
   }

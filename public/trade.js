@@ -86,6 +86,11 @@ const tradeMenuToggle = document.getElementById('tradeMenuToggle');
 const tradeNavClose = document.getElementById('tradeNavClose');
 const tradeNavDrawer = document.getElementById('tradeNavDrawer');
 const tradeNavOverlay = document.getElementById('tradeNavOverlay');
+const tradeThemeToggle = document.getElementById('tradeThemeToggle');
+const tradeDrawerThemeToggle = document.getElementById('tradeDrawerThemeToggle');
+const tradeDrawerLogout = document.getElementById('tradeDrawerLogout');
+const tradeLoginBtn = document.getElementById('tradeLoginBtn');
+const tradeUserAvatar = document.getElementById('tradeUserAvatar');
 
 let depthTimer = null;
 let klineTimer = null;
@@ -99,6 +104,7 @@ let activeChartMode = 'tradingview';
 let tradingViewScriptPromise = null;
 let tradingViewWidget = null;
 let tvWidgetContainerId = null;
+let activeTradeUser = null;
 const COIN_ICON_CODES = {
   BTC: 'btc',
   ETH: 'eth',
@@ -211,6 +217,89 @@ function getTradingViewSymbol() {
   return `BINANCE:${state.symbol}`;
 }
 
+function getThemeMode() {
+  const mode = document.documentElement.getAttribute('data-theme') || document.body?.getAttribute('data-theme') || 'dark';
+  return mode === 'light' ? 'light' : 'dark';
+}
+
+function getDrawerLoginLink() {
+  return tradeNavDrawer?.querySelector('a[href*="/p2p?redirect="]') || null;
+}
+
+function setAccountUi() {
+  const user = activeTradeUser;
+  const loggedIn = Boolean(user);
+  const initial = String(user?.username || user?.email || 'U')
+    .trim()
+    .slice(0, 1)
+    .toUpperCase() || 'U';
+
+  if (tradeUserAvatar) {
+    tradeUserAvatar.textContent = initial;
+    tradeUserAvatar.style.display = loggedIn ? 'inline-flex' : 'none';
+    tradeUserAvatar.title = loggedIn ? String(user?.email || user?.username || 'Account') : '';
+  }
+  if (tradeLoginBtn) {
+    tradeLoginBtn.style.display = loggedIn ? 'none' : 'inline-flex';
+  }
+  if (tradeDrawerLogout) {
+    tradeDrawerLogout.style.display = loggedIn ? 'inline-flex' : 'none';
+  }
+
+  const drawerLogin = getDrawerLoginLink();
+  if (drawerLogin) {
+    drawerLogin.style.display = loggedIn ? 'none' : 'inline-flex';
+  }
+}
+
+async function loadTradeUserSession() {
+  try {
+    const response = await fetch('/api/p2p/me');
+    const data = await response.json();
+    if (response.ok && data?.loggedIn && data?.user) {
+      activeTradeUser = data.user;
+    } else {
+      activeTradeUser = null;
+    }
+  } catch (_) {
+    activeTradeUser = null;
+  }
+  setAccountUi();
+}
+
+async function logoutTradeSession() {
+  try {
+    await fetch('/api/p2p/logout', { method: 'POST' });
+  } catch (_) {
+    // ignore logout errors
+  }
+  activeTradeUser = null;
+  setAccountUi();
+  setTradeNavOpen(false);
+}
+
+function initTradeTheme() {
+  const syncThemeDependentUi = () => {
+    document.body?.setAttribute('data-theme', getThemeMode());
+    if (activeChartMode === 'tradingview') {
+      void renderTradingViewWidget(true);
+    }
+  };
+
+  if (window.BitegitTheme?.initThemeToggle) {
+    window.BitegitTheme.initThemeToggle([tradeThemeToggle, tradeDrawerThemeToggle]);
+  }
+
+  tradeThemeToggle?.addEventListener('click', () => {
+    window.setTimeout(syncThemeDependentUi, 0);
+  });
+  tradeDrawerThemeToggle?.addEventListener('click', () => {
+    window.setTimeout(syncThemeDependentUi, 0);
+  });
+
+  syncThemeDependentUi();
+}
+
 function loadTradingViewScript() {
   if (window.TradingView?.widget) {
     return Promise.resolve();
@@ -298,10 +387,10 @@ async function renderTradingViewWidget(forceRecreate = false) {
     symbol: getTradingViewSymbol(),
     interval: getTradingViewInterval(state.interval),
     timezone: 'Etc/UTC',
-    theme: 'dark',
+    theme: getThemeMode(),
     style: '1',
     locale: 'en',
-    toolbar_bg: '#070c14',
+    toolbar_bg: getThemeMode() === 'light' ? '#f5f8fd' : '#070c14',
     hide_top_toolbar: false,
     hide_side_toolbar: false,
     hide_legend: false,
@@ -1527,6 +1616,12 @@ function setupInteractions() {
     }
   });
 
+  tradeDrawerLogout?.addEventListener('click', async () => {
+    await logoutTradeSession();
+  });
+
+  tradeUserAvatar?.addEventListener('click', () => setTradeNavOpen(true));
+
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       setTradeNavOpen(false);
@@ -1545,8 +1640,10 @@ function setupInteractions() {
 }
 
 async function initTradePage() {
+  initTradeTheme();
   setPairIdentity();
   setupInteractions();
+  await loadTradeUserSession();
   setOrderType(tradeOrderType?.value || 'limit');
   setTradeSide(state.tradeSide);
   syncAmountInputs(Number(tradeAmountUsdt?.value || 100));
