@@ -243,6 +243,11 @@ function registerAdminRoutes(app, deps) {
   }));
 
   app.post('/api/admin/logout', withLogging({ module: 'auth', action: 'legacy_logout' }, adminControllers.authLogout));
+
+  // Browser compatibility for manual checks: open the admin login page on GET.
+  app.get('/api/admin/login', (req, res) => {
+    return res.redirect('/admin/login');
+  });
 }
 
 module.exports = {

@@ -1962,6 +1962,13 @@ app.get('/healthz', (req, res) => {
   return res.status(200).json({ status: 'ok', db: 'connected' });
 });
 
+app.get('/api/health', (req, res) => {
+  if (!persistenceReady || !isDbConnected()) {
+    return res.status(503).json({ status: 'error', db: 'disconnected' });
+  }
+  return res.status(200).json({ status: 'ok', db: 'connected' });
+});
+
 async function boot() {
   try {
     validateStartupConfig();
