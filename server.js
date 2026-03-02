@@ -1,4 +1,4 @@
-require('dotenv').config({ override: true });
+require('dotenv').config();
 
 const crypto = require('crypto');
 const express = require('express');
@@ -56,10 +56,9 @@ const P2P_ORDER_ACTIVE_STATUSES = ['CREATED', 'PENDING', 'PAID', 'PAYMENT_SENT',
 const IS_PRODUCTION = String(process.env.NODE_ENV || '')
   .trim()
   .toLowerCase() === 'production';
-const ALLOW_DEMO_OTP =
-  String(process.env.ALLOW_DEMO_OTP || '')
-    .trim()
-    .toLowerCase() === 'true' || !IS_PRODUCTION;
+const ALLOW_DEMO_OTP = String(process.env.ALLOW_DEMO_OTP || '')
+  .trim()
+  .toLowerCase() === 'true';
 
 const p2pOrderStreams = new Map();
 const DEFAULT_TICKER_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'];
@@ -131,6 +130,21 @@ function validateStartupConfig() {
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}. Configure them in .env file.`);
   }
+}
+
+function logEmailProviderRuntimeEnv() {
+  console.log('Email provider env status:', {
+    hasResendApiKey: Boolean(String(process.env.RESEND_API_KEY || '').trim()),
+    hasResendAliasKey: Boolean(String(process.env.RESEND || '').trim()),
+    hasResendFromEmail: Boolean(String(process.env.RESEND_FROM_EMAIL || '').trim()),
+    hasMailFromAlias: Boolean(String(process.env.MAIL_FROM || '').trim()),
+    hasSmtpHost: Boolean(String(process.env.SMTP_HOST || '').trim()),
+    hasSmtpUser: Boolean(String(process.env.SMTP_USER || '').trim()),
+    hasSmtpPass: Boolean(String(process.env.SMTP_PASS || '').trim()),
+    hasSmtpFromEmail: Boolean(String(process.env.SMTP_FROM_EMAIL || '').trim()),
+    hasGmailUser: Boolean(String(process.env.GMAIL_USER || '').trim()),
+    hasGmailAppPassword: Boolean(String(process.env.GMAIL_APP_PASSWORD || '').trim())
+  });
 }
 
 function saveLeadRecord(name, contact, extra = {}) {
@@ -1937,6 +1951,7 @@ async function boot() {
     repos = createRepositories(collections);
     auditLogService = createAuditLogService(collections);
     authEmailService = createAuthEmailService();
+    logEmailProviderRuntimeEnv();
     walletService = createWalletService(collections, getMongoClient(), {
       hooks: {
         afterOperation: async (payload) => {
