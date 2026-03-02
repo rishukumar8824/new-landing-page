@@ -7,6 +7,16 @@ const BRAND_ACCENT = '#f0b90b';
 const BRAND_DARK = '#181a20';
 let providerConfigLogged = false;
 
+function firstNonEmptyEnv(...values) {
+  for (const value of values) {
+    const normalized = String(value || '').trim();
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return '';
+}
+
 function escapeHtml(input) {
   return String(input || '')
     .replace(/&/g, '&amp;')
@@ -63,22 +73,22 @@ function buildEmailShell({ title, subtitle, bodyHtml }) {
 }
 
 function resolveTransportConfig() {
-  const resendApiKey = String(process.env.RESEND_API_KEY || process.env.RESEND || '').trim();
-  const resendFromEmail = String(
-    process.env.RESEND_FROM_EMAIL || process.env.MAIL_FROM || process.env.SMTP_FROM_EMAIL || ''
-  ).trim();
-  const smtpHost = String(process.env.SMTP_HOST || '').trim();
+  const resendApiKey = firstNonEmptyEnv(process.env.RESEND_API_KEY, process.env.RESEND);
+  const resendFromEmail = firstNonEmptyEnv(
+    process.env.RESEND_FROM_EMAIL,
+    process.env.MAIL_FROM,
+    process.env.SMTP_FROM_EMAIL
+  );
+  const smtpHost = firstNonEmptyEnv(process.env.SMTP_HOST);
   const smtpPortRaw = String(process.env.SMTP_PORT || '').trim();
-  const smtpUser = String(process.env.SMTP_USER || '').trim();
-  const smtpPass = String(process.env.SMTP_PASS || '').trim();
-  const smtpFromEmail = String(
-    process.env.SMTP_FROM_EMAIL || process.env.MAIL_FROM || ''
-  ).trim();
+  const smtpUser = firstNonEmptyEnv(process.env.SMTP_USER);
+  const smtpPass = firstNonEmptyEnv(process.env.SMTP_PASS);
+  const smtpFromEmail = firstNonEmptyEnv(process.env.SMTP_FROM_EMAIL, process.env.MAIL_FROM);
   const smtpSecureRaw = String(process.env.SMTP_SECURE || '')
     .trim()
     .toLowerCase();
-  const gmailUser = String(process.env.GMAIL_USER || '').trim();
-  const gmailAppPassword = String(process.env.GMAIL_APP_PASSWORD || '').trim();
+  const gmailUser = firstNonEmptyEnv(process.env.GMAIL_USER);
+  const gmailAppPassword = firstNonEmptyEnv(process.env.GMAIL_APP_PASSWORD);
 
   if (!providerConfigLogged) {
     providerConfigLogged = true;
