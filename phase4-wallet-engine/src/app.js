@@ -5,6 +5,7 @@ import walletRoutes from './routes/walletRoutes.js';
 import depositRoutes from './routes/depositRoutes.js';
 import withdrawRoutes from './routes/withdrawRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import { encrypt, decrypt } from './utils/encryption.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -18,6 +19,26 @@ app.get('/health', (req, res) => {
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK' });
+});
+
+app.get('/api/test/encryption', (req, res) => {
+  try {
+    const text = String(req.query.text || 'test-message');
+    const encrypted = encrypt(text);
+    const decrypted = decrypt(encrypted);
+
+    return res.json({
+      ok: true,
+      input: text,
+      encrypted,
+      decrypted
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: String(error?.message || 'Encryption test failed')
+    });
+  }
 });
 
 app.use('/api', authRoutes);
