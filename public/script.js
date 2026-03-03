@@ -252,6 +252,76 @@ function initScrollReveal() {
   });
 }
 
+function setupEveryone3DReveal() {
+  const everyoneSection = document.querySelector('.cf-everyone');
+  if (!everyoneSection || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    return;
+  }
+
+  let inViewport = false;
+  let rafId = 0;
+
+  const resetEffect = () => {
+    everyoneSection.classList.remove('cf-everyone-3d-active');
+    everyoneSection.style.removeProperty('transform');
+    everyoneSection.style.removeProperty('box-shadow');
+  };
+
+  const updateEffect = () => {
+    rafId = 0;
+    if (!inViewport || document.hidden || !everyoneSection.classList.contains('is-visible')) {
+      return;
+    }
+
+    const rect = everyoneSection.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || 1;
+    const progressRaw = (viewportHeight - rect.top) / (viewportHeight + rect.height * 0.45);
+    const progress = Math.min(1, Math.max(0, progressRaw));
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const riseMax = isMobile ? 7 : 16;
+    const tiltMax = isMobile ? 2.2 : 5.4;
+    const rise = (1 - progress) * riseMax;
+    const tilt = (1 - progress) * tiltMax;
+    const shadowY = Math.round(22 + progress * 14);
+    const shadowBlur = Math.round(52 + progress * 16);
+    const shadowAlpha = (0.28 + progress * 0.16).toFixed(3);
+
+    everyoneSection.classList.add('cf-everyone-3d-active');
+    everyoneSection.style.transform = `translate3d(0, ${rise.toFixed(2)}px, 0) rotateX(${tilt.toFixed(2)}deg)`;
+    everyoneSection.style.boxShadow = `0 ${shadowY}px ${shadowBlur}px rgba(0, 0, 0, ${shadowAlpha})`;
+  };
+
+  const scheduleUpdate = () => {
+    if (rafId || !inViewport || document.hidden) {
+      return;
+    }
+    rafId = window.requestAnimationFrame(updateEffect);
+  };
+
+  const sectionObserver = new IntersectionObserver(
+    (entries) => {
+      inViewport = Boolean(entries[0]?.isIntersecting);
+      if (!inViewport) {
+        resetEffect();
+        return;
+      }
+      scheduleUpdate();
+      window.setTimeout(scheduleUpdate, 120);
+    },
+    { threshold: [0, 0.15, 0.35], rootMargin: '120px 0px 120px 0px' }
+  );
+
+  sectionObserver.observe(everyoneSection);
+  window.addEventListener('scroll', scheduleUpdate, { passive: true });
+  window.addEventListener('resize', scheduleUpdate, { passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      return;
+    }
+    scheduleUpdate();
+  });
+}
+
 function formatPrice(value) {
   return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
@@ -1049,6 +1119,7 @@ setMarketTab('hotspot');
 animateCounter(309497423);
 renderNews();
 initScrollReveal();
+setupEveryone3DReveal();
 syncHomeInteractionState();
 loadMarket();
 startMarketAutoRefresh();
