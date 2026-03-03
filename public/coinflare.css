@@ -1615,6 +1615,107 @@ a {
   font-size: 0.95rem;
 }
 
+.cf-copy-subtitle {
+  margin: 0.55rem 0 0;
+  color: #c9d6ea;
+  font-size: 0.95rem;
+}
+
+.cf-copy-grid {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.cf-copy-card {
+  border: 1px solid rgba(178, 197, 226, 0.28);
+  border-radius: 18px;
+  background: #070b12;
+  padding: 0.95rem;
+  display: grid;
+  gap: 0.72rem;
+}
+
+.cf-copy-card.is-highlight {
+  border-color: rgba(139, 243, 0, 0.78);
+  box-shadow: 0 0 0 1px rgba(139, 243, 0, 0.18), inset 0 0 26px rgba(139, 243, 0, 0.06);
+}
+
+.cf-copy-head {
+  display: flex;
+  align-items: center;
+  gap: 0.62rem;
+}
+
+.cf-copy-head h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: #f4f8ff;
+}
+
+.cf-copy-head p {
+  margin: 0.12rem 0 0;
+  color: #9fb0ca;
+  font-size: 0.82rem;
+}
+
+.cf-copy-metrics {
+  display: grid;
+  gap: 0.44rem;
+}
+
+.cf-copy-metrics p {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.cf-copy-metrics span {
+  color: #8f9eb7;
+  font-size: 0.8rem;
+}
+
+.cf-copy-metrics strong {
+  color: #e8f0fe;
+  font-size: 1rem;
+}
+
+.cf-copy-chart {
+  height: 84px;
+  border: 1px solid rgba(157, 179, 213, 0.2);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(6, 14, 24, 0.9), rgba(6, 12, 20, 0.55));
+  padding: 0.4rem;
+}
+
+.cf-copy-chart svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.cf-copy-chart polyline {
+  fill: none;
+  stroke: #1fd8a4;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cf-copy-btn {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(176, 196, 226, 0.28);
+  background: #080f1b;
+  color: #eef5ff;
+  font-weight: 700;
+  font-size: 0.96rem;
+  cursor: pointer;
+}
+
 .cf-neon-strip {
   overflow: hidden;
 }
@@ -1950,6 +2051,10 @@ a {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .cf-copy-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .cf-partners {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
@@ -2235,6 +2340,18 @@ a {
   .cf-market-head span:nth-child(3) {
     grid-area: change;
     justify-self: end;
+  }
+
+  .cf-copy-grid {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(260px, 78vw);
+    overflow-x: auto;
+    padding-bottom: 0.35rem;
+    scrollbar-width: none;
+  }
+
+  .cf-copy-grid::-webkit-scrollbar {
+    display: none;
   }
 
   .cf-news-card,

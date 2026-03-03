@@ -424,6 +424,20 @@ function openTradePage(symbol, marketType = 'spot') {
   window.location.href = `/trade/${market}/${encodeURIComponent(finalSymbol || 'BTCUSDT')}`;
 }
 
+function openCopyTradingChart(symbol) {
+  const safeSymbol = String(symbol || 'BTCUSDT')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+  const finalSymbol = safeSymbol.endsWith('USDTP') ? safeSymbol.replace(/USDTP$/, 'USDT') : safeSymbol || 'BTCUSDT';
+
+  if (chartModal) {
+    openChart(finalSymbol);
+    return;
+  }
+
+  openTradePage(finalSymbol, 'spot');
+}
+
 function renderMiniMarketRows(ticker) {
   if (!marketList) {
     return;
@@ -791,6 +805,16 @@ document.querySelectorAll('.cf-view-more[data-market]').forEach((button) => {
     const marketType = button.dataset.market === 'perp' ? 'perp' : 'spot';
     openTradePage('BTCUSDT', marketType);
   });
+});
+
+document.addEventListener('click', (event) => {
+  const copyTrigger = event.target.closest('.cf-copy-btn');
+  if (!copyTrigger) {
+    return;
+  }
+
+  const symbol = String(copyTrigger.dataset.copySymbol || copyTrigger.closest('[data-copy-symbol]')?.dataset.copySymbol || 'BTCUSDT');
+  openCopyTradingChart(symbol);
 });
 
 if (closeChartBtn) {
