@@ -604,6 +604,74 @@ function setupEventsCarousel() {
   }
 }
 
+function setupCopyTradingCarousel() {
+  const copyTrack = document.querySelector('.cf-copy-grid');
+  if (!copyTrack) {
+    return;
+  }
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isCompactViewport = window.matchMedia('(max-width: 1023px)').matches;
+  if (prefersReducedMotion || !isCompactViewport) {
+    return;
+  }
+
+  let frameId = null;
+  let resumeTimer = null;
+  const speed = 0.45;
+
+  const stopAutoScroll = () => {
+    if (resumeTimer) {
+      clearTimeout(resumeTimer);
+      resumeTimer = null;
+    }
+    if (frameId !== null) {
+      cancelAnimationFrame(frameId);
+      frameId = null;
+    }
+  };
+
+  const tick = () => {
+    const max = Math.max(0, copyTrack.scrollWidth - copyTrack.clientWidth);
+    if (max > 1) {
+      const next = copyTrack.scrollLeft + speed;
+      copyTrack.scrollLeft = next >= max ? 0 : next;
+    }
+    frameId = requestAnimationFrame(tick);
+  };
+
+  const startAutoScroll = () => {
+    if (frameId !== null || document.hidden) {
+      return;
+    }
+    frameId = requestAnimationFrame(tick);
+  };
+
+  const pauseThenResume = () => {
+    stopAutoScroll();
+    resumeTimer = setTimeout(() => {
+      startAutoScroll();
+    }, 1200);
+  };
+
+  copyTrack.addEventListener('touchstart', stopAutoScroll, { passive: true });
+  copyTrack.addEventListener('touchend', pauseThenResume);
+  copyTrack.addEventListener('pointerdown', stopAutoScroll);
+  copyTrack.addEventListener('pointerup', pauseThenResume);
+  copyTrack.addEventListener('mouseenter', stopAutoScroll);
+  copyTrack.addEventListener('mouseleave', startAutoScroll);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopAutoScroll();
+      return;
+    }
+    startAutoScroll();
+  });
+
+  startAutoScroll();
+}
+
 async function loadMarket() {
   try {
     const params = new URLSearchParams({
@@ -840,6 +908,7 @@ window.addEventListener('pagehide', () => {
 
 setupHomeNav();
 setupEventsCarousel();
+setupCopyTradingCarousel();
 setMarketTab('hotspot');
 animateCounter(309497423);
 renderNews();

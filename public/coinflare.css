@@ -2408,16 +2408,27 @@ a {
   }
 
   .cf-copy-grid {
-    grid-template-columns: minmax(0, 1fr);
-    grid-auto-flow: row;
-    grid-auto-columns: 1fr;
-    overflow-x: hidden;
-    padding-bottom: 0;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding-bottom: 0.35rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .cf-copy-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .cf-copy-section {
+    overflow: hidden;
   }
 
   .cf-copy-card {
-    width: 100%;
-    min-width: 0;
+    width: auto;
+    min-width: min(84vw, 320px);
+    flex: 0 0 min(84vw, 320px);
   }
 
   .cf-news-card,
