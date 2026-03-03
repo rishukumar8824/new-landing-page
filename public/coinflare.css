@@ -874,7 +874,7 @@ a {
 
 .cf-hot-market-pair p {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
@@ -882,8 +882,8 @@ a {
 }
 
 .cf-hot-coin-dot {
-  width: 1.85rem;
-  height: 1.85rem;
+  width: 1.7rem;
+  height: 1.7rem;
   border-radius: 50%;
   position: relative;
   overflow: hidden;
@@ -910,23 +910,23 @@ a {
 }
 
 .cf-hot-market-price strong {
-  font-size: 1.03rem;
+  font-size: 0.95rem;
   font-weight: 800;
 }
 
 .cf-hot-market-price span {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: #8d9bb2;
 }
 
 .cf-hot-market-change {
-  min-width: 102px;
-  min-height: 40px;
+  min-width: 90px;
+  min-height: 36px;
   border-radius: 11px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.99rem;
+  font-size: 0.88rem;
   font-weight: 800;
 }
 
@@ -2424,6 +2424,29 @@ a {
     color: #ffffff;
     border-bottom-color: #ffffff;
     background: transparent;
+  }
+
+  .cf-hot-market-pair p {
+    font-size: 0.86rem;
+  }
+
+  .cf-hot-coin-dot {
+    width: 1.55rem;
+    height: 1.55rem;
+  }
+
+  .cf-hot-market-price strong {
+    font-size: 0.9rem;
+  }
+
+  .cf-hot-market-price span {
+    font-size: 0.72rem;
+  }
+
+  .cf-hot-market-change {
+    min-width: 84px;
+    min-height: 34px;
+    font-size: 0.84rem;
   }
 
   .cf-exchange-ticker-bar {
