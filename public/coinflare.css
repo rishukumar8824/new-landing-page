@@ -175,6 +175,11 @@ a {
   transform: translateY(-1px);
 }
 
+body.coinflare-page.cf-chart-open .cf-signup,
+body.coinflare-page.cf-chart-open .cf-signup-link {
+  display: none !important;
+}
+
 .cf-nav-toggle {
   width: 42px;
   height: 42px;

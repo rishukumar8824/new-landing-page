@@ -250,6 +250,11 @@ body.trade-nav-open {
   color: var(--tr-btn-text-dark);
 }
 
+#tradeSignupBtn,
+.trade-nav-links [data-drawer-signup] {
+  display: none !important;
+}
+
 .theme-toggle-btn,
 .avatar-btn {
   width: 36px;

@@ -105,6 +105,7 @@ let activeChartMode = 'tradingview';
 let tradingViewScriptPromise = null;
 let tradingViewWidget = null;
 let tvWidgetContainerId = null;
+let tradingViewRenderRequestId = 0;
 let activeTradeUser = null;
 const COIN_ICON_CODES = {
   BTC: 'btc',
@@ -293,7 +294,7 @@ async function logoutTradeSession() {
 function initTradeTheme() {
   const syncThemeDependentUi = () => {
     document.body?.setAttribute('data-theme', getThemeMode());
-    if (activeChartMode === 'tradingview') {
+    if (activeChartMode === 'tradingview' && tradingViewWidget) {
       void renderTradingViewWidget(true);
     }
   };
@@ -369,6 +370,7 @@ async function renderTradingViewWidget(forceRecreate = false) {
   if (!tvChartHost || activeChartMode !== 'tradingview') {
     return false;
   }
+  const requestId = ++tradingViewRenderRequestId;
 
   if (canvas) {
     canvas.style.display = 'none';
@@ -380,12 +382,22 @@ async function renderTradingViewWidget(forceRecreate = false) {
   tvChartHost.classList.add('is-widget-active');
 
   await loadTradingViewScript();
+  if (requestId !== tradingViewRenderRequestId || activeChartMode !== 'tradingview') {
+    return false;
+  }
   if (!window.TradingView?.widget) {
     throw new Error('TradingView widget unavailable.');
   }
 
+  if (!forceRecreate && tradingViewWidget) {
+    return true;
+  }
+
   if (forceRecreate || tradingViewWidget) {
     destroyTradingViewWidget();
+  }
+  if (requestId !== tradingViewRenderRequestId || activeChartMode !== 'tradingview') {
+    return false;
   }
 
   tvChartHost.style.display = 'block';
@@ -450,6 +462,7 @@ async function setChartMode(mode, options = {}) {
     }
   }
 
+  tradingViewRenderRequestId += 1;
   destroyTradingViewWidget();
   if (tvChartHost) {
     tvChartHost.style.touchAction = 'none';

@@ -391,9 +391,13 @@ function openChart(symbol) {
   if (!chartModal || !chartModalTitle) {
     return;
   }
+  if (!chartModal.classList.contains('hidden') && activeBookSymbol === symbol) {
+    return;
+  }
   const pair = symbol.replace('USDT', '/USDT');
   chartModalTitle.textContent = `${pair} Live Order Book`;
   activeBookSymbol = symbol;
+  document.body.classList.add('cf-chart-open');
   chartModal.classList.remove('hidden');
   chartModal.setAttribute('aria-hidden', 'false');
 
@@ -416,6 +420,7 @@ function closeChart() {
   }
   chartModal.classList.add('hidden');
   chartModal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('cf-chart-open');
   syncHomeInteractionState();
 }
 
@@ -885,11 +890,8 @@ if (form) {
       return;
     }
 
-    try {
-      await startEmailSignup(contact, name);
-    } catch (error) {
-      setMessage(error.message, 'error');
-    }
+    const nextUrl = `/auth.html?mode=signup&email=${encodeURIComponent(contact)}&name=${encodeURIComponent(name)}`;
+    window.location.href = nextUrl;
   });
 }
 
