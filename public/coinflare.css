@@ -380,8 +380,11 @@ a {
 
 .hero {
   position: relative;
-  height: 100vh;
   min-height: 100vh;
+  height: auto;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
   overflow: hidden;
   isolation: isolate;
   padding: 0;
@@ -413,12 +416,12 @@ a {
 .hero-overlay {
   position: relative;
   z-index: 1;
-  height: 100%;
+  min-height: 100vh;
   display: grid;
   align-content: start;
   gap: 1.5rem;
   padding: clamp(1rem, 3.5vw, 2.4rem);
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .cf-hero {
@@ -2087,11 +2090,12 @@ a {
   }
 
   .bg-video {
-    display: none;
+    display: block;
   }
 
   .hero-overlay {
     padding: 1rem;
+    min-height: 100svh;
     overflow: visible;
   }
 
