@@ -16,10 +16,39 @@ const transferBtn = document.getElementById('assetsTransferBtn');
 
 const depositModal = document.getElementById('depositModal');
 const withdrawModal = document.getElementById('withdrawModal');
+const depositAddressValueEl = document.getElementById('assetsDepositAddressValue');
+const depositCopyBtn = document.getElementById('assetsDepositCopyBtn');
+const withdrawForm = document.getElementById('assetsWithdrawForm');
+const withdrawAddressInput = document.getElementById('assetsWithdrawAddress');
+const withdrawAmountInput = document.getElementById('assetsWithdrawAmount');
+const withdrawResultEl = document.getElementById('assetsWithdrawResult');
+const withdrawSubmitBtn = document.getElementById('assetsWithdrawSubmitBtn');
+
+const WALLET_ENDPOINTS = ['/api/wallet/summary', '/api/wallet', '/api/p2p/wallet'];
+const WITHDRAW_ENDPOINTS = [
+  {
+    url: '/api/withdrawals',
+    buildBody: (amount, address) => ({
+      amount,
+      currency: 'USDT',
+      address
+    })
+  },
+  {
+    url: '/api/withdraw/request',
+    buildBody: (amount, address) => ({
+      amount,
+      coin: 'USDT',
+      to_address: address
+    })
+  }
+];
 
 const state = {
   activeTab: 'overview',
   loading: false,
+  walletApiEndpoint: '',
+  depositAddress: '',
   balances: {
     total: 0,
     spot: 0,
@@ -30,6 +59,29 @@ const state = {
 function toNumber(value) {
   const num = Number(value);
   return Number.isFinite(num) ? num : 0;
+}
+
+function hasValue(value) {
+  return value !== undefined && value !== null && String(value).trim() !== '';
+}
+
+function pickString(...candidates) {
+  for (const candidate of candidates) {
+    if (hasValue(candidate)) {
+      return String(candidate).trim();
+    }
+  }
+  return '';
+}
+
+function pickNumber(...candidates) {
+  for (const candidate of candidates) {
+    const parsed = Number(candidate);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return 0;
 }
 
 function formatUsdt(value) {
@@ -55,6 +107,103 @@ function setActionMessage(text = '') {
   assetsActionMessage.textContent = text;
 }
 
+function setWithdrawResult(text = '', type = '') {
+  if (!withdrawResultEl) {
+    return;
+  }
+  withdrawResultEl.textContent = text;
+  withdrawResultEl.className = 'assets-summary-line';
+  if (type) {
+    withdrawResultEl.classList.add(type);
+  }
+}
+
+function normalizeWalletPayload(payload) {
+  const root = payload?.data && typeof payload.data === 'object' ? payload.data : payload || {};
+  const wallet = root?.wallet && typeof root.wallet === 'object' ? root.wallet : {};
+  const summary = root?.summary && typeof root.summary === 'object' ? root.summary : root;
+
+  const available = pickNumber(
+    summary.available_balance,
+    summary.availableBalance,
+    summary.spot_balance,
+    summary.spotBalance,
+    wallet.available_balance,
+    wallet.availableBalance,
+    wallet.balance
+  );
+
+  const locked = pickNumber(
+    summary.locked_balance,
+    summary.lockedBalance,
+    wallet.locked_balance,
+    wallet.lockedBalance,
+    wallet.p2pLocked
+  );
+
+  const total = pickNumber(
+    summary.total_balance,
+    summary.totalBalance,
+    summary.total,
+    wallet.total_balance,
+    wallet.totalBalance,
+    available + locked
+  );
+
+  const spot = pickNumber(
+    summary.spot_balance,
+    summary.spotBalance,
+    summary.spot,
+    available
+  );
+
+  const funding = pickNumber(
+    summary.funding_balance,
+    summary.fundingBalance,
+    summary.funding,
+    wallet.funding_balance,
+    wallet.fundingBalance,
+    available
+  );
+
+  const depositAddress = pickString(
+    summary.deposit_address,
+    summary.depositAddress,
+    wallet.deposit_address,
+    wallet.depositAddress,
+    payload?.deposit_address,
+    payload?.depositAddress
+  );
+
+  return {
+    balances: {
+      total: toNumber(total),
+      spot: toNumber(spot),
+      funding: toNumber(funding)
+    },
+    depositAddress
+  };
+}
+
+function renderDepositAddress() {
+  if (!depositAddressValueEl) {
+    return;
+  }
+
+  if (state.depositAddress) {
+    depositAddressValueEl.textContent = state.depositAddress;
+    if (depositCopyBtn) {
+      depositCopyBtn.disabled = false;
+    }
+    return;
+  }
+
+  depositAddressValueEl.textContent = 'Admin will provide deposit address shortly.';
+  if (depositCopyBtn) {
+    depositCopyBtn.disabled = true;
+  }
+}
+
 function renderBalances() {
   if (totalBalanceEl) {
     totalBalanceEl.textContent = formatUsdt(state.balances.total);
@@ -71,6 +220,7 @@ function renderBalances() {
   if (fundingInlineEl) {
     fundingInlineEl.textContent = formatUsdt(state.balances.funding);
   }
+  renderDepositAddress();
 }
 
 function setActiveTab(tab) {
@@ -116,6 +266,20 @@ function closeAllModals() {
   document.body.style.overflow = 'auto';
 }
 
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, {
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    },
+    ...options
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  return { response, payload };
+}
+
 async function loadWalletSummary() {
   if (state.loading) {
     return;
@@ -125,33 +289,122 @@ async function loadWalletSummary() {
   setStatus('Loading balances...');
 
   try {
-    const response = await fetch('/api/wallet/summary', {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
+    let loaded = false;
+    let fallbackErrorMessage = 'Wallet API not available.';
 
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(payload?.message || `Unable to load wallet summary (${response.status})`);
+    for (const endpoint of WALLET_ENDPOINTS) {
+      const { response, payload } = await requestJson(endpoint, { method: 'GET' });
+
+      if (response.status === 404) {
+        continue;
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Please login to view wallet balances.');
+      }
+
+      if (!response.ok) {
+        const serverMessage = String(payload?.message || '').trim();
+        fallbackErrorMessage = serverMessage || `Unable to load wallet (${response.status})`;
+        continue;
+      }
+
+      const normalized = normalizeWalletPayload(payload);
+      state.walletApiEndpoint = endpoint;
+      state.balances = normalized.balances;
+      state.depositAddress = normalized.depositAddress || '';
+      loaded = true;
+      break;
     }
 
-    const data = payload?.data || payload;
-    const summary = data?.summary || data || {};
-
-    state.balances.total = toNumber(summary.total_balance ?? summary.total ?? summary.totalBalance);
-    state.balances.spot = toNumber(summary.spot_balance ?? summary.spot ?? summary.spotBalance);
-    state.balances.funding = toNumber(summary.funding_balance ?? summary.funding ?? summary.fundingBalance);
+    if (!loaded) {
+      throw new Error(fallbackErrorMessage);
+    }
 
     renderBalances();
     setStatus('Balances synced.');
   } catch (error) {
     console.error(error);
-    setStatus(error.message || 'Failed to load balances.', 'error');
+    const message = String(error?.message || 'Failed to load balances.');
+    if (/route[_\s-]*not[_\s-]*found|api route not found|not found/i.test(message)) {
+      setStatus('Wallet API route is not available yet.', 'error');
+    } else {
+      setStatus(message, 'error');
+    }
   } finally {
     state.loading = false;
+  }
+}
+
+async function requestWithdrawal(amount, address) {
+  let fallbackError = 'Unable to submit withdrawal request.';
+
+  for (const endpoint of WITHDRAW_ENDPOINTS) {
+    const { response, payload } = await requestJson(endpoint.url, {
+      method: 'POST',
+      body: JSON.stringify(endpoint.buildBody(amount, address))
+    });
+
+    if (response.status === 404) {
+      continue;
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Please login to submit withdrawal.');
+    }
+
+    if (!response.ok) {
+      fallbackError = String(payload?.message || fallbackError);
+      continue;
+    }
+
+    return payload;
+  }
+
+  throw new Error(fallbackError);
+}
+
+function isValidTronAddress(address) {
+  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(address || '').trim());
+}
+
+async function handleWithdrawSubmit(event) {
+  event.preventDefault();
+
+  const address = String(withdrawAddressInput?.value || '').trim();
+  const amount = toNumber(withdrawAmountInput?.value);
+
+  if (!isValidTronAddress(address)) {
+    setWithdrawResult('Enter a valid TRON (TRC20) address.', 'error');
+    return;
+  }
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    setWithdrawResult('Enter a valid withdrawal amount.', 'error');
+    return;
+  }
+
+  if (withdrawSubmitBtn) {
+    withdrawSubmitBtn.disabled = true;
+    withdrawSubmitBtn.textContent = 'Submitting...';
+  }
+  setWithdrawResult('');
+
+  try {
+    await requestWithdrawal(amount, address);
+    setWithdrawResult('Withdrawal request submitted successfully.', 'success');
+    if (withdrawForm) {
+      withdrawForm.reset();
+    }
+    await loadWalletSummary();
+  } catch (error) {
+    console.error(error);
+    setWithdrawResult(String(error?.message || 'Withdrawal request failed.'), 'error');
+  } finally {
+    if (withdrawSubmitBtn) {
+      withdrawSubmitBtn.disabled = false;
+      withdrawSubmitBtn.textContent = 'Submit Withdrawal';
+    }
   }
 }
 
@@ -169,6 +422,7 @@ function bindEvents() {
 
   withdrawBtn?.addEventListener('click', () => {
     setActionMessage('');
+    setWithdrawResult('');
     setModalOpen(withdrawModal, true);
   });
 
@@ -187,6 +441,21 @@ function bindEvents() {
     });
   });
 
+  depositCopyBtn?.addEventListener('click', async () => {
+    if (!state.depositAddress) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(state.depositAddress);
+      setActionMessage('Deposit address copied.');
+    } catch (_) {
+      setActionMessage('Unable to copy address on this device.');
+    }
+  });
+
+  withdrawForm?.addEventListener('submit', handleWithdrawSubmit);
+
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       closeAllModals();
@@ -201,6 +470,7 @@ function bindEvents() {
 
 (function initAssetsPage() {
   setActiveTab('overview');
+  renderDepositAddress();
   renderBalances();
   bindEvents();
   loadWalletSummary();

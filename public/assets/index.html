@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Bitegit Assets</title>
-    <link rel="stylesheet" href="/mobile-nav.css?v=20260303a" />
+    <link rel="stylesheet" href="/mobile-nav.css?v=20260303b" />
     <style>
       :root {
         --assets-bg: #0b0f18;
@@ -247,6 +247,84 @@
         cursor: pointer;
       }
 
+      .assets-note {
+        color: var(--assets-muted);
+        margin-top: 0.5rem;
+        margin-bottom: 0.65rem;
+        font-size: 0.9rem;
+      }
+
+      .assets-address-box {
+        margin-top: 0.75rem;
+        border: 1px solid var(--assets-line);
+        border-radius: 10px;
+        background: #0f1522;
+        padding: 0.75rem;
+      }
+
+      .assets-field-label {
+        margin: 0 0 0.45rem;
+        color: var(--assets-muted);
+        font-size: 0.86rem;
+      }
+
+      .assets-address-row {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+      }
+
+      .assets-address-code {
+        flex: 1;
+        min-width: 0;
+        border: 1px solid var(--assets-line);
+        border-radius: 8px;
+        background: #111a2a;
+        padding: 0.55rem;
+        font-size: 0.83rem;
+        color: var(--assets-text);
+        word-break: break-all;
+      }
+
+      .assets-copy-btn {
+        min-height: 34px;
+        padding: 0 0.78rem;
+        border-radius: 8px;
+        border: 1px solid var(--assets-line);
+        background: #1a2436;
+        color: var(--assets-text);
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .assets-copy-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .assets-withdraw-form {
+        margin-top: 0.45rem;
+        display: grid;
+        gap: 0.62rem;
+      }
+
+      .assets-input {
+        min-height: 42px;
+        border-radius: 10px;
+        border: 1px solid var(--assets-line);
+        background: #0f1522;
+        color: var(--assets-text);
+        padding: 0 0.72rem;
+      }
+
+      .assets-summary-line.error {
+        color: var(--assets-danger);
+      }
+
+      .assets-summary-line.success {
+        color: var(--assets-accent);
+      }
+
       @media (max-width: 768px) {
         .assets-nav {
           display: none;
@@ -339,7 +417,15 @@
           <h2 id="depositModalTitle">Deposit</h2>
           <button type="button" class="assets-modal-close" data-modal-close="depositModal" aria-label="Close deposit">✕</button>
         </div>
-        <p>Deposit flow opens here. Use your wallet address and wait for blockchain confirmation.</p>
+        <p class="assets-note">Network: TRON (TRC20) | Token: USDT</p>
+        <div class="assets-address-box">
+          <p class="assets-field-label">Deposit Address</p>
+          <div class="assets-address-row">
+            <code id="assetsDepositAddressValue" class="assets-address-code">Admin will provide deposit address shortly.</code>
+            <button id="assetsDepositCopyBtn" type="button" class="assets-copy-btn" disabled>Copy</button>
+          </div>
+          <p class="assets-summary-line">Send only USDT on TRC20 network to this address.</p>
+        </div>
       </article>
     </section>
 
@@ -350,10 +436,18 @@
           <h2 id="withdrawModalTitle">Withdraw</h2>
           <button type="button" class="assets-modal-close" data-modal-close="withdrawModal" aria-label="Close withdraw">✕</button>
         </div>
-        <p>Withdraw flow opens here. Enter address and amount to submit withdrawal request.</p>
+        <p class="assets-note">Withdraw USDT to TRON (TRC20) address.</p>
+        <form id="assetsWithdrawForm" class="assets-withdraw-form">
+          <label class="assets-field-label" for="assetsWithdrawAddress">Recipient Address</label>
+          <input id="assetsWithdrawAddress" class="assets-input" type="text" placeholder="T..." autocomplete="off" required />
+          <label class="assets-field-label" for="assetsWithdrawAmount">Amount (USDT)</label>
+          <input id="assetsWithdrawAmount" class="assets-input" type="number" min="0.000001" step="0.000001" placeholder="0.00" required />
+          <button id="assetsWithdrawSubmitBtn" type="submit" class="assets-btn primary">Submit Withdrawal</button>
+          <p id="assetsWithdrawResult" class="assets-summary-line"></p>
+        </form>
       </article>
     </section>
 
-    <script src="/assets.js?v=20260303a"></script>
+    <script src="/assets.js?v=20260303b"></script>
   </body>
 </html>
