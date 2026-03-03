@@ -41,9 +41,9 @@ const obAsksRows = document.getElementById('obAsksRows');
 const obBidsRows = document.getElementById('obBidsRows');
 const obTradesRows = document.getElementById('obTradesRows');
 
-const MARKET_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'XRPUSDT', 'SOLUSDT', 'XAUTUSDT', 'DOGEUSDT', 'WIFUSDT', 'BNBUSDT'];
+const MARKET_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'XRPUSDT', 'SOLUSDT', 'TRXUSDT', 'DOGEUSDT', 'WIFUSDT', 'BNBUSDT'];
 const MARKET_TAB_ORDER = {
-  hotspot: ['BTCUSDT', 'ETHUSDT', 'XRPUSDT', 'SOLUSDT', 'XAUTUSDT', 'DOGEUSDT', 'WIFUSDT'],
+  hotspot: ['BTCUSDT', 'ETHUSDT', 'XRPUSDT', 'SOLUSDT', 'TRXUSDT', 'DOGEUSDT', 'WIFUSDT'],
   hotfutures: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'WIFUSDT']
 };
 const COIN_NAMES = {
@@ -53,7 +53,7 @@ const COIN_NAMES = {
   XRPUSDT: 'XRP',
   SOLUSDT: 'Solana',
   ADAUSDT: 'Cardano',
-  XAUTUSDT: 'Tether Gold',
+  TRXUSDT: 'TRON',
   DOGEUSDT: 'Dogecoin',
   WIFUSDT: 'Dogwifhat'
 };
@@ -93,7 +93,7 @@ const NEWS_ITEMS = [
   'Institutional desks increase crypto allocation with tighter risk models.'
 ];
 
-const MARKET_REFRESH_INTERVAL_MS = 20000;
+const MARKET_REFRESH_INTERVAL_MS = 5000;
 
 let pendingContact = '';
 let pendingName = 'Website Lead';
@@ -883,7 +883,10 @@ async function loadMarket() {
     const params = new URLSearchParams({
       symbols: MARKET_SYMBOLS.join(',')
     });
-    const response = await fetch(`/api/p2p/exchange-ticker?${params.toString()}`);
+    params.set('_t', String(Date.now()));
+    const response = await fetch(`/api/p2p/exchange-ticker?${params.toString()}`, {
+      cache: 'no-store'
+    });
     const data = await response.json();
 
     if (!response.ok || !Array.isArray(data.ticker)) {
