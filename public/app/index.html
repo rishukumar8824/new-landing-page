@@ -25,7 +25,7 @@
         <button type="button" data-screen-target="trade">Trade</button>
         <button type="button" data-screen-target="earn">Earn</button>
         <button type="button" data-screen-target="assets">Assets</button>
-        <a href="/p2p">P2P Trading</a>
+        <button id="openP2PBtn" type="button">P2P Trading</button>
       </nav>
     </aside>
 
@@ -65,14 +65,14 @@
           </article>
 
           <article class="quick-grid">
-            <button type="button">Deposit</button>
-            <button type="button">P2P Trading</button>
-            <button type="button">Demo Trading</button>
-            <button type="button">Rewards Hub</button>
-            <button type="button">Buy Crypto</button>
-            <button type="button">Trading Bot</button>
-            <button type="button">Convert</button>
-            <button type="button">More</button>
+            <button type="button" data-action="deposit">Deposit</button>
+            <button type="button" data-action="p2p">P2P Trading</button>
+            <button type="button" data-action="demo">Demo Trading</button>
+            <button type="button" data-action="rewards">Rewards Hub</button>
+            <button type="button" data-action="buy">Buy Crypto</button>
+            <button type="button" data-action="bot">Trading Bot</button>
+            <button type="button" data-action="convert">Convert</button>
+            <button type="button" data-action="more">More</button>
           </article>
 
           <article class="event-card">
@@ -224,6 +224,8 @@
         <button type="button" data-screen-target="assets"><span>▣</span><small>Assets</small></button>
       </nav>
     </div>
+
+    <div id="appToast" class="app-toast hidden" role="status" aria-live="polite"></div>
 
     <script src="/app/app.js"></script>
   </body>

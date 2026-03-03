@@ -678,3 +678,24 @@ body.app-shell {
   display: inline-flex;
   align-items: center;
 }
+
+.app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(6.2rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 200;
+  min-width: min(84vw, 340px);
+  min-height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(139, 243, 0, 0.34);
+  background: rgba(13, 22, 12, 0.92);
+  color: #d8fcb8;
+  font-size: 0.86rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.9rem;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+}

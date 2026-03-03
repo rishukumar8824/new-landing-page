@@ -24,10 +24,14 @@
   const assetLockedBalance = document.getElementById('assetLockedBalance');
   const assetDepositNetwork = document.getElementById('assetDepositNetwork');
   const earnTotal = document.getElementById('earnTotal');
+  const appToast = document.getElementById('appToast');
+  const quickActionButtons = Array.from(document.querySelectorAll('.quick-grid [data-action]'));
+  const openP2PBtn = document.getElementById('openP2PBtn');
 
   let activeScreen = 'home';
   let activeTickerIndex = 0;
   let tickerRows = [];
+  let toastTimer = null;
 
   const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
 
@@ -74,6 +78,20 @@
     profileDrawer.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
     profileOverlay.classList.toggle('hidden', !shouldOpen);
     document.body.style.overflow = shouldOpen ? 'hidden' : 'auto';
+  }
+
+  function showToast(message) {
+    if (!appToast) {
+      return;
+    }
+    appToast.textContent = String(message || '').trim() || 'Done';
+    appToast.classList.remove('hidden');
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+    }
+    toastTimer = setTimeout(() => {
+      appToast.classList.add('hidden');
+    }, 1800);
   }
 
   async function fetchJson(url) {
@@ -264,8 +282,15 @@
     }
   }
 
-  function openAssetsRoute() {
-    window.location.href = '/assets';
+  function goToAssets(screenMessage = '') {
+    setScreen('assets');
+    if (screenMessage) {
+      showToast(screenMessage);
+    }
+  }
+
+  function openP2PPage() {
+    window.location.href = '/p2p';
   }
 
   navButtons.forEach((button) => {
@@ -290,13 +315,42 @@
   profileOverlay?.addEventListener('click', () => setDrawerOpen(false));
   refreshMarketsBtn?.addEventListener('click', () => loadMarkets(true));
   tradePairSwap?.addEventListener('click', () => updateTradeTicker(activeTickerIndex + 1));
-  homeDepositBtn?.addEventListener('click', openAssetsRoute);
-  assetsDepositBtn?.addEventListener('click', openAssetsRoute);
+  homeDepositBtn?.addEventListener('click', () => goToAssets('Assets screen opened'));
+  assetsDepositBtn?.addEventListener('click', () => goToAssets('Deposit option ready'));
   assetsWithdrawBtn?.addEventListener('click', () => {
-    window.location.href = '/assets?tab=withdraw';
+    showToast('Withdraw flow coming in next update');
   });
   assetsTransferBtn?.addEventListener('click', () => {
-    window.location.href = '/assets?tab=transfer';
+    showToast('Transfer flow coming in next update');
+  });
+  openP2PBtn?.addEventListener('click', () => {
+    setDrawerOpen(false);
+    openP2PPage();
+  });
+
+  quickActionButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const action = String(button.dataset.action || '').trim().toLowerCase();
+      if (action === 'deposit') {
+        goToAssets('Deposit panel ready');
+        return;
+      }
+      if (action === 'p2p') {
+        openP2PPage();
+        return;
+      }
+      if (action === 'buy') {
+        setScreen('markets');
+        showToast('Choose pair and trade from Markets');
+        return;
+      }
+      if (action === 'convert') {
+        setScreen('trade');
+        showToast('Trade screen opened');
+        return;
+      }
+      showToast('Feature will be enabled soon');
+    });
   });
 
   window.addEventListener('resize', () => {
