@@ -1327,23 +1327,40 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   background: #000;
   border-color: rgba(255, 255, 255, 0.08);
   position: relative;
+  isolation: isolate;
 }
 
-.cf-feature-media-video {
+.cf-feature-media-video,
+.cf-feature-media-fallback {
   width: 100%;
   display: block;
   aspect-ratio: 16 / 9;
-  object-fit: contain;
+  object-fit: cover;
   background: #000;
-  transition: transform 0.35s ease;
+}
+
+.cf-feature-media-video {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.35s ease;
 }
 
 .cf-feature-media-fallback {
-  display: none;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  background: #000;
+  position: relative;
+  z-index: 1;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+.cf-feature-media-card.cf-media-ready .cf-feature-media-video {
+  opacity: 1;
+}
+
+.cf-feature-media-card.cf-media-ready .cf-feature-media-fallback {
+  opacity: 0;
 }
 
 .cf-feature-media-card:hover .cf-feature-media-video {
@@ -2464,18 +2481,15 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
     gap: 12px;
   }
 
-  .cf-feature-media-video {
-    aspect-ratio: 9 / 16;
-    object-fit: contain;
-    height: auto;
-  }
-
-  .cf-feature-media-video {
+  .cf-feature-media-video,
+  .cf-feature-media-card.cf-media-ready .cf-feature-media-video {
     display: none;
   }
 
-  .cf-feature-media-fallback {
+  .cf-feature-media-fallback,
+  .cf-feature-media-card.cf-media-ready .cf-feature-media-fallback {
     display: block;
+    opacity: 1;
     aspect-ratio: 9 / 16;
   }
 

@@ -824,6 +824,19 @@ function setupMediaPlaybackOptimization() {
   }
 
   secondaryVideos.forEach((video) => {
+    const mediaCard = video.closest('.cf-feature-media-card');
+    if (mediaCard) {
+      mediaCard.classList.remove('cf-media-ready');
+      const markReady = () => mediaCard.classList.add('cf-media-ready');
+      const markFallback = () => mediaCard.classList.remove('cf-media-ready');
+      video.addEventListener('loadeddata', markReady, { once: true });
+      video.addEventListener('canplay', markReady, { once: true });
+      video.addEventListener('error', markFallback);
+      if (video.readyState >= 2) {
+        markReady();
+      }
+    }
+
     video.preload = 'none';
     video.autoplay = false;
     video.dataset.inViewport = '0';
