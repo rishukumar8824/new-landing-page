@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071427"/>
+      <stop offset="0.55" stop-color="#0f2746"/>
+      <stop offset="1" stop-color="#163862"/>
+    </linearGradient>
+    <radialGradient id="r1" cx="0.2" cy="0.2" r="0.8">
+      <stop offset="0" stop-color="#8bf300" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#8bf300" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g1)"/>
+  <rect width="1280" height="720" fill="url(#r1)"/>
+  <circle cx="1060" cy="120" r="150" fill="#8bf300" opacity="0.16"/>
+  <text x="88" y="520" fill="#eaf3ff" font-family="Arial, Helvetica, sans-serif" font-size="82" font-weight="700">Instant Trading</text>
+  <text x="88" y="590" fill="#b9c8dc" font-family="Arial, Helvetica, sans-serif" font-size="38">Crypto for everyone on Bitegit</text>
+</svg>
