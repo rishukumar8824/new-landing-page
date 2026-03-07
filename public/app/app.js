@@ -339,6 +339,11 @@
         openP2PPage();
         return;
       }
+      if (action === 'withdraw') {
+        goToAssets('Withdraw panel ready');
+        showToast('Open Assets and tap Withdraw');
+        return;
+      }
       if (action === 'buy') {
         setScreen('markets');
         showToast('Choose pair and trade from Markets');
