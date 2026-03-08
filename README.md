@@ -1,137 +1,57 @@
-# Bitegit Exchange (Node + MongoDB)
+# USDT Buy/Sell Landing Page (Fresh Deployment)
 
-Production-ready scaffold for:
+This repository is structured for a fresh full-stack deployment:
 
-- Landing page + lead capture
-- P2P module (offers/orders/chat/escrow states)
-- Spot module
-- Admin Panel (`/admin/login`, `/admin`)
+- `frontend/` -> Next.js + TailwindCSS landing page (deploy to Vercel)
+- `backend/` -> Node.js + Express + MongoDB API (deploy to Render)
 
-## 1) Prerequisites
+## Features
 
-- Node.js 18+
-- MongoDB Atlas cluster (recommended)
+- Landing form fields: Name, Mobile Number, Preference (Buy USDT / Sell USDT)
+- Form flow:
+  1. Submit to backend API (`POST /api/lead`)
+  2. Save lead in MongoDB Atlas
+  3. Redirect to WhatsApp with pre-filled message
+- Backend health endpoint: `GET /api/health`
 
-## 2) Environment Setup (.env)
+## Environment Variables
 
-Create `.env` in project root:
+### Backend (`backend/.env`)
 
-```bash
-cp .env.example .env
-```
+- `MONGO_URI`
+- `WHATSAPP_NUMBER`
+- `FRONTEND_URL`
+- `NODE_ENV=production`
+- `PORT=5001` (optional locally)
 
-Then edit `.env` values:
+### Frontend (`frontend/.env.local`)
 
-```env
-MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority
-MONGODB_DB_NAME=bitegit
-JWT_SECRET=replace_with_long_random_secret
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_WHATSAPP_NUMBER`
 
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin123
-ADMIN_EMAIL=admin@admin.local
-ADMIN_ROLE=SUPER_ADMIN
-```
-
-Notes:
-
-- App uses built-in `.env` loader (`/Users/sumitkmina/Documents/New project/lib/env.js`), no manual `export` needed.
-- Local MongoDB is disabled by default. To allow local URI (`127.0.0.1`/`localhost`), set:
-  - `ALLOW_LOCAL_MONGO=true`
-
-## 3) Atlas Connection Guide
-
-1. Atlas -> Database Access -> create DB user.
-2. Atlas -> Network Access -> add your IP (or temporary `0.0.0.0/0` for testing).
-3. Atlas -> Clusters -> Connect -> Drivers -> copy connection string.
-4. Put that string into `MONGODB_URI` in `.env`.
-5. Keep password URL-safe in URI.
-
-## 4) Install and Run
+## Local Run
 
 ```bash
-npm install
-npm start
+cd backend && npm install && npm run dev
+cd ../frontend && npm install && npm run dev
 ```
 
-Expected startup logs:
+Frontend: `http://localhost:3000`
+Backend: `http://localhost:5001`
 
-- `MongoDB indexes ensured`
-- `Admin seed ensured for ...`
-- `Server running on port 3000`
+## Deploy
 
-## 5) Admin Login
+### Backend on Render
 
-Open:
+- Service root directory: `backend`
+- Build command: `npm install`
+- Start command: `npm start`
+- Health check path: `/api/health`
+- Add env vars: `MONGO_URI`, `WHATSAPP_NUMBER`, `FRONTEND_URL`, `NODE_ENV=production`
 
-- `http://localhost:3000/admin/login`
+### Frontend on Vercel
 
-Default from `.env`:
-
-- Username: `admin`
-- Password: `admin123`
-
-## 6) Health Check
-
-```bash
-curl -i http://localhost:3000/healthz
-```
-
-Healthy response:
-
-```json
-{"status":"ok","db":"connected"}
-```
-
-## 7) Admin Seed (Manual)
-
-If needed, run standalone seed:
-
-```bash
-npm run seed:admin
-```
-
-Behavior:
-
-- Creates admin if not exists.
-- Does not duplicate existing admin.
-- Supports controlled sync flags:
-  - `ADMIN_FORCE_PASSWORD_SYNC=true`
-  - `ADMIN_FORCE_ROLE_SYNC=true`
-  - `ADMIN_FORCE_ACTIVATE=true`
-
-## 8) Required Environment Variables
-
-- `MONGODB_URI`
-- `JWT_SECRET`
-
-Recommended:
-
-- `MONGODB_DB_NAME` (default: `bitegit`)
-- `ADMIN_USERNAME` (default: `admin`)
-- `ADMIN_PASSWORD` (default: `admin123`)
-- `ADMIN_EMAIL` (default: `${ADMIN_USERNAME}@admin.local`)
-- `ADMIN_ROLE` (default: `SUPER_ADMIN`)
-
-## 9) Troubleshooting
-
-- `ECONNREFUSED 127.0.0.1:27017`:
-  - You are using local Mongo URI while local mode is disabled.
-  - Fix `MONGODB_URI` to Atlas, or set `ALLOW_LOCAL_MONGO=true`.
-
-- `MONGODB_URI is required`:
-  - Add `MONGODB_URI` in `.env`.
-
-- `JWT_SECRET is required`:
-  - Add strong random `JWT_SECRET` in `.env`.
-
-- Admin login fails:
-  - Check `.env` admin credentials.
-  - Run `npm run seed:admin` once.
-  - Restart server.
-
-## 10) Admin API Reference
-
-See:
-
-- `/Users/sumitkmina/Documents/New project/docs/admin-api.md`
+- Project root directory: `frontend`
+- Add env vars:
+  - `NEXT_PUBLIC_API_URL=https://<your-render-service>.onrender.com`
+  - `NEXT_PUBLIC_WHATSAPP_NUMBER=<your_whatsapp_number>`

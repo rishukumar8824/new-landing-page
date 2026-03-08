@@ -1,40 +1,20 @@
 services:
   - type: web
-    name: bitegit-wallet-engine
+    name: usdt-landing-backend
     env: node
     plan: free
     branch: main
-    rootDir: phase4-wallet-engine
+    rootDir: backend
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: WHATSAPP_NUMBER
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
       - key: NODE_ENV
         value: production
-      - key: DB_HOST
-        sync: false
-      - key: DB_PORT
-        sync: false
-      - key: DB_NAME
-        sync: false
-      - key: DB_USER
-        sync: false
-      - key: DB_PASSWORD
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_SUPPORT_MODEL
-        value: gpt-4o-mini
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
-      - key: TELEGRAM_CHAT_ID
-        sync: false
-      - key: SUPPORT_WAIT_ALERT_MINUTES
-        value: "10"
-      - key: SUPPORT_ALERT_CRON_INTERVAL_MS
-        value: "60000"
-      - key: SUPPORT_ALERT_CRON_AUTOSTART
-        value: "true"

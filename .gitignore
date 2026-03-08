@@ -1,7 +1,10 @@
 node_modules/
 .env
 npm-debug.log*
-data/leads.json
-android/.gradle/
-android/local.properties
-android/**/build/
+.DS_Store
+.vscode/
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+backend/node_modules/
+backend/.env
