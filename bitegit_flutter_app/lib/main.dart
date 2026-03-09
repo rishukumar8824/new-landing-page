@@ -38,6 +38,7 @@ final ValueNotifier<bool> showHomeFavoritesWidget = ValueNotifier<bool>(true);
 final ValueNotifier<bool> showHomeTopMoversWidget = ValueNotifier<bool>(true);
 final ValueNotifier<bool> isUserLoggedInNotifier = ValueNotifier<bool>(false);
 final ValueNotifier<String> authIdentityNotifier = ValueNotifier<String>('');
+final ValueNotifier<String> authAccessTokenNotifier = ValueNotifier<String>('');
 final ValueNotifier<double> fundingUsdtBalanceNotifier = ValueNotifier<double>(
   0,
 );
@@ -251,6 +252,7 @@ String? _createUser({
 void _logoutActiveSession() {
   activeExchangeUserNotifier.value = null;
   authIdentityNotifier.value = '';
+  authAccessTokenNotifier.value = '';
   currentUserUid = '--';
   nicknameNotifier.value = 'Guest';
   avatarSymbolNotifier.value = 'G';

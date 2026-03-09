@@ -2130,14 +2130,24 @@ async function createP2PAdController(req, res) {
   } catch (error) {
     const knownStatus = Number(error?.status || 0);
     const knownCode = String(error?.code || '').trim().toUpperCase();
+    const knownMessage = String(error?.message || '');
+    if (
+      knownCode.includes('INSUFFICIENT') ||
+      knownMessage.toLowerCase().includes('insufficient')
+    ) {
+      return res.status(400).json({
+        message: 'Insufficient USDT balance',
+        code: 'INSUFFICIENT_USDT_BALANCE'
+      });
+    }
     if (knownStatus >= 400 && knownStatus < 500) {
       return res.status(knownStatus).json({
-        message: String(error.message || 'Request validation failed.'),
+        message: knownMessage || 'Request validation failed.',
         code: knownCode || 'P2P_AD_CREATE_FAILED'
       });
     }
 
-    const validationLikeMessage = String(error?.message || '').toLowerCase();
+    const validationLikeMessage = knownMessage.toLowerCase();
     if (
       validationLikeMessage.includes('must') ||
       validationLikeMessage.includes('invalid') ||

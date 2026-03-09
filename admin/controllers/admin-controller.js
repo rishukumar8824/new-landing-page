@@ -373,6 +373,35 @@ function createAdminControllers({
     return res.json({ message: 'KYC review saved.', data });
   }
 
+  async function getPendingKyc(req, res) {
+    const data = await adminStore.listPendingKycSubmissions(req.query || {});
+    return res.json(data);
+  }
+
+  async function reviewKycSubmission(req, res) {
+    const submissionId = String(req.body?.submissionId || '').trim();
+    const action = String(req.body?.action || '').trim().toLowerCase();
+    const reason = String(req.body?.reason || '').trim();
+
+    const data = await adminStore.reviewKycSubmission(submissionId, action, reason);
+
+    await logAudit(req, {
+      module: 'users',
+      action: 'kyc_review_submission',
+      entityType: 'kyc_submission',
+      entityId: submissionId,
+      meta: {
+        action,
+        reason
+      }
+    });
+
+    return res.json({
+      message: 'KYC submission reviewed successfully.',
+      data
+    });
+  }
+
   async function walletOverview(req, res) {
     const data = await adminStore.getWalletOverview();
     return res.json(data);
@@ -749,6 +778,8 @@ function createAdminControllers({
     adjustUserBalance,
     getUserKyc,
     reviewUserKyc,
+    getPendingKyc,
+    reviewKycSubmission,
     walletOverview,
     listDeposits,
     reviewDeposit,

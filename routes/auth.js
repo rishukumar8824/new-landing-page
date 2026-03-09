@@ -97,6 +97,8 @@ function registerAuthRoutes(app, deps) {
 
   const SIGNUP_OTP_PURPOSE = 'signup';
   const PASSWORD_RESET_OTP_PURPOSE = 'password_reset';
+  const REGISTER_EMAIL_VERIFY_PURPOSE = 'register_email_verify';
+  const REGISTER_EMAIL_VERIFY_TTL_MS = 5 * 60 * 1000;
 
   async function safeAuditLog(entry) {
     if (!auditLogService || typeof auditLogService.safeLog !== 'function') {
@@ -130,19 +132,25 @@ function registerAuthRoutes(app, deps) {
     clearCookie(res, cookieNames.refreshToken);
   }
 
-  async function sendOtpEmail(contact, purpose) {
+  async function sendOtpEmail(contact, purpose, options = {}) {
     const code = createOtpCode();
-    const expiresAt = Date.now() + Number(otpTtlMs || 0);
+    const effectiveOtpTtlMs = Math.max(60 * 1000, Number(options.ttlMs || otpTtlMs || 0));
+    const allowDemoFallback =
+      options.allowDemoFallback !== undefined ? Boolean(options.allowDemoFallback) : Boolean(allowDemoOtp);
     const otpState = {
       code,
       type: 'email',
       attempts: 0,
-      expiresAt
+      expiresAt: Date.now() + effectiveOtpTtlMs,
+      payload:
+        options.payload && typeof options.payload === 'object' && options.payload !== null
+          ? options.payload
+          : {}
     };
 
     await repos.upsertSignupOtp(contact, otpState, { purpose });
 
-    const expiresInMinutes = Math.max(1, Math.floor(Number(otpTtlMs || 0) / (60 * 1000)));
+    const expiresInMinutes = Math.max(1, Math.floor(effectiveOtpTtlMs / (60 * 1000)));
     let sendResult = { delivered: false, reason: 'missing_email_provider_config' };
 
     if (authEmailService && typeof authEmailService === 'object') {
@@ -164,11 +172,11 @@ function registerAuthRoutes(app, deps) {
       return {
         message: 'Verification code sent to your email.',
         delivery: 'email',
-        expiresInSeconds: Math.floor(Number(otpTtlMs || 0) / 1000)
+        expiresInSeconds: Math.floor(effectiveOtpTtlMs / 1000)
       };
     }
 
-    if (!allowDemoOtp) {
+    if (!allowDemoFallback) {
       await repos.deleteSignupOtp(contact, { purpose });
       const failureReason = String(sendResult.reason || 'email_provider_unavailable').trim();
       return {
@@ -182,7 +190,7 @@ function registerAuthRoutes(app, deps) {
     return {
       message: 'Email provider not configured, using demo verification code.',
       delivery: 'simulated',
-      expiresInSeconds: Math.floor(Number(otpTtlMs || 0) / 1000),
+      expiresInSeconds: Math.floor(effectiveOtpTtlMs / 1000),
       devCode: code
     };
   }
@@ -230,8 +238,12 @@ function registerAuthRoutes(app, deps) {
       };
     }
 
+    const payload =
+      otpState.payload && typeof otpState.payload === 'object' && otpState.payload !== null
+        ? otpState.payload
+        : {};
     await repos.deleteSignupOtp(contact, { purpose });
-    return { ok: true };
+    return { ok: true, payload };
   }
 
   app.post('/auth/signup/send-otp', signupOtpLimiter, async (req, res) => {
@@ -308,6 +320,122 @@ function registerAuthRoutes(app, deps) {
       return res.json(result);
     } catch (error) {
       return res.status(500).json({ message: 'Server error while sending reset code.' });
+    }
+  });
+
+  app.post('/api/auth/register', registerLimiter, async (req, res) => {
+    const email = createEmailFromInput(req.body?.email);
+    const password = String(req.body?.password || '').trim();
+    const ipAddress = normalizeIp(req);
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: 'Enter a valid email address.' });
+    }
+    if (!isValidPassword(password)) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+    }
+
+    try {
+      const existing = await repos.getP2PCredential(email);
+      if (existing && Boolean(existing.emailVerified)) {
+        return res.status(409).json({ message: 'Account already exists. Please login.' });
+      }
+
+      const passwordHash = repos.hashPassword(password);
+      const result = await sendOtpEmail(email, REGISTER_EMAIL_VERIFY_PURPOSE, {
+        ttlMs: REGISTER_EMAIL_VERIFY_TTL_MS,
+        allowDemoFallback: false,
+        payload: {
+          passwordHash,
+          role: 'USER',
+          flow: 'register_v2'
+        }
+      });
+
+      if (result.error) {
+        return res.status(result.status || 500).json({
+          message: result.message,
+          reason: result.reason
+        });
+      }
+
+      await safeAuditLog({
+        userId: '',
+        action: 'register_otp_sent_v2',
+        ipAddress,
+        metadata: {
+          email,
+          delivery: result.delivery
+        }
+      });
+
+      return res.status(202).json({
+        message: 'Verification code sent to your email.',
+        email,
+        expiresInSeconds: result.expiresInSeconds
+      });
+    } catch (error) {
+      return res.status(500).json({ message: 'Server error while starting registration.' });
+    }
+  });
+
+  app.post('/api/auth/verify-email', registerLimiter, async (req, res) => {
+    const email = createEmailFromInput(req.body?.email);
+    const otpCode = String(req.body?.otpCode || '').trim();
+    const ipAddress = normalizeIp(req);
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: 'Enter a valid email address.' });
+    }
+    if (!isValidOtpCode(otpCode)) {
+      return res.status(400).json({ message: 'Enter a valid 6-digit verification code.' });
+    }
+
+    try {
+      const otpResult = await verifyOtp(email, otpCode, REGISTER_EMAIL_VERIFY_PURPOSE);
+      if (!otpResult.ok) {
+        return res.status(400).json({ message: otpResult.message });
+      }
+
+      const payload = otpResult.payload && typeof otpResult.payload === 'object' ? otpResult.payload : {};
+      const passwordHash = String(payload.passwordHash || '').trim();
+      if (!passwordHash) {
+        return res.status(400).json({ message: 'Registration session expired. Please sign up again.' });
+      }
+
+      const existing = await repos.getP2PCredential(email);
+      if (existing && Boolean(existing.emailVerified)) {
+        return res.status(409).json({ message: 'Email already verified. Please login.' });
+      }
+
+      await repos.setP2PCredential(email, passwordHash, {
+        role: String(payload.role || 'USER').trim().toUpperCase() === 'ADMIN' ? 'ADMIN' : 'USER',
+        emailVerified: true
+      });
+
+      const user = buildP2PUserFromEmail(email, 'USER');
+      await walletService.ensureWallet(user.id, { username: user.username });
+
+      await safeAuditLog({
+        userId: user.id,
+        action: 'email_verified',
+        ipAddress,
+        metadata: {
+          email
+        }
+      });
+
+      return res.json({
+        message: 'Email verified successfully. Account activated.',
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          email_verified: true
+        }
+      });
+    } catch (error) {
+      return res.status(500).json({ message: 'Server error while verifying email.' });
     }
   });
 

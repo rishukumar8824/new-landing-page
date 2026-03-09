@@ -164,6 +164,8 @@ function registerAdminRoutes(app, deps) {
   router.post('/users/:userId/adjust-balance', protect(ROLE_GROUPS.FINANCE), withLogging({ module: 'users', action: 'adjust_user_balance' }, adminControllers.adjustUserBalance));
   router.get('/users/:userId/kyc', protect(ROLE_GROUPS.ALL), withLogging({ module: 'users', action: 'get_user_kyc' }, adminControllers.getUserKyc));
   router.post('/users/:userId/kyc/review', protect(ROLE_GROUPS.COMPLIANCE), withLogging({ module: 'users', action: 'review_user_kyc' }, adminControllers.reviewUserKyc));
+  router.get('/kyc/pending', protect(ROLE_GROUPS.COMPLIANCE), withLogging({ module: 'users', action: 'list_pending_kyc' }, adminControllers.getPendingKyc));
+  router.post('/kyc/review', protect(ROLE_GROUPS.COMPLIANCE), withLogging({ module: 'users', action: 'review_kyc_submission' }, adminControllers.reviewKycSubmission));
 
   // -------------------------
   // Wallet Management

@@ -5,6 +5,8 @@ const USER_STATUSES = ['ACTIVE', 'FROZEN', 'BANNED'];
 const WITHDRAWAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'];
 const DEPOSIT_STATUSES = ['PENDING', 'COMPLETED', 'REJECTED'];
 const USDT_NETWORKS = ['TRC20', 'ERC20', 'BEP20'];
+const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
+const ENCRYPTION_IV_LENGTH = 16;
 
 function toDate(value, fallback = Date.now()) {
   const parsed = new Date(value);
@@ -34,6 +36,48 @@ function getAvailableBalance(wallet) {
 
 function makeId(prefix) {
   return `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+}
+
+function getMasterEncryptionKey() {
+  const masterKey = String(process.env.MASTER_ENCRYPTION_KEY || process.env.JWT_SECRET || '').trim();
+  if (!masterKey) {
+    return null;
+  }
+  return crypto.createHash('sha256').update(masterKey, 'utf8').digest();
+}
+
+function decryptIfEncrypted(payload) {
+  const raw = String(payload || '').trim();
+  if (!raw) {
+    return '';
+  }
+  const parts = raw.split(':');
+  if (parts.length !== 2) {
+    return raw;
+  }
+
+  const [ivHex, encryptedHex] = parts;
+  if (!/^[0-9a-fA-F]+$/.test(ivHex) || ivHex.length !== ENCRYPTION_IV_LENGTH * 2) {
+    return raw;
+  }
+  if (!/^[0-9a-fA-F]+$/.test(encryptedHex) || encryptedHex.length === 0 || encryptedHex.length % 2 !== 0) {
+    return raw;
+  }
+
+  const key = getMasterEncryptionKey();
+  if (!key) {
+    return raw;
+  }
+
+  try {
+    const iv = Buffer.from(ivHex, 'hex');
+    const encrypted = Buffer.from(encryptedHex, 'hex');
+    const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, iv);
+    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+    return decrypted.toString('utf8');
+  } catch (error) {
+    return raw;
+  }
 }
 
 function parsePagination(query = {}) {
@@ -297,6 +341,7 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     adminComplianceFlags,
     adminApiLogs,
     adminKycDocuments,
+    p2pKycRequests,
     p2pCredentials,
     p2pUserSessions,
     wallets,
@@ -323,6 +368,9 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       adminApiLogs.createIndex({ createdAt: -1 }),
       adminUserProfiles.createIndex({ userId: 1 }, { unique: true }),
       adminKycDocuments.createIndex({ userId: 1 }, { unique: true }),
+      p2pKycRequests.createIndex({ requestId: 1 }, { unique: true }),
+      p2pKycRequests.createIndex({ userId: 1 }, { unique: true }),
+      p2pKycRequests.createIndex({ status: 1, updatedAt: -1 }),
       adminSupportTickets.createIndex({ id: 1 }, { unique: true }),
       adminSupportTickets.createIndex({ status: 1, updatedAt: -1 }),
       adminWalletConfig.createIndex({ coin: 1 }, { unique: true }),
@@ -989,6 +1037,159 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     );
 
     return getUserKyc(normalizedUserId);
+  }
+
+  async function listPendingKycSubmissions(params = {}) {
+    const { page, limit, skip } = parsePagination(params);
+    const statuses = ['PENDING_REVIEW', 'PENDING'];
+    const rows = await p2pKycRequests
+      .find({ status: { $in: statuses } })
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    const total = await p2pKycRequests.countDocuments({ status: { $in: statuses } });
+
+    const submissions = await Promise.all(
+      rows.map(async (row) => {
+        const userId = String(row?.userId || '').trim();
+        const email = String(row?.email || '').trim().toLowerCase();
+        const [profile, credential] = await Promise.all([
+          userId ? adminUserProfiles.findOne({ userId }) : null,
+          email ? p2pCredentials.findOne({ email }) : null
+        ]);
+
+        const fullName =
+          String(row?.fullName || '').trim() ||
+          String(profile?.fullName || '').trim() ||
+          String(profile?.name || '').trim() ||
+          String(credential?.fullName || '').trim() ||
+          String(profile?.email || '').trim() ||
+          String(email || '');
+
+        const documentFrontUrl = decryptIfEncrypted(row?.aadhaarFrontImage);
+        const documentBackUrl = decryptIfEncrypted(row?.aadhaarBackImage || row?.documentBackImage || '');
+        const selfieWithDocumentUrl = decryptIfEncrypted(row?.selfieWithDocumentImage);
+
+        return {
+          submissionId: String(row?.requestId || ''),
+          user_id: userId,
+          full_name: fullName,
+          document_type: String(row?.documentType || 'AADHAAR'),
+          document_number: String(row?.aadhaarMasked || row?.documentNumber || ''),
+          document_front_url: documentFrontUrl,
+          document_back_url: documentBackUrl,
+          selfie_with_document_url: selfieWithDocumentUrl,
+          status: String(row?.status || 'PENDING_REVIEW').toLowerCase()
+        };
+      })
+    );
+
+    return { page, limit, total, submissions };
+  }
+
+  async function reviewKycSubmission(submissionId, action, reason = '') {
+    const normalizedSubmissionId = String(submissionId || '').trim();
+    const normalizedAction = String(action || '').trim().toLowerCase();
+    if (!normalizedSubmissionId) {
+      const error = new Error('submissionId is required');
+      error.status = 400;
+      throw error;
+    }
+    if (!['approve', 'reject'].includes(normalizedAction)) {
+      const error = new Error('action must be approve or reject');
+      error.status = 400;
+      throw error;
+    }
+
+    const submission = await p2pKycRequests.findOne({ requestId: normalizedSubmissionId });
+    if (!submission) {
+      const error = new Error('KYC submission not found');
+      error.status = 404;
+      throw error;
+    }
+
+    const now = new Date();
+    const nextStatus = normalizedAction === 'approve' ? 'VERIFIED' : 'REJECTED';
+    const rejectionReason = normalizedAction === 'reject' ? String(reason || '').trim() : '';
+    const normalizedUserId = String(submission.userId || '').trim();
+    const normalizedEmail = String(submission.email || '').trim().toLowerCase();
+
+    await p2pKycRequests.updateOne(
+      { requestId: normalizedSubmissionId },
+      {
+        $set: {
+          status: nextStatus,
+          rejectionReason,
+          reviewedAt: now,
+          updatedAt: now
+        }
+      }
+    );
+
+    if (normalizedEmail) {
+      await p2pCredentials.updateOne(
+        { email: normalizedEmail },
+        {
+          $set: {
+            kycStatus: nextStatus,
+            kycUpdatedAt: now,
+            kycRequestId: normalizedSubmissionId,
+            kycVerified: normalizedAction === 'approve',
+            kycVerifiedAt: normalizedAction === 'approve' ? now : null,
+            kycRejectedAt: normalizedAction === 'reject' ? now : null,
+            kycRejectionReason: rejectionReason,
+            updatedAt: now
+          }
+        }
+      );
+    }
+
+    if (normalizedUserId) {
+      await adminUserProfiles.updateOne(
+        { userId: normalizedUserId },
+        {
+          $set: {
+            userId: normalizedUserId,
+            email: normalizedEmail,
+            status: 'ACTIVE',
+            kycStatus: normalizedAction === 'approve' ? 'APPROVED' : 'REJECTED',
+            kycRemarks: rejectionReason,
+            updatedAt: now
+          },
+          $setOnInsert: {
+            createdAt: now
+          }
+        },
+        { upsert: true }
+      );
+
+      await adminKycDocuments.updateOne(
+        { userId: normalizedUserId },
+        {
+          $set: {
+            reviewDecision: normalizedAction === 'approve' ? 'APPROVED' : 'REJECTED',
+            reviewRemarks: rejectionReason,
+            reviewedAt: now,
+            updatedAt: now
+          },
+          $setOnInsert: {
+            userId: normalizedUserId,
+            documents: [],
+            createdAt: now
+          }
+        },
+        { upsert: true }
+      );
+    }
+
+    const updated = await p2pKycRequests.findOne({ requestId: normalizedSubmissionId });
+    return {
+      submissionId: normalizedSubmissionId,
+      user_id: normalizedUserId,
+      status: String(updated?.status || nextStatus).toLowerCase(),
+      reason: String(updated?.rejectionReason || '')
+    };
   }
 
   async function getWalletOverview() {
@@ -1941,6 +2142,8 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     adjustUserBalance,
     getUserKyc,
     reviewKyc,
+    listPendingKycSubmissions,
+    reviewKycSubmission,
     getWalletOverview,
     listDeposits,
     reviewDeposit,
