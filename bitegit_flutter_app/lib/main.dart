@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'auth/auth_screens.dart';
+import 'user_center/user_center_page.dart';
 
 final ValueNotifier<bool> kycVerifiedNotifier = ValueNotifier<bool>(false);
 final ValueNotifier<bool> kycBasicVerifiedNotifier = ValueNotifier<bool>(false);
@@ -2289,9 +2290,29 @@ class _ExchangeShellState extends State<ExchangeShell> {
   }
 
   Future<void> _openUserCenter() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const UserCenterPage()));
+    final identity = authIdentityNotifier.value.trim();
+    final fallbackIdentity = identity.isNotEmpty
+        ? identity
+        : nicknameNotifier.value.trim();
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BitegitUserCenterPage(
+          accessToken: authAccessTokenNotifier.value,
+          fallbackIdentity: fallbackIdentity,
+          fallbackUid: currentUserUid,
+          fallbackNickname: nicknameNotifier.value,
+          fallbackAvatarSymbol: avatarSymbolNotifier.value,
+          fallbackAvatarPath: profileImagePathNotifier.value,
+          onLogout: _logoutActiveSession,
+          onNicknameChanged: (value) {
+            final trimmed = value.trim();
+            if (trimmed.isEmpty) return;
+            nicknameNotifier.value = trimmed;
+            avatarSymbolNotifier.value = trimmed.substring(0, 1).toUpperCase();
+          },
+        ),
+      ),
+    );
     if (mounted) {
       setState(() {});
     }
@@ -16347,7 +16368,26 @@ class _P2PPageState extends State<P2PPage> {
           title: 'User Center',
           subtitle: 'Profile, security and preferences',
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const UserCenterPage()),
+            MaterialPageRoute<void>(
+              builder: (_) => BitegitUserCenterPage(
+                accessToken: authAccessTokenNotifier.value,
+                fallbackIdentity: authIdentityNotifier.value.trim().isNotEmpty
+                    ? authIdentityNotifier.value.trim()
+                    : nicknameNotifier.value,
+                fallbackUid: currentUserUid,
+                fallbackNickname: nicknameNotifier.value,
+                fallbackAvatarSymbol: avatarSymbolNotifier.value,
+                fallbackAvatarPath: profileImagePathNotifier.value,
+                onLogout: _logoutActiveSession,
+                onNicknameChanged: (value) {
+                  final trimmed = value.trim();
+                  if (trimmed.isEmpty) return;
+                  nicknameNotifier.value = trimmed;
+                  avatarSymbolNotifier.value =
+                      trimmed.substring(0, 1).toUpperCase();
+                },
+              ),
+            ),
           ),
         ),
         _P2PProfileNavTile(

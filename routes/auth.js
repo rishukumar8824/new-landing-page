@@ -72,7 +72,8 @@ function registerAuthRoutes(app, deps) {
     auditLogService,
     authEmailService,
     otpTtlMs = 10 * 60 * 1000,
-    allowDemoOtp = false
+    allowDemoOtp = false,
+    onLoginSuccess = null
   } = deps;
 
   const loginLimiter = createIpRateLimiter({
@@ -105,6 +106,17 @@ function registerAuthRoutes(app, deps) {
       return;
     }
     await auditLogService.safeLog(entry);
+  }
+
+  async function safeOnLoginSuccess(payload) {
+    if (typeof onLoginSuccess !== 'function') {
+      return;
+    }
+    try {
+      await onLoginSuccess(payload);
+    } catch (error) {
+      // User-center login history failure should not block auth flow.
+    }
   }
 
   async function persistRefreshToken(user, refreshToken, expiresAtMs) {
@@ -525,6 +537,12 @@ function registerAuthRoutes(app, deps) {
         metadata: { email, role: user.role }
       });
 
+      await safeOnLoginSuccess({
+        user,
+        ipAddress,
+        userAgent
+      });
+
       return res.json({
         message: 'Login successful.',
         user: {
@@ -555,6 +573,7 @@ function registerAuthRoutes(app, deps) {
     const password = String(req.body?.password || '').trim();
     const otpCode = String(req.body?.otpCode || '').trim();
     const ipAddress = normalizeIp(req);
+    const userAgent = String(req.headers['user-agent'] || '').trim().slice(0, 1024);
 
     if (!isValidEmail(email)) {
       await safeAuditLog({
@@ -626,6 +645,12 @@ function registerAuthRoutes(app, deps) {
         action: 'register_success',
         ipAddress,
         metadata: { email }
+      });
+
+      await safeOnLoginSuccess({
+        user,
+        ipAddress,
+        userAgent
       });
 
       return res.status(201).json({

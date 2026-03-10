@@ -25,7 +25,16 @@ export default function Home() {
               Log in / Sign up
             </Link>
           </div>
-        ) : null}
+        ) : (
+          <div className="mb-4 w-full">
+            <Link
+              href="/user-center"
+              className="flex h-12 w-full items-center justify-center rounded-full bg-slate-900 text-base font-semibold text-white transition hover:bg-black"
+            >
+              User Center
+            </Link>
+          </div>
+        )}
         <section className="w-full rounded-3xl bg-white/95 p-6 shadow-soft backdrop-blur sm:p-8">
           <p className="mb-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">
             Fast Crypto Assistance

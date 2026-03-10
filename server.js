@@ -22,6 +22,10 @@ const { createGeetestService } = require('./modules/auth-otp/geetest-service');
 const { createOtpEmailService } = require('./modules/auth-otp/email-service');
 const { createOtpAuthService } = require('./modules/auth-otp/otp-service');
 const { registerOtpAuthRoutes } = require('./routes/otp-auth');
+const { readUserCenterConfig } = require('./modules/user-center/config');
+const { createUserCenterStore } = require('./modules/user-center/mysql-store');
+const { createUserCenterService } = require('./modules/user-center/service');
+const { registerUserCenterRoutes } = require('./routes/user-center');
 const { createP2POrderController } = require('./controllers/p2p-order-controller');
 const { createAdminStore } = require('./admin/services/admin-store');
 const { createAdminAuthMiddleware } = require('./admin/middleware/admin-auth');
@@ -151,6 +155,8 @@ let p2pOrderController = null;
 let authEmailService = null;
 let otpAuthStore = null;
 let otpAuthService = null;
+let userCenterStore = null;
+let userCenterService = null;
 let persistenceReady = false;
 let httpServer = null;
 let shuttingDown = false;
@@ -2625,7 +2631,16 @@ async function boot() {
       auditLogService,
       authEmailService,
       otpTtlMs: SIGNUP_OTP_TTL_MS,
-      allowDemoOtp: ALLOW_DEMO_OTP
+      allowDemoOtp: ALLOW_DEMO_OTP,
+      onLoginSuccess: async ({ user, ipAddress, userAgent }) => {
+        if (!userCenterService) {
+          return;
+        }
+        await userCenterService.recordLoginEvent(user, {
+          ip: ipAddress,
+          device: userAgent
+        });
+      }
     });
 
     const otpAuthConfig = readAuthOtpConfig();
@@ -2651,7 +2666,34 @@ async function boot() {
       setCookie,
       tokenService,
       cookieNames: otpAuthConfig.cookieNames,
-      isProduction: IS_PRODUCTION
+      isProduction: IS_PRODUCTION,
+      onLoginSuccess: async ({ user, ipAddress, userAgent }) => {
+        if (!userCenterService) {
+          return;
+        }
+        await userCenterService.recordLoginEvent(user, {
+          ip: ipAddress,
+          device: userAgent
+        });
+      }
+    });
+
+    const userCenterConfig = readUserCenterConfig();
+    if (userCenterConfig.mysql.enabled) {
+      userCenterStore = createUserCenterStore(userCenterConfig.mysql);
+      await userCenterStore.initialize();
+      userCenterService = createUserCenterService({
+        store: userCenterStore,
+        config: userCenterConfig.app
+      });
+      console.log('[user-center] Modular User Center enabled');
+    } else {
+      console.log('[user-center] MySQL config missing; User Center APIs will return 503.');
+    }
+
+    registerUserCenterRoutes(app, {
+      requiresP2PUser,
+      userCenterService
     });
 
     p2pOrderController = createP2POrderController({
@@ -2774,6 +2816,16 @@ async function boot() {
         }
 
         httpServer.close(() => {
+          if (userCenterStore) {
+            userCenterStore
+              .close()
+              .then(() => {
+                console.log('[user-center] MySQL store closed.');
+              })
+              .catch((closeError) => {
+                console.error('[user-center] Failed to close MySQL store:', closeError.message);
+              });
+          }
           if (otpAuthStore) {
             otpAuthStore
               .close()
