@@ -1,14 +1,13 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'auth_api.dart';
 
-typedef AuthSuccessCallback = Future<void> Function(
-  String email,
-  OtpVerifyResult verifyResult,
-);
+typedef AuthSuccessCallback =
+    Future<void> Function(String email, OtpVerifyResult verifyResult);
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
@@ -289,7 +288,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               const Text(
                 'OTP Verification',
                 style: TextStyle(
-                  fontSize: 42,
+                  fontSize: 36,
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
                 ),
@@ -297,7 +296,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               const SizedBox(height: 12),
               Text(
                 'Code sent to ${widget.email}',
-                style: const TextStyle(fontSize: 16, color: Colors.white70),
+                style: const TextStyle(fontSize: 14, color: Colors.white70),
               ),
               const SizedBox(height: 28),
               TextField(
@@ -306,8 +305,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 maxLength: 6,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 24,
-                  letterSpacing: 6,
+                  fontSize: 22,
+                  letterSpacing: 5,
                 ),
                 decoration: _authFieldDecoration('Enter 6-digit code'),
                 onChanged: (_) => setState(() {}),
@@ -331,7 +330,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   child: Text(
                     _loading ? 'Verifying...' : 'Verify',
                     style: const TextStyle(
-                      fontSize: 30,
+                      fontSize: 22,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -379,31 +378,62 @@ class AuthScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final titleFontSize = math.min(48.0, media.size.width * 0.115);
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 20),
           children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () {},
+                  icon: const Icon(
+                    Icons.support_agent_outlined,
+                    color: Colors.white,
+                    size: 23,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 58,
+              style: TextStyle(
+                fontSize: titleFontSize,
                 fontWeight: FontWeight.w800,
                 height: 1.05,
                 color: Colors.white,
               ),
             ),
-            const SizedBox(height: 44),
+            if (showReferral) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: const [
+                  _ProgressDash(active: true),
+                  SizedBox(width: 6),
+                  _ProgressDash(active: false),
+                  SizedBox(width: 6),
+                  _ProgressDash(active: false),
+                ],
+              ),
+            ],
+            const SizedBox(height: 40),
             const Text(
               'Email / Phone number',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
               ),
@@ -412,24 +442,34 @@ class AuthScaffold extends StatelessWidget {
             TextField(
               controller: emailController,
               keyboardType: TextInputType.emailAddress,
-              style: const TextStyle(color: Colors.white, fontSize: 18),
+              style: const TextStyle(color: Colors.white, fontSize: 17),
               decoration: _authFieldDecoration('Email/Phone number'),
               onChanged: (_) => onChanged(),
             ),
             if (showReferral) ...[
               const SizedBox(height: 20),
-              const Text(
-                'Referral code (optional)',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
+              const Row(
+                children: [
+                  Text(
+                    'Referral code (optional)',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 5),
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 21,
+                    color: Colors.white,
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: referralController,
-                style: const TextStyle(color: Colors.white, fontSize: 17),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
                 decoration: _authFieldDecoration('Referral code'),
               ),
             ],
@@ -458,10 +498,10 @@ class AuthScaffold extends StatelessWidget {
                       padding: EdgeInsets.only(top: 10),
                       child: Text(
                         'I have read and agree to the Bitegit User Agreement.',
-                        style: TextStyle(fontSize: 17, color: Colors.white70),
+                        style: TextStyle(fontSize: 16, color: Colors.white70),
                       ),
                     ),
-                  )
+                  ),
                 ],
               ),
             ],
@@ -474,7 +514,7 @@ class AuthScaffold extends StatelessWidget {
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.black,
                   disabledBackgroundColor: const Color(0xFF232323),
-                  minimumSize: const Size.fromHeight(58),
+                  minimumSize: const Size.fromHeight(56),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
@@ -482,7 +522,7 @@ class AuthScaffold extends StatelessWidget {
                 child: Text(
                   loading ? 'Please wait...' : 'Next',
                   style: const TextStyle(
-                    fontSize: 30,
+                    fontSize: 22,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -495,14 +535,14 @@ class AuthScaffold extends StatelessWidget {
                 child: Text(
                   bottomLinkText,
                   style: const TextStyle(
-                    fontSize: 22,
+                    fontSize: 20,
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 76),
+            SizedBox(height: math.max(64, media.size.height * 0.16)),
             const _SocialRow(),
           ],
         ),
@@ -605,7 +645,7 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.close, color: Colors.white70),
-                  )
+                  ),
                 ],
               ),
             ),
@@ -628,9 +668,7 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
                           const Positioned.fill(
                             child: ColoredBox(
                               color: Color(0xCC111319),
-                              child: Center(
-                                child: CircularProgressIndicator(),
-                              ),
+                              child: Center(child: CircularProgressIndicator()),
                             ),
                           ),
                       ],
@@ -709,11 +747,28 @@ class _SocialRow extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
-            _SocialIcon(label: 'G'),
+            _SocialIcon(
+              child: Text(
+                'G',
+                style: TextStyle(
+                  color: Color(0xFF4285F4),
+                  fontSize: 33,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
             SizedBox(width: 18),
-            _SocialIcon(label: 'T'),
+            _SocialIcon(
+              child: Icon(
+                Icons.send_rounded,
+                color: Color(0xFF2AABEE),
+                size: 29,
+              ),
+            ),
             SizedBox(width: 18),
-            _SocialIcon(label: ''),
+            _SocialIcon(
+              child: Icon(Icons.apple, color: Colors.white, size: 30),
+            ),
           ],
         ),
       ],
@@ -722,9 +777,9 @@ class _SocialRow extends StatelessWidget {
 }
 
 class _SocialIcon extends StatelessWidget {
-  const _SocialIcon({required this.label});
+  const _SocialIcon({required this.child});
 
-  final String label;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
@@ -736,13 +791,24 @@ class _SocialIcon extends StatelessWidget {
         borderRadius: BorderRadius.circular(32),
       ),
       alignment: Alignment.center,
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 26,
-          fontWeight: FontWeight.w700,
-        ),
+      child: child,
+    );
+  }
+}
+
+class _ProgressDash extends StatelessWidget {
+  const _ProgressDash({required this.active});
+
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 4,
+      decoration: BoxDecoration(
+        color: active ? Colors.white : const Color(0xFF2A2D36),
+        borderRadius: BorderRadius.circular(999),
       ),
     );
   }
@@ -751,10 +817,10 @@ class _SocialIcon extends StatelessWidget {
 InputDecoration _authFieldDecoration(String hint) {
   return InputDecoration(
     hintText: hint,
-    hintStyle: const TextStyle(color: Colors.white38, fontSize: 19),
+    hintStyle: const TextStyle(color: Colors.white38, fontSize: 16),
     filled: true,
     fillColor: const Color(0xFF171A22),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(22),
       borderSide: const BorderSide(color: Color(0xFF262A34)),
@@ -768,7 +834,7 @@ InputDecoration _authFieldDecoration(String hint) {
 }
 
 bool _isValidEmail(String value) {
-  return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(
-    value.trim().toLowerCase(),
-  );
+  return RegExp(
+    r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
+  ).hasMatch(value.trim().toLowerCase());
 }
