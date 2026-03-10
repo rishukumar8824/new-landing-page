@@ -10,6 +10,7 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'auth/auth_screens.dart';
 
 final ValueNotifier<bool> kycVerifiedNotifier = ValueNotifier<bool>(false);
 final ValueNotifier<bool> kycBasicVerifiedNotifier = ValueNotifier<bool>(false);
@@ -400,6 +401,67 @@ class AuthGatePage extends StatelessWidget {
 class AuthLandingPage extends StatelessWidget {
   const AuthLandingPage({super.key});
 
+  Future<void> _handleOtpAuthSuccess(
+    String email,
+    dynamic verifyResult,
+  ) async {
+    var user = _findUserByIdentity(email);
+    if (user == null) {
+      _createUser(email: email, password: 'otp_auth_flow');
+      user = _findUserByIdentity(email);
+    }
+
+    if (user != null) {
+      _hydrateSessionFromUser(user);
+    } else {
+      authIdentityNotifier.value = email;
+      nicknameNotifier.value = _deriveNicknameFromIdentity(email);
+      avatarSymbolNotifier.value = _firstLetter(email);
+      currentUserUid = _generateUserUid();
+      isUserLoggedInNotifier.value = true;
+      _setKycStatus('pending');
+    }
+
+    final accessToken = verifyResult != null
+        ? ((verifyResult as dynamic).accessToken ?? '').toString().trim()
+        : '';
+    authAccessTokenNotifier.value = accessToken;
+  }
+
+  void _openLogin(BuildContext context, {bool replace = false}) {
+    final route = MaterialPageRoute<void>(
+      builder: (_) => LoginScreen(
+        onAuthSuccess: _handleOtpAuthSuccess,
+        onOpenSignup: () {
+          _openSignup(context, replace: true);
+        },
+      ),
+    );
+
+    if (replace) {
+      Navigator.of(context).pushReplacement<void, void>(route);
+      return;
+    }
+    Navigator.of(context).push(route);
+  }
+
+  void _openSignup(BuildContext context, {bool replace = false}) {
+    final route = MaterialPageRoute<void>(
+      builder: (_) => SignupScreen(
+        onAuthSuccess: _handleOtpAuthSuccess,
+        onOpenLogin: () {
+          _openLogin(context, replace: true);
+        },
+      ),
+    );
+
+    if (replace) {
+      Navigator.of(context).pushReplacement<void, void>(route);
+      return;
+    }
+    Navigator.of(context).push(route);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -424,11 +486,7 @@ class AuthLandingPage extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const SignupEntryPage(),
-                      ),
-                    );
+                    _openSignup(context);
                   },
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFF1CB3E),
@@ -446,11 +504,7 @@ class AuthLandingPage extends StatelessWidget {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const AuthEntryPage(),
-                      ),
-                    );
+                    _openLogin(context);
                   },
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(50),
@@ -848,13 +902,6 @@ class AuthOtpService {
     Uri.parse('https://bitegit.com/api/signup/verify-code'),
     Uri.parse('https://bitegit.com/api/auth/otp/verify'),
   ];
-  static final Map<String, String> _otpStore = <String, String>{};
-  static final Random _random = Random();
-
-  static String generateOtp() {
-    final value = _random.nextInt(900000) + 100000;
-    return value.toString();
-  }
 
   static Future<OtpRequestResult> requestOtp(String identity) async {
     for (final uri in _requestUris) {
@@ -875,19 +922,15 @@ class AuthOtpService {
         success: true,
         backendSent: true,
         message: message,
-        demoOtp: decoded['devCode']?.toString(),
       );
     }
 
-    final otp = generateOtp();
-    _otpStore[identity.toLowerCase()] = otp;
     await Future<void>.delayed(const Duration(milliseconds: 450));
     return OtpRequestResult(
-      success: true,
+      success: false,
       backendSent: false,
       message:
-          'Email/SMS gateway is not configured on backend. Using demo OTP for now.',
-      demoOtp: otp,
+          'Unable to send verification code right now. Please try again in a moment.',
     );
   }
 
@@ -918,9 +961,7 @@ class AuthOtpService {
           response.statusCode == 201;
       if (ok) return true;
     }
-
-    final key = identity.toLowerCase();
-    return _otpStore[key] != null && _otpStore[key] == trimmed;
+    return false;
   }
 
   static Future<_HttpJsonResponse> _postJson({
@@ -995,13 +1036,11 @@ class OtpRequestResult {
     required this.success,
     required this.backendSent,
     required this.message,
-    this.demoOtp,
   });
 
   final bool success;
   final bool backendSent;
   final String message;
-  final String? demoOtp;
 }
 
 class LiveMarketService {
@@ -4741,14 +4780,12 @@ class VerificationCodePage extends StatefulWidget {
     required this.identity,
     required this.backendOtpSent,
     required this.helperMessage,
-    this.demoOtp,
   });
 
   final String maskedIdentity;
   final String identity;
   final bool backendOtpSent;
   final String helperMessage;
-  final String? demoOtp;
 
   @override
   State<VerificationCodePage> createState() => _VerificationCodePageState();
@@ -4810,17 +4847,6 @@ class _VerificationCodePageState extends State<VerificationCodePage> {
                 : widget.helperMessage,
             style: const TextStyle(fontSize: 11.8, color: Colors.white60),
           ),
-          if (!widget.backendOtpSent && widget.demoOtp != null) ...[
-            const SizedBox(height: 3),
-            Text(
-              'Demo OTP: ${widget.demoOtp}',
-              style: const TextStyle(
-                fontSize: 12.4,
-                color: Color(0xFF9DFB3B),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
           const SizedBox(height: 12),
           Stack(
             children: [
@@ -4893,9 +4919,7 @@ class _VerificationCodePageState extends State<VerificationCodePage> {
                         messenger.showSnackBar(
                           SnackBar(
                             content: Text(
-                              result.backendSent
-                                  ? 'OTP resent'
-                                  : 'OTP resent (Demo OTP: ${result.demoOtp ?? ''})',
+                              result.success ? 'OTP resent' : result.message,
                             ),
                           ),
                         );

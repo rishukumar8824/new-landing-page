@@ -16,6 +16,12 @@ const { createAuditLogService } = require('./services/audit-log-service');
 const { createP2POrderExpiryService } = require('./services/p2p-order-expiry-service');
 const { createAuthEmailService } = require('./services/auth-email-service');
 const tokenService = require('./services/tokenService');
+const { readAuthOtpConfig } = require('./modules/auth-otp/config');
+const { createMySqlAuthStore } = require('./modules/auth-otp/mysql-store');
+const { createGeetestService } = require('./modules/auth-otp/geetest-service');
+const { createOtpEmailService } = require('./modules/auth-otp/email-service');
+const { createOtpAuthService } = require('./modules/auth-otp/otp-service');
+const { registerOtpAuthRoutes } = require('./routes/otp-auth');
 const { createP2POrderController } = require('./controllers/p2p-order-controller');
 const { createAdminStore } = require('./admin/services/admin-store');
 const { createAdminAuthMiddleware } = require('./admin/middleware/admin-auth');
@@ -57,6 +63,9 @@ const IS_PRODUCTION = String(process.env.NODE_ENV || '')
   .trim()
   .toLowerCase() === 'production';
 const ALLOW_DEMO_OTP = String(process.env.ALLOW_DEMO_OTP || '')
+  .trim()
+  .toLowerCase() === 'true' && !IS_PRODUCTION;
+const ENABLE_DEV_TEST_ROUTES = String(process.env.ENABLE_DEV_TEST_ROUTES || '')
   .trim()
   .toLowerCase() === 'true' && !IS_PRODUCTION;
 
@@ -140,6 +149,8 @@ let auditLogService = null;
 let p2pOrderExpiryService = null;
 let p2pOrderController = null;
 let authEmailService = null;
+let otpAuthStore = null;
+let otpAuthService = null;
 let persistenceReady = false;
 let httpServer = null;
 let shuttingDown = false;
@@ -1537,16 +1548,18 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
   }
 });
 
-app.get('/api/security/protected-sample', requiresP2PUser, (req, res) => {
-  return res.json({
-    message: 'Protected route access granted.',
-    user: {
-      id: req.p2pUser.id,
-      username: req.p2pUser.username,
-      role: req.p2pUser.role
-    }
+if (ENABLE_DEV_TEST_ROUTES) {
+  app.get('/api/security/protected-sample', requiresP2PUser, (req, res) => {
+    return res.json({
+      message: 'Protected route access granted.',
+      user: {
+        id: req.p2pUser.id,
+        username: req.p2pUser.username,
+        role: req.p2pUser.role
+      }
+    });
   });
-});
+}
 
 app.get(
   '/api/security/object/:id',
@@ -2505,25 +2518,27 @@ app.get('/api/health', (req, res) => {
   return res.status(200).json({ status: 'ok', db: 'connected' });
 });
 
-app.get('/api/test/encryption', (req, res) => {
-  try {
-    const input = String(req.query.text || 'test-message');
-    const encrypted = encryptText(input);
-    const decrypted = decryptText(encrypted);
+if (ENABLE_DEV_TEST_ROUTES) {
+  app.get('/api/test/encryption', (req, res) => {
+    try {
+      const input = String(req.query.text || 'test-message');
+      const encrypted = encryptText(input);
+      const decrypted = decryptText(encrypted);
 
-    return res.status(200).json({
-      status: 'ok',
-      input,
-      encrypted,
-      decrypted
-    });
-  } catch (error) {
-    return res.status(500).json({
-      status: 'error',
-      message: String(error?.message || 'Encryption test failed')
-    });
-  }
-});
+      return res.status(200).json({
+        status: 'ok',
+        input,
+        encrypted,
+        decrypted
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: 'error',
+        message: String(error?.message || 'Encryption test failed')
+      });
+    }
+  });
+}
 
 async function boot() {
   try {
@@ -2611,6 +2626,32 @@ async function boot() {
       authEmailService,
       otpTtlMs: SIGNUP_OTP_TTL_MS,
       allowDemoOtp: ALLOW_DEMO_OTP
+    });
+
+    const otpAuthConfig = readAuthOtpConfig();
+    if (otpAuthConfig.mysql.enabled) {
+      otpAuthStore = createMySqlAuthStore(otpAuthConfig.mysql);
+      await otpAuthStore.initialize();
+      const geetestService = createGeetestService(otpAuthConfig.geetest);
+      const otpEmailService = createOtpEmailService(otpAuthConfig.smtp);
+      otpAuthService = createOtpAuthService({
+        store: otpAuthStore,
+        geetestService,
+        emailService: otpEmailService,
+        tokenService,
+        otpConfig: otpAuthConfig.otp
+      });
+      console.log('[auth-otp] Modular OTP auth enabled with MySQL + Geetest + SMTP');
+    } else {
+      console.log('[auth-otp] MySQL config missing; /auth/send-otp and /auth/verify-otp will return 503.');
+    }
+
+    registerOtpAuthRoutes(app, {
+      otpAuthService,
+      setCookie,
+      tokenService,
+      cookieNames: otpAuthConfig.cookieNames,
+      isProduction: IS_PRODUCTION
     });
 
     p2pOrderController = createP2POrderController({
@@ -2733,6 +2774,16 @@ async function boot() {
         }
 
         httpServer.close(() => {
+          if (otpAuthStore) {
+            otpAuthStore
+              .close()
+              .then(() => {
+                console.log('[auth-otp] MySQL store closed.');
+              })
+              .catch((closeError) => {
+                console.error('[auth-otp] Failed to close MySQL store:', closeError.message);
+              });
+          }
           console.log('HTTP server closed.');
         });
 
