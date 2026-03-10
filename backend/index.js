@@ -48,20 +48,22 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: "Internal server error." });
 });
 
-async function startServer() {
+async function connectMongo() {
   const mongoUri = process.env.MONGO_URI;
   if (!mongoUri) {
     throw new Error("MONGO_URI is required in environment variables.");
   }
 
-  await mongoose.connect(mongoUri);
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
+  await mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: 15000
   });
+  console.log("MongoDB connected.");
 }
 
-startServer().catch((error) => {
-  console.error("Startup failed:", error.message);
-  process.exit(1);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+connectMongo().catch((error) => {
+  console.error("MongoDB connection failed:", error.message);
 });
