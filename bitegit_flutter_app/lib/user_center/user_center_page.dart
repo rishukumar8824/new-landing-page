@@ -2195,7 +2195,7 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
       ),
       _row(
         icon: Icons.workspace_premium_outlined,
-        title: 'VIP level',
+        title: 'VIP Level',
         value: _asString(_profile['vipLevel'], 'Non-VIP'),
         onTap: _openVipSheet,
       ),
@@ -2438,7 +2438,7 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
                       children: [
                         _tabChip('My info', 'my-info'),
                         const SizedBox(width: 14),
-                        _tabChip('Preference', 'preference'),
+                        _tabChip('Preferences', 'preference'),
                         const SizedBox(width: 14),
                         _tabChip('General', 'general'),
                       ],
