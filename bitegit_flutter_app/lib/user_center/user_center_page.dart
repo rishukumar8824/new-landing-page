@@ -2280,6 +2280,10 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
     );
     final uid = _asString(_profile['uid'], widget.fallbackUid);
     final securityLevel = _asString(_security['level'], 'Low');
+    final verificationBadge = _statusText(
+      _asString(_identity['kycStatus'], _asString(_profile['kycStatus'], 'pending')),
+    );
+    final vipBadge = _asString(_profile['vipLevel'], 'Non-VIP');
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -2355,6 +2359,21 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
                                   color: Color(0xFF7B818F),
                                   fontSize: 11,
                                 ),
+                              ),
+                              const SizedBox(height: 5),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  _headerBadge(
+                                    icon: Icons.verified_user_outlined,
+                                    label: verificationBadge,
+                                  ),
+                                  _headerBadge(
+                                    icon: Icons.workspace_premium_outlined,
+                                    label: vipBadge,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -2478,6 +2497,32 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
           fontSize: 13,
           fontWeight: active ? FontWeight.w600 : FontWeight.w500,
         ),
+      ),
+    );
+  }
+
+  Widget _headerBadge({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF10131A),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFF2A2F3A)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: const Color(0xFFCDD2DB), size: 13),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFFCDD2DB),
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
