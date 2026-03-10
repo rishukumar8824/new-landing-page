@@ -248,6 +248,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         messenger.showSnackBar(SnackBar(content: Text(result.message)));
         return;
       }
+      final accessToken = (result.accessToken ?? '').trim();
+      if (accessToken.isEmpty) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Session token missing. Please retry login.'),
+          ),
+        );
+        return;
+      }
 
       await widget.onAuthSuccess(widget.email, result);
       if (!mounted) return;

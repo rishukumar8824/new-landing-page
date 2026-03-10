@@ -406,26 +406,29 @@ class AuthLandingPage extends StatelessWidget {
     String email,
     dynamic verifyResult,
   ) async {
-    var user = _findUserByIdentity(email);
-    if (user == null) {
-      _createUser(email: email, password: 'otp_auth_flow');
-      user = _findUserByIdentity(email);
-    }
-
-    if (user != null) {
-      _hydrateSessionFromUser(user);
-    } else {
-      authIdentityNotifier.value = email;
-      nicknameNotifier.value = _deriveNicknameFromIdentity(email);
-      avatarSymbolNotifier.value = _firstLetter(email);
-      currentUserUid = _generateUserUid();
-      isUserLoggedInNotifier.value = true;
-      _setKycStatus('pending');
-    }
-
+    final normalizedEmail = email.trim().toLowerCase();
     final accessToken = verifyResult != null
         ? ((verifyResult as dynamic).accessToken ?? '').toString().trim()
         : '';
+    if (accessToken.isEmpty) {
+      return;
+    }
+
+    var user = _findUserByIdentity(normalizedEmail);
+    if (user == null) {
+      user = ExchangeUser(
+        userId: _generateUserUid(),
+        email: normalizedEmail,
+        password: '',
+        joinedAt: DateTime.now(),
+        kycStatus: 'pending',
+        walletBalanceUsdt: 0,
+        canPostAds: false,
+      );
+      _exchangeUsersByEmail[normalizedEmail] = user;
+    }
+
+    _hydrateSessionFromUser(user);
     authAccessTokenNotifier.value = accessToken;
   }
 
@@ -466,54 +469,62 @@ class AuthLandingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 24, 18, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Spacer(),
+              const Text(
+                'BITEGIT',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.3,
+                  color: Colors.white,
+                ),
+              ),
+              const Spacer(flex: 2),
               const Text(
                 'Welcome to Bitegit',
-                style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  fontSize: 38,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 8),
               const Text(
-                'Login or sign up to continue to P2P, wallet, and trading.',
-                style: TextStyle(fontSize: 13.2, color: Colors.white70),
+                'Join Bitegit and unlock crypto trading.',
+                style: TextStyle(fontSize: 15, color: Colors.white70),
               ),
               const Spacer(),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () {
-                    _openSignup(context);
+                    _openLogin(context);
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFF1CB3E),
+                    backgroundColor: Colors.white,
                     foregroundColor: Colors.black,
-                    minimumSize: const Size.fromHeight(50),
+                    minimumSize: const Size.fromHeight(58),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
                   ),
                   child: const Text(
-                    'Sign Up',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    'Log in / Sign up',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
               const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    _openLogin(context);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(50),
-                  ),
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
+              const Center(
+                child: Text(
+                  'Secure OTP login with Geetest verification',
+                  style: TextStyle(fontSize: 12.5, color: Colors.white54),
                 ),
               ),
             ],
