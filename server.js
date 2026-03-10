@@ -21,6 +21,7 @@ const { createMySqlAuthStore } = require('./modules/auth-otp/mysql-store');
 const { createGeetestService } = require('./modules/auth-otp/geetest-service');
 const { createOtpEmailService } = require('./modules/auth-otp/email-service');
 const { createOtpAuthService } = require('./modules/auth-otp/otp-service');
+const { createRepoFallbackOtpAuthService } = require('./modules/auth-otp/repo-fallback-service');
 const { registerOtpAuthRoutes } = require('./routes/otp-auth');
 const { readUserCenterConfig } = require('./modules/user-center/config');
 const { createUserCenterStore } = require('./modules/user-center/mysql-store');
@@ -67,9 +68,6 @@ const P2P_ORDER_ACTIVE_STATUSES = ['CREATED', 'PENDING', 'PAID', 'PAYMENT_SENT',
 const IS_PRODUCTION = String(process.env.NODE_ENV || '')
   .trim()
   .toLowerCase() === 'production';
-const ALLOW_DEMO_OTP = String(process.env.ALLOW_DEMO_OTP || '')
-  .trim()
-  .toLowerCase() === 'true' && !IS_PRODUCTION;
 const ENABLE_DEV_TEST_ROUTES = String(process.env.ENABLE_DEV_TEST_ROUTES || '')
   .trim()
   .toLowerCase() === 'true' && !IS_PRODUCTION;
@@ -229,7 +227,6 @@ function logEmailProviderRuntimeEnv() {
 
   console.log('Email provider env status:', {
     nodeEnv: String(process.env.NODE_ENV || 'development'),
-    allowDemoOtp: ALLOW_DEMO_OTP,
     hasResendApiKey: Boolean(String(process.env.RESEND_API_KEY || '').trim()),
     hasResendAliasKey: Boolean(String(process.env.RESEND || '').trim()),
     hasResendFromEmail: Boolean(String(process.env.RESEND_FROM_EMAIL || '').trim()),
@@ -1254,8 +1251,8 @@ app.post('/api/signup/send-code', async (req, res) => {
 
   await repos.upsertSignupOtp(contactInfo.value, otpState);
 
-  let delivery = 'simulated';
-  let deliveryMessage = 'Verification code generated.';
+  let delivery = 'email';
+  let deliveryMessage = 'Verification code sent to your email.';
 
   if (contactInfo.type === 'email') {
     const sendResult = await trySendSignupEmailOtp(contactInfo.value, code);
@@ -1263,26 +1260,19 @@ app.post('/api/signup/send-code', async (req, res) => {
       delivery = 'email';
       deliveryMessage = 'Verification code sent to your email.';
     } else {
-      if (!ALLOW_DEMO_OTP) {
-        await repos.deleteSignupOtp(contactInfo.value);
-        const failureReason = String(sendResult.reason || 'email_provider_unavailable').trim();
-        return res.status(503).json({
-          message: 'Unable to send email OTP right now.',
-          reason: failureReason
-        });
-      }
-      delivery = 'simulated';
-      deliveryMessage = 'Email provider not configured, using demo verification code.';
-    }
-  } else {
-    if (!ALLOW_DEMO_OTP) {
       await repos.deleteSignupOtp(contactInfo.value);
+      const failureReason = String(sendResult.reason || 'email_provider_unavailable').trim();
       return res.status(503).json({
-        message: 'SMS OTP service is not configured.',
-        reason: 'missing_sms_provider_config'
+        message: 'Unable to send email OTP right now.',
+        reason: failureReason
       });
     }
-    deliveryMessage = 'SMS provider not configured, using demo verification code.';
+  } else {
+    await repos.deleteSignupOtp(contactInfo.value);
+    return res.status(503).json({
+      message: 'SMS OTP service is not configured.',
+      reason: 'missing_sms_provider_config'
+    });
   }
 
   const payload = {
@@ -1291,10 +1281,6 @@ app.post('/api/signup/send-code', async (req, res) => {
     expiresInSeconds: Math.floor(SIGNUP_OTP_TTL_MS / 1000),
     delivery
   };
-
-  if (delivery !== 'email' && ALLOW_DEMO_OTP) {
-    payload.devCode = code;
-  }
 
   return res.json(payload);
 });
@@ -1631,6 +1617,136 @@ app.get('/api/wallet/summary', requiresP2PUser, async (req, res) => {
     return res.status(500).json({ message: 'Server error while loading wallet summary.' });
   }
 });
+
+app.get('/api/deposits/active', requiresP2PUser, async (req, res) => {
+  if (!adminStore || typeof adminStore.getPendingDepositByUser !== 'function') {
+    return res.status(503).json({ message: 'Deposit service is not available right now.' });
+  }
+
+  try {
+    const pending = await adminStore.getPendingDepositByUser(req.p2pUser.id);
+    return res.json({
+      hasActiveDeposit: Boolean(pending),
+      deposit: pending || null
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while loading active deposit session.' });
+  }
+});
+
+app.get('/api/deposits', requiresP2PUser, async (req, res) => {
+  if (!adminStore || typeof adminStore.listUserDeposits !== 'function') {
+    return res.status(503).json({ message: 'Deposit service is not available right now.' });
+  }
+
+  const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || 20), 10) || 20));
+  try {
+    const deposits = await adminStore.listUserDeposits(req.p2pUser.id, { limit });
+    return res.json({
+      total: deposits.length,
+      deposits
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while fetching deposits.' });
+  }
+});
+
+app.post(
+  '/api/deposits',
+  requiresP2PUser,
+  validateRequest([
+    validation.required('coin'),
+    validation.required('network'),
+    validation.required('address'),
+    validation.required('amount'),
+    validation.amount('amount')
+  ]),
+  async (req, res) => {
+    if (!adminStore || typeof adminStore.createDepositRequest !== 'function') {
+      return res.status(503).json({ message: 'Deposit service is not available right now.' });
+    }
+
+    const coin = String(req.body.coin || '').trim().toUpperCase();
+    const network = String(req.body.network || req.body.chain || '').trim().toUpperCase();
+    const amount = Number(req.body.amount);
+    const address = String(req.body.address || '').trim();
+    const txHash = String(req.body.txHash || req.body.txid || '').trim();
+    const proofUrl = String(req.body.proofUrl || req.body.depositProof || '').trim();
+    const requestIp = getRequestIp(req);
+
+    if (coin === 'USDT') {
+      const normalizedNetwork = normalizeUsdtNetwork(network);
+      if (!isValidAddressForNetwork(address, normalizedNetwork)) {
+        return res.status(400).json({
+          message: `Invalid ${normalizedNetwork} deposit address format.`
+        });
+      }
+    }
+
+    try {
+      const deposit = await adminStore.createDepositRequest({
+        userId: req.p2pUser.id,
+        email: req.p2pUser.email,
+        username: req.p2pUser.username,
+        coin,
+        network,
+        address,
+        amount,
+        txHash,
+        proofUrl,
+        metadata: {
+          source: 'api.deposits',
+          ipAddress: requestIp,
+          userAgent: String(req.headers['user-agent'] || '').trim()
+        }
+      });
+
+      if (auditLogService) {
+        await auditLogService.safeLog({
+          userId: req.p2pUser.id,
+          action: 'deposit_request_created',
+          ipAddress: requestIp,
+          metadata: {
+            depositId: deposit.id,
+            coin: deposit.coin,
+            network: deposit.network,
+            amount: deposit.amount
+          }
+        });
+      }
+
+      return res.status(201).json({
+        message: 'Deposit request created. Awaiting admin confirmation.',
+        deposit
+      });
+    } catch (error) {
+      if (auditLogService) {
+        await auditLogService.safeLog({
+          userId: req.p2pUser.id,
+          action: 'deposit_request_failed',
+          ipAddress: requestIp,
+          metadata: {
+            coin,
+            network,
+            amount,
+            address,
+            errorCode: String(error.code || 'DEPOSIT_REQUEST_ERROR'),
+            errorMessage: String(error.message || 'Deposit request failed')
+          }
+        });
+      }
+
+      const message = String(error?.message || 'Server error while creating deposit request.');
+      if (message.toLowerCase().includes('active deposit request')) {
+        return res.status(409).json({ message });
+      }
+      if (message.toLowerCase().includes('unsupported')) {
+        return res.status(400).json({ message });
+      }
+      return res.status(500).json({ message });
+    }
+  }
+);
 
 app.post(
   '/api/withdrawals',
@@ -2685,7 +2801,6 @@ async function boot() {
       auditLogService,
       authEmailService,
       otpTtlMs: SIGNUP_OTP_TTL_MS,
-      allowDemoOtp: ALLOW_DEMO_OTP,
       onLoginSuccess: async ({ user, ipAddress, userAgent }) => {
         if (!userCenterService) {
           return;
@@ -2698,10 +2813,10 @@ async function boot() {
     });
 
     const otpAuthConfig = readAuthOtpConfig();
+    const geetestService = createGeetestService(otpAuthConfig.geetest);
     if (otpAuthConfig.mysql.enabled) {
       otpAuthStore = createMySqlAuthStore(otpAuthConfig.mysql);
       await otpAuthStore.initialize();
-      const geetestService = createGeetestService(otpAuthConfig.geetest);
       const otpEmailService = createOtpEmailService(otpAuthConfig.smtp);
       otpAuthService = createOtpAuthService({
         store: otpAuthStore,
@@ -2712,7 +2827,15 @@ async function boot() {
       });
       console.log('[auth-otp] Modular OTP auth enabled with MySQL + Geetest + SMTP');
     } else {
-      console.log('[auth-otp] MySQL config missing; /auth/send-otp and /auth/verify-otp will return 503.');
+      otpAuthService = createRepoFallbackOtpAuthService({
+        repos,
+        tokenService,
+        geetestService,
+        authEmailService,
+        buildP2PUserFromEmail,
+        otpConfig: otpAuthConfig.otp
+      });
+      console.log('[auth-otp] MySQL config missing; fallback OTP auth enabled with repository store + Geetest + SMTP.');
     }
 
     registerOtpAuthRoutes(app, {

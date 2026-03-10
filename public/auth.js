@@ -343,8 +343,7 @@ async function handleSendOtp() {
     }
 
     const statusMsg = data?.message || 'Verification code sent.';
-    const debugCode = data?.devCode ? ` Demo code: ${data.devCode}` : '';
-    setStatus(statusMsg + debugCode, 'success');
+    setStatus(statusMsg, 'success');
     const ttl = Number(data?.expiresInSeconds || 600);
     setOtpHelp(`Code sent. Valid for ${Math.max(1, Math.floor(ttl / 60))} minutes.`);
     startOtpCooldown(OTP_RESEND_WAIT_SECONDS);

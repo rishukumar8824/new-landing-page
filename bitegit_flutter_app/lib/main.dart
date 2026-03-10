@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'auth/auth_screens.dart';
 import 'user_center/user_center_page.dart';
@@ -51,6 +52,432 @@ final ValueNotifier<List<P2PAdItem>> p2pMarketplaceAdsNotifier =
     ValueNotifier<List<P2PAdItem>>(<P2PAdItem>[]);
 final ValueNotifier<List<P2POrderItem>> p2pOrdersNotifier =
     ValueNotifier<List<P2POrderItem>>(<P2POrderItem>[]);
+final ValueNotifier<bool> hasActiveDepositSessionNotifier =
+    ValueNotifier<bool>(false);
+final ValueNotifier<Map<String, String>> usdtDepositAddressByNetworkNotifier =
+    ValueNotifier<Map<String, String>>(<String, String>{});
+String _authRefreshToken = '';
+
+const String _sessionStorageKey = 'bitegit_session_v2';
+
+String _normalizeApiBase(String raw) {
+  final normalized = raw.trim();
+  if (normalized.isEmpty) {
+    return '';
+  }
+  if (normalized.endsWith('/')) {
+    return normalized.substring(0, normalized.length - 1);
+  }
+  return normalized;
+}
+
+List<String> _apiBaseUrls() {
+  final fromEnv = _normalizeApiBase(
+    const String.fromEnvironment('BITEGIT_API_BASE', defaultValue: ''),
+  );
+  const defaults = <String>['https://bitegit.com', 'https://www.bitegit.com'];
+  final ordered = <String>[if (fromEnv.isNotEmpty) fromEnv, ...defaults];
+  final unique = <String>[];
+  for (final base in ordered) {
+    if (base.isEmpty || unique.contains(base)) {
+      continue;
+    }
+    unique.add(base);
+  }
+  return unique;
+}
+
+Uri _apiUri(String base, String path) => Uri.parse('$base$path');
+
+double _toDouble(dynamic input, [double fallback = 0]) {
+  if (input is num) {
+    return input.toDouble();
+  }
+  return double.tryParse(input?.toString() ?? '') ?? fallback;
+}
+
+class _ApiHttpResponse {
+  const _ApiHttpResponse({
+    required this.statusCode,
+    required this.bodyMap,
+  });
+
+  final int statusCode;
+  final Map<String, dynamic>? bodyMap;
+}
+
+Future<_ApiHttpResponse> _getJsonFromApi(
+  Uri uri, {
+  String? accessToken,
+}) async {
+  final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
+  try {
+    final req = await client.getUrl(uri);
+    req.followRedirects = false;
+    req.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    final token = (accessToken ?? '').trim();
+    if (token.isNotEmpty) {
+      req.headers.set('Authorization', 'Bearer $token');
+    }
+    final resp = await req.close();
+    final body = await resp.transform(utf8.decoder).join();
+    Map<String, dynamic>? decodedMap;
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        decodedMap = decoded;
+      }
+    } catch (_) {
+      decodedMap = null;
+    }
+    return _ApiHttpResponse(statusCode: resp.statusCode, bodyMap: decodedMap);
+  } catch (_) {
+    return const _ApiHttpResponse(statusCode: 0, bodyMap: null);
+  } finally {
+    client.close(force: true);
+  }
+}
+
+Future<_ApiHttpResponse> _postJsonToApi(
+  Uri uri,
+  Map<String, dynamic> payload, {
+  String? accessToken,
+}) async {
+  final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
+  try {
+    final req = await client.postUrl(uri);
+    req.followRedirects = false;
+    req.headers.contentType = ContentType.json;
+    final token = (accessToken ?? '').trim();
+    if (token.isNotEmpty) {
+      req.headers.set('Authorization', 'Bearer $token');
+    }
+    req.add(utf8.encode(jsonEncode(payload)));
+    final resp = await req.close();
+    final body = await resp.transform(utf8.decoder).join();
+    Map<String, dynamic>? decodedMap;
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        decodedMap = decoded;
+      }
+    } catch (_) {
+      decodedMap = null;
+    }
+    return _ApiHttpResponse(statusCode: resp.statusCode, bodyMap: decodedMap);
+  } catch (_) {
+    return const _ApiHttpResponse(statusCode: 0, bodyMap: null);
+  } finally {
+    client.close(force: true);
+  }
+}
+
+bool _apiSuccess(_ApiHttpResponse response) {
+  final statusOk = response.statusCode >= 200 && response.statusCode < 300;
+  if (!statusOk) {
+    return false;
+  }
+  final body = response.bodyMap;
+  if (body == null) {
+    return true;
+  }
+  return body['success'] != false;
+}
+
+String _apiErrorMessage(
+  _ApiHttpResponse response, {
+  String fallback = 'Request failed.',
+}) {
+  final msg = (response.bodyMap?['message'] ?? '').toString().trim();
+  if (msg.isNotEmpty) {
+    return msg;
+  }
+  if (response.statusCode == 0) {
+    return 'Network error while reaching Bitegit API.';
+  }
+  return fallback;
+}
+
+Future<void> _syncWalletFromBackend({String? accessToken}) async {
+  final token = (accessToken ?? authAccessTokenNotifier.value).trim();
+  if (token.isEmpty) {
+    return;
+  }
+
+  for (final base in _apiBaseUrls()) {
+    final response = await _getJsonFromApi(
+      _apiUri(base, '/api/wallet/summary'),
+      accessToken: token,
+    );
+    if (!_apiSuccess(response)) {
+      continue;
+    }
+    final summary = response.bodyMap?['summary'];
+    final wallet = response.bodyMap?['wallet'];
+    final summaryMap = summary is Map<String, dynamic>
+        ? summary
+        : (wallet is Map<String, dynamic>
+              ? wallet
+              : const <String, dynamic>{});
+    final available = _toDouble(
+      summaryMap['available_balance'] ?? summaryMap['availableBalance'],
+      0,
+    );
+    final spot = _toDouble(summaryMap['spot_balance'], available);
+    fundingUsdtBalanceNotifier.value = available;
+    spotUsdtBalanceNotifier.value = spot;
+    _syncActiveUserState(walletBalanceUsdt: available);
+
+    final rawNetworks = summaryMap['deposit_networks'];
+    if (rawNetworks is List) {
+      final addresses = <String, String>{};
+      for (final item in rawNetworks) {
+        if (item is! Map) continue;
+        final network = (item['network'] ?? item['chain'] ?? '').toString().trim().toUpperCase();
+        final address = (item['address'] ?? '').toString().trim();
+        if (network.isEmpty || address.isEmpty) continue;
+        addresses[network] = address;
+      }
+      if (addresses.isNotEmpty) {
+        usdtDepositAddressByNetworkNotifier.value = addresses;
+      }
+    }
+    return;
+  }
+}
+
+Future<void> _syncDepositSessionFromBackend({String? accessToken}) async {
+  final token = (accessToken ?? authAccessTokenNotifier.value).trim();
+  if (token.isEmpty) {
+    hasActiveDepositSessionNotifier.value = false;
+    return;
+  }
+
+  for (final base in _apiBaseUrls()) {
+    final response = await _getJsonFromApi(
+      _apiUri(base, '/api/deposits/active'),
+      accessToken: token,
+    );
+    if (!_apiSuccess(response)) {
+      continue;
+    }
+    final hasActive = response.bodyMap?['hasActiveDeposit'] == true;
+    hasActiveDepositSessionNotifier.value = hasActive;
+    return;
+  }
+}
+
+Future<List<AssetTransactionRecord>> _fetchDepositHistory({
+  String? accessToken,
+  int limit = 20,
+}) async {
+  final token = (accessToken ?? authAccessTokenNotifier.value).trim();
+  if (token.isEmpty) {
+    return <AssetTransactionRecord>[];
+  }
+
+  for (final base in _apiBaseUrls()) {
+    final response = await _getJsonFromApi(
+      _apiUri(base, '/api/deposits?limit=$limit'),
+      accessToken: token,
+    );
+    if (!_apiSuccess(response)) {
+      continue;
+    }
+    final deposits = response.bodyMap?['deposits'];
+    if (deposits is! List) {
+      return <AssetTransactionRecord>[];
+    }
+    return deposits.whereType<Map>().map((row) {
+      final amount = _toDouble(row['amount'], 0);
+      final createdAt = DateTime.tryParse((row['createdAt'] ?? '').toString()) ??
+          DateTime.now();
+      final statusRaw = (row['status'] ?? '').toString().trim().toUpperCase();
+      final status = switch (statusRaw) {
+        'COMPLETED' => 'Completed',
+        'REJECTED' => 'Rejected',
+        _ => 'Pending',
+      };
+      return AssetTransactionRecord(
+        id: (row['id'] ?? '').toString(),
+        type: 'deposit',
+        coin: (row['coin'] ?? 'USDT').toString().toUpperCase(),
+        amount: amount,
+        time: createdAt,
+        status: status,
+        network: (row['network'] ?? '').toString().toUpperCase(),
+      );
+    }).toList();
+  }
+
+  return <AssetTransactionRecord>[];
+}
+
+Future<Map<String, dynamic>> _createDepositRequest({
+  required String coin,
+  required String network,
+  required String address,
+  required double amount,
+  String txHash = '',
+  String proofUrl = '',
+  String? accessToken,
+}) async {
+  final token = (accessToken ?? authAccessTokenNotifier.value).trim();
+  if (token.isEmpty) {
+    throw Exception('Please login again to continue.');
+  }
+
+  String firstFailure = '';
+  for (final base in _apiBaseUrls()) {
+    final response = await _postJsonToApi(
+      _apiUri(base, '/api/deposits'),
+      <String, dynamic>{
+        'coin': coin,
+        'network': network,
+        'address': address,
+        'amount': amount,
+        if (txHash.trim().isNotEmpty) 'txHash': txHash.trim(),
+        if (proofUrl.trim().isNotEmpty) 'proofUrl': proofUrl.trim(),
+      },
+      accessToken: token,
+    );
+    if (_apiSuccess(response)) {
+      final deposit = response.bodyMap?['deposit'];
+      if (deposit is Map<String, dynamic>) {
+        return deposit;
+      }
+      return <String, dynamic>{};
+    }
+    if (firstFailure.isEmpty) {
+      firstFailure = _apiErrorMessage(
+        response,
+        fallback: 'Unable to create deposit request.',
+      );
+    }
+  }
+
+  throw Exception(
+    firstFailure.isEmpty ? 'Unable to create deposit request.' : firstFailure,
+  );
+}
+
+Future<Map<String, dynamic>> _createWithdrawalRequest({
+  required String currency,
+  required String network,
+  required String address,
+  required double amount,
+  String? accessToken,
+}) async {
+  final token = (accessToken ?? authAccessTokenNotifier.value).trim();
+  if (token.isEmpty) {
+    throw Exception('Please login again to continue.');
+  }
+
+  String firstFailure = '';
+  for (final base in _apiBaseUrls()) {
+    final response = await _postJsonToApi(
+      _apiUri(base, '/api/withdrawals'),
+      <String, dynamic>{
+        'currency': currency,
+        'network': network,
+        'address': address,
+        'amount': amount,
+      },
+      accessToken: token,
+    );
+    if (_apiSuccess(response)) {
+      final withdrawal = response.bodyMap?['withdrawal'];
+      if (withdrawal is Map<String, dynamic>) {
+        return withdrawal;
+      }
+      return <String, dynamic>{};
+    }
+    if (firstFailure.isEmpty) {
+      firstFailure = _apiErrorMessage(
+        response,
+        fallback: 'Unable to submit withdrawal request.',
+      );
+    }
+  }
+
+  throw Exception(
+    firstFailure.isEmpty
+        ? 'Unable to submit withdrawal request.'
+        : firstFailure,
+  );
+}
+
+Future<void> _persistSessionState() async {
+  final active = activeExchangeUserNotifier.value;
+  final prefs = await SharedPreferences.getInstance();
+  if (active == null || authAccessTokenNotifier.value.trim().isEmpty) {
+    await prefs.remove(_sessionStorageKey);
+    return;
+  }
+
+  final payload = <String, dynamic>{
+    'email': active.email,
+    'userId': active.userId,
+    'kycStatus': active.kycStatus,
+    'walletBalanceUsdt': active.walletBalanceUsdt,
+    'accessToken': authAccessTokenNotifier.value,
+    'refreshToken': _authRefreshToken,
+  };
+  await prefs.setString(_sessionStorageKey, jsonEncode(payload));
+}
+
+Future<void> _restoreSessionState() async {
+  final prefs = await SharedPreferences.getInstance();
+  final raw = prefs.getString(_sessionStorageKey) ?? '';
+  if (raw.isEmpty) {
+    return;
+  }
+
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) {
+      return;
+    }
+
+    final email = (decoded['email'] ?? '').toString().trim().toLowerCase();
+    final accessToken = (decoded['accessToken'] ?? '').toString().trim();
+    if (email.isEmpty || accessToken.isEmpty) {
+      return;
+    }
+
+    final userId = (decoded['userId'] ?? '').toString().trim();
+    final kycStatus = (decoded['kycStatus'] ?? 'pending')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final walletBalance = _toDouble(decoded['walletBalanceUsdt'], 0);
+
+    final restoredUser = ExchangeUser(
+      userId: userId.isEmpty ? _generateUserUid() : userId,
+      email: email,
+      password: '',
+      joinedAt: DateTime.now(),
+      kycStatus: kycStatus,
+      walletBalanceUsdt: walletBalance,
+      canPostAds: kycStatus == 'verified',
+    );
+
+    _exchangeUsersByEmail[email] = restoredUser;
+    _hydrateSessionFromUser(restoredUser);
+    authAccessTokenNotifier.value = accessToken;
+    _authRefreshToken = (decoded['refreshToken'] ?? '').toString().trim();
+
+    await _syncWalletFromBackend(accessToken: accessToken);
+    await _syncDepositSessionFromBackend(accessToken: accessToken);
+  } catch (_) {
+    // Ignore invalid session payload.
+  }
+}
+
+Future<void> _clearSessionState() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove(_sessionStorageKey);
+}
 
 class ExchangeUser {
   const ExchangeUser({
@@ -208,6 +635,7 @@ void _hydrateSessionFromUser(ExchangeUser user) {
   spotUsdtBalanceNotifier.value = 0;
   _setKycStatus(user.kycStatus);
   isUserLoggedInNotifier.value = true;
+  unawaited(_persistSessionState());
 }
 
 void _syncActiveUserState({
@@ -226,6 +654,7 @@ void _syncActiveUserState({
   );
   _exchangeUsersByEmail[next.email.toLowerCase()] = next;
   activeExchangeUserNotifier.value = next;
+  unawaited(_persistSessionState());
 }
 
 ExchangeUser? _findUserByIdentity(String identity) {
@@ -255,14 +684,18 @@ void _logoutActiveSession() {
   activeExchangeUserNotifier.value = null;
   authIdentityNotifier.value = '';
   authAccessTokenNotifier.value = '';
+  _authRefreshToken = '';
   currentUserUid = '--';
   nicknameNotifier.value = 'Guest';
   avatarSymbolNotifier.value = 'G';
   profileImagePathNotifier.value = null;
   fundingUsdtBalanceNotifier.value = 0;
   spotUsdtBalanceNotifier.value = 0;
+  hasActiveDepositSessionNotifier.value = false;
+  usdtDepositAddressByNetworkNotifier.value = <String, String>{};
   _setKycStatus('pending');
   isUserLoggedInNotifier.value = false;
+  unawaited(_clearSessionState());
 }
 
 SupportAlert addSupportAgentAlert(String message) {
@@ -283,7 +716,9 @@ String _generateUserUid() {
   return '$a$b';
 }
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await _restoreSessionState();
   runApp(const BitegitApp());
 }
 
@@ -390,10 +825,14 @@ class AuthGatePage extends StatelessWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: isUserLoggedInNotifier,
       builder: (context, loggedIn, _) {
-        if (loggedIn) {
-          return const ExchangeShell();
-        }
-        return const AuthLandingPage();
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          child: loggedIn
+              ? const ExchangeShell(key: ValueKey<String>('exchange-shell'))
+              : const AuthLandingPage(key: ValueKey<String>('auth-landing')),
+        );
       },
     );
   }
@@ -407,29 +846,63 @@ class AuthLandingPage extends StatelessWidget {
     dynamic verifyResult,
   ) async {
     final normalizedEmail = email.trim().toLowerCase();
-    final accessToken = verifyResult != null
-        ? ((verifyResult as dynamic).accessToken ?? '').toString().trim()
-        : '';
+    final accessToken =
+        verifyResult != null
+            ? ((verifyResult as dynamic).accessToken ?? '').toString().trim()
+            : '';
     if (accessToken.isEmpty) {
       return;
     }
 
-    var user = _findUserByIdentity(normalizedEmail);
+    final resolvedUserId =
+        verifyResult != null
+            ? ((verifyResult as dynamic).userId ?? '').toString().trim()
+            : '';
+    final resolvedEmail =
+        verifyResult != null
+            ? ((verifyResult as dynamic).email ?? normalizedEmail)
+                .toString()
+                .trim()
+                .toLowerCase()
+            : normalizedEmail;
+    final resolvedKycStatus =
+        verifyResult != null
+            ? ((verifyResult as dynamic).kycStatus ?? 'pending')
+                .toString()
+                .trim()
+                .toLowerCase()
+            : 'pending';
+    _authRefreshToken =
+        verifyResult != null
+            ? ((verifyResult as dynamic).refreshToken ?? '').toString().trim()
+            : '';
+
+    var user = _findUserByIdentity(resolvedEmail);
     if (user == null) {
       user = ExchangeUser(
-        userId: _generateUserUid(),
-        email: normalizedEmail,
+        userId: resolvedUserId.isEmpty ? _generateUserUid() : resolvedUserId,
+        email: resolvedEmail,
         password: '',
         joinedAt: DateTime.now(),
-        kycStatus: 'pending',
+        kycStatus: resolvedKycStatus,
         walletBalanceUsdt: 0,
-        canPostAds: false,
+        canPostAds: resolvedKycStatus == 'verified',
       );
-      _exchangeUsersByEmail[normalizedEmail] = user;
+      _exchangeUsersByEmail[resolvedEmail] = user;
+    } else {
+      user = user.copyWith(
+        userId: resolvedUserId.isEmpty ? user.userId : resolvedUserId,
+        kycStatus: resolvedKycStatus,
+        canPostAds: resolvedKycStatus == 'verified',
+      );
+      _exchangeUsersByEmail[resolvedEmail] = user;
     }
 
     _hydrateSessionFromUser(user);
     authAccessTokenNotifier.value = accessToken;
+    await _syncWalletFromBackend(accessToken: accessToken);
+    await _syncDepositSessionFromBackend(accessToken: accessToken);
+    await _persistSessionState();
   }
 
   void _openLogin(BuildContext context, {bool replace = false}) {
@@ -1380,15 +1853,7 @@ class P2PApiService {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 320));
     final usdtAmount = fiatAmount / (ad.priceValue <= 0 ? 1 : ad.priceValue);
-    var canLock = _escrowEngine.lockSeller(ad.seller, orderId, usdtAmount);
-    if (!canLock) {
-      // Demo fallback so buyer/seller flow doesn't block due missing seed balances.
-      canLock = _escrowEngine.lockSeller(
-        ad.seller,
-        orderId,
-        usdtAmount.clamp(0, 25),
-      );
-    }
+    final canLock = _escrowEngine.lockSeller(ad.seller, orderId, usdtAmount);
     if (!canLock) {
       throw Exception('Unable to lock merchant escrow');
     }
@@ -1449,11 +1914,10 @@ class P2PApiService {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 240));
     final ok = _escrowEngine.releaseToBuyer(buyerId, order.id);
-    // In demo mode, still complete if escrow row is missing.
     return order.copyWith(
       orderState: P2POrderState.completed,
       status: p2pOrderStateLabel(P2POrderState.completed),
-      escrowReleased: ok || order.escrowLocked,
+      escrowReleased: ok,
     );
   }
 
@@ -1530,32 +1994,16 @@ const Map<String, Map<String, String>> kDepositAddressBook = {
     'TRC20': 'TVA3u7mqe8f4v2qd5YdKG8g8A2pZV8u9fH',
     'ERC20': '0x54E7dB9Cd57F4D55a0B08E20B2Ef11A7f2a5A91E',
     'BEP20': '0x3C5bF3D4f9A62a4f66eA85d2D0d8E0F8B21d9f3A',
-    'APTOS':
-        '0x0f9e4f6e49f6c0f7d3f1af9f8e8e87d4b230b0f6d7f0e2a3f7c1d9a0e1b4c8d2',
-    'OPBNB': '0x2Ee0f2E9bA3B5eD2e6A19A8f2B12D8FdA6A0f2b9',
   },
-  'BTC': {
-    'BTC': 'bc1q8c7rwdwhnh6w9mkrjeyr3h7qpk4m4x5l7j0v3g',
-    'BEP20': '0x70eC6C6f80fD8fA9eaB6E3F4f5A70758F3f31Ee2',
-  },
+  'BTC': {'BTC': 'bc1q8c7rwdwhnh6w9mkrjeyr3h7qpk4m4x5l7j0v3g'},
   'ETH': {
     'ERC20': '0x14dA1E8c9147d9f6C87d0E0173Ec98AE06aD6E7c',
     'BEP20': '0x87eE07E3A35E3a2E82f2A95A43bA699c6d01b20D',
-    'Arbitrum': '0xA9f0f5A1EeA5a4aD1A1BE47bdf8fC48b39F4A2f8',
   },
-  'BNB': {
-    'BEP20': '0xB4E5f0C2f78dc103D8f8b3FAb6D8Ae9F152A0d62',
-    'BNB Beacon': 'bnb1j7t2jlczz4x5t5x9y9p3y3zhy67am6rv4kg38w',
-  },
+  'BNB': {'BEP20': '0xB4E5f0C2f78dc103D8f8b3FAb6D8Ae9F152A0d62'},
   'SOL': {'SOL': '8N2K7T6QxYQHGqZzV4DgqP14jT7MGN6WSJfYfj8y9E8X'},
-  'XRP': {
-    'XRP': 'rD2f4h9UoL3cP6sV8nA1kQ5mE7xJ0tY2w',
-    'BEP20': '0xA11fD7A1Ead511C0fB3F72FEC8D2ea5A67E2f5E0',
-  },
-  'DOGE': {
-    'DOGE': 'DH2w3Uo8LwY9r7mQvA4tS1kzJ5nB6xE2hP',
-    'BEP20': '0x2F84bA6f79E98D7dF1D8c3A9f8A0B4F2f87A12C0',
-  },
+  'XRP': {'XRP': 'rD2f4h9UoL3cP6sV8nA1kQ5mE7xJ0tY2w'},
+  'DOGE': {'DOGE': 'DH2w3Uo8LwY9r7mQvA4tS1kzJ5nB6xE2hP'},
 };
 
 class ChainNetworkMeta {
@@ -2482,122 +2930,6 @@ class HomePage extends StatelessWidget {
   final ValueChanged<int> onNavigateTab;
   final ValueChanged<MarketPair> onOpenTradePair;
 
-  void _openWidgetEditor(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
-            child: ValueListenableBuilder<HomeWidgetSettings>(
-              valueListenable: homeWidgetSettingsNotifier,
-              builder: (context, settings, _) {
-                Widget tile({
-                  required String title,
-                  required String subtitle,
-                  required bool value,
-                  required ValueChanged<bool> onChanged,
-                }) {
-                  return SwitchListTile.adaptive(
-                    value: value,
-                    onChanged: onChanged,
-                    title: Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 15.4,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    subtitle: Text(
-                      subtitle,
-                      style: const TextStyle(fontSize: 12.4),
-                    ),
-                    contentPadding: EdgeInsets.zero,
-                  );
-                }
-
-                return SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Widget Edit',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Select which home widgets you want to keep visible.',
-                        style: TextStyle(fontSize: 13.2),
-                      ),
-                      const SizedBox(height: 8),
-                      tile(
-                        title: 'Deposit banner',
-                        subtitle: 'Top deposit CTA section',
-                        value: settings.showDepositBanner,
-                        onChanged: (value) {
-                          homeWidgetSettingsNotifier.value = settings.copyWith(
-                            showDepositBanner: value,
-                          );
-                        },
-                      ),
-                      tile(
-                        title: 'Promo slider cards',
-                        subtitle: '3-box promotional slider block',
-                        value: settings.showPromoScroller,
-                        onChanged: (value) {
-                          homeWidgetSettingsNotifier.value = settings.copyWith(
-                            showPromoScroller: value,
-                          );
-                        },
-                      ),
-                      tile(
-                        title: 'Quick actions row',
-                        subtitle: 'Deposit, P2P, Withdraw, Reward shortcuts',
-                        value: settings.showQuickActions,
-                        onChanged: (value) {
-                          homeWidgetSettingsNotifier.value = settings.copyWith(
-                            showQuickActions: value,
-                          );
-                        },
-                      ),
-                      tile(
-                        title: 'Announcement ticker',
-                        subtitle: 'Running market notice bar',
-                        value: settings.showTicker,
-                        onChanged: (value) {
-                          homeWidgetSettingsNotifier.value = settings.copyWith(
-                            showTicker: value,
-                          );
-                        },
-                      ),
-                      tile(
-                        title: 'Popular pairs board',
-                        subtitle: 'Popular/Gainers/New/24h Vol section',
-                        value: settings.showPairs,
-                        onChanged: (value) {
-                          homeWidgetSettingsNotifier.value = settings.copyWith(
-                            showPairs: value,
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<HomeWidgetSettings>(
@@ -2606,10 +2938,7 @@ class HomePage extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(14),
           children: [
-            _TopHeader(
-              onOpenProfile: onOpenProfile,
-              onEditWidgets: () => _openWidgetEditor(context),
-            ),
+            _TopHeader(onOpenProfile: onOpenProfile),
             const SizedBox(height: 10),
             if (settings.showDepositBanner) ...[
               _HomeDepositBanner(
@@ -2868,100 +3197,111 @@ class _HomeDepositBanner extends StatelessWidget {
         return ValueListenableBuilder<double>(
           valueListenable: spotUsdtBalanceNotifier,
           builder: (context, spot, child) {
-            final total = funding + spot;
-            final hasBalance = total > 0.0001;
-            final isLight = Theme.of(context).brightness == Brightness.light;
-            final cardBg = isLight
-                ? const Color(0xFFE3E7EF)
-                : const Color(0xFF161A23);
-            final border = isLight
-                ? const Color(0xFFD2DAE8)
-                : const Color(0xFF222A3B);
-            final primary = isLight ? const Color(0xFF121722) : Colors.white;
-            final secondary = isLight
-                ? const Color(0xFF5E6779)
-                : Colors.white70;
-            final buttonBg = isLight ? const Color(0xFF11141C) : Colors.white;
-            final buttonFg = isLight ? Colors.white : Colors.black;
+            return ValueListenableBuilder<bool>(
+              valueListenable: hasActiveDepositSessionNotifier,
+              builder: (context, hasActiveDeposit, __) {
+                final total = funding + spot;
+                final hasBalance = total > 0.0001;
+                final isLight = Theme.of(context).brightness == Brightness.light;
+                final cardBg = isLight
+                    ? const Color(0xFFE3E7EF)
+                    : const Color(0xFF161A23);
+                final border = isLight
+                    ? const Color(0xFFD2DAE8)
+                    : const Color(0xFF222A3B);
+                final primary = isLight ? const Color(0xFF121722) : Colors.white;
+                final secondary = isLight
+                    ? const Color(0xFF5E6779)
+                    : Colors.white70;
+                final buttonBg = isLight ? const Color(0xFF11141C) : Colors.white;
+                final buttonFg = isLight ? Colors.white : Colors.black;
 
-            return Container(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    hasBalance
-                        ? 'Total Balance ${_formatWithCommas(total, decimals: 2)} USDT'
-                        : 'Deposit now to enjoy the\nultimate experience',
-                    style: TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w700,
-                      color: primary,
-                    ),
+                return Container(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: border),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    hasBalance
-                        ? 'Funding ${_formatWithCommas(funding, decimals: 2)} • Spot ${_formatWithCommas(spot, decimals: 2)}'
-                        : 'All popular trading pairs supported! Enjoy exclusive benefits.',
-                    style: TextStyle(fontSize: 13.2, color: secondary),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: onDeposit,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: buttonBg,
-                            foregroundColor: buttonFg,
-                            minimumSize: const Size.fromHeight(44),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                          ),
-                          child: Text(
-                            hasBalance ? 'Deposit More' : 'Deposit',
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                      Text(
+                        hasBalance
+                            ? 'Total Balance ${_formatWithCommas(total, decimals: 2)} USDT'
+                            : 'Deposit now to enjoy the\nultimate experience',
+                        style: TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w700,
+                          color: primary,
                         ),
                       ),
-                      if (hasBalance) ...[
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          height: 44,
-                          child: OutlinedButton(
-                            onPressed: onOpenAssets,
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(
-                                color: isLight
-                                    ? const Color(0xFFB9C3D9)
-                                    : const Color(0xFF3A465E),
+                      const SizedBox(height: 6),
+                      Text(
+                        hasActiveDeposit
+                            ? 'One deposit request is pending admin confirmation.'
+                            : (hasBalance
+                                  ? 'Funding ${_formatWithCommas(funding, decimals: 2)} • Spot ${_formatWithCommas(spot, decimals: 2)}'
+                                  : 'All popular trading pairs supported! Enjoy exclusive benefits.'),
+                        style: TextStyle(fontSize: 13.2, color: secondary),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: hasActiveDeposit ? null : onDeposit,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: buttonBg,
+                                foregroundColor: buttonFg,
+                                disabledBackgroundColor: const Color(0xFF232323),
+                                disabledForegroundColor: Colors.white54,
+                                minimumSize: const Size.fromHeight(44),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
                               ),
-                              foregroundColor: primary,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
+                              child: Text(
+                                hasActiveDeposit
+                                    ? 'Deposit Pending'
+                                    : (hasBalance ? 'Deposit More' : 'Deposit'),
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              'Assets',
-                              style: TextStyle(fontSize: 13.4, color: primary),
                             ),
                           ),
-                        ),
-                      ],
+                          if (hasBalance) ...[
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              height: 44,
+                              child: OutlinedButton(
+                                onPressed: onOpenAssets,
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                    color: isLight
+                                        ? const Color(0xFFB9C3D9)
+                                        : const Color(0xFF3A465E),
+                                  ),
+                                  foregroundColor: primary,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Assets',
+                                  style: TextStyle(fontSize: 13.4, color: primary),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
-                ],
-              ),
+                );
+              },
             );
           },
         );
@@ -2993,7 +3333,7 @@ class _HomeQuickActions extends StatelessWidget {
     Widget action({
       required IconData icon,
       required String text,
-      required VoidCallback onTap,
+      required VoidCallback? onTap,
     }) {
       return Expanded(
         child: InkWell(
@@ -3028,38 +3368,42 @@ class _HomeQuickActions extends StatelessWidget {
       );
     }
 
-    return Row(
-      children: [
-        action(
-          icon: Icons.account_balance_wallet_outlined,
-          text: 'Deposit',
-          onTap: onDeposit,
-        ),
-        action(
-          icon: Icons.swap_horiz_rounded,
-          text: 'P2P',
-          onTap: onOpenP2POrders,
-        ),
-        action(
-          icon: Icons.north_east_rounded,
-          text: 'Withdraw',
-          onTap: onWithdraw,
-        ),
-        action(
-          icon: Icons.emoji_events_outlined,
-          text: 'Reward',
-          onTap: onReward,
-        ),
-      ],
+    return ValueListenableBuilder<bool>(
+      valueListenable: hasActiveDepositSessionNotifier,
+      builder: (context, hasActiveDeposit, _) {
+        return Row(
+          children: [
+            action(
+              icon: Icons.account_balance_wallet_outlined,
+              text: hasActiveDeposit ? 'Pending' : 'Deposit',
+              onTap: hasActiveDeposit ? null : onDeposit,
+            ),
+            action(
+              icon: Icons.swap_horiz_rounded,
+              text: 'P2P',
+              onTap: onOpenP2POrders,
+            ),
+            action(
+              icon: Icons.north_east_rounded,
+              text: 'Withdraw',
+              onTap: onWithdraw,
+            ),
+            action(
+              icon: Icons.emoji_events_outlined,
+              text: 'Reward',
+              onTap: onReward,
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
 class _TopHeader extends StatelessWidget {
-  const _TopHeader({required this.onOpenProfile, required this.onEditWidgets});
+  const _TopHeader({required this.onOpenProfile});
 
   final VoidCallback onOpenProfile;
-  final VoidCallback onEditWidgets;
 
   @override
   Widget build(BuildContext context) {
@@ -3102,11 +3446,6 @@ class _TopHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        IconButton(
-          onPressed: onEditWidgets,
-          icon: Icon(Icons.edit_note_rounded, size: 22, color: iconColor),
-          tooltip: 'Widget Edit',
-        ),
         IconButton(
           onPressed: () => Navigator.of(
             context,
@@ -8262,7 +8601,7 @@ class _AssetsPageState extends State<AssetsPage> {
                               Text(
                                 _tabs[index],
                                 style: TextStyle(
-                                  fontSize: 20,
+                                  fontSize: 16,
                                   fontWeight: active
                                       ? FontWeight.w700
                                       : FontWeight.w600,
@@ -8289,7 +8628,7 @@ class _AssetsPageState extends State<AssetsPage> {
                   children: [
                     Text(
                       'Est. balance',
-                      style: TextStyle(fontSize: 18, color: primaryText),
+                      style: TextStyle(fontSize: 14, color: primaryText),
                     ),
                     const SizedBox(width: 8),
                     Icon(
@@ -8306,7 +8645,7 @@ class _AssetsPageState extends State<AssetsPage> {
                     Text(
                       _formatWithCommas(displayBalance, decimals: 2),
                       style: TextStyle(
-                        fontSize: 44,
+                        fontSize: 30,
                         height: 0.95,
                         fontWeight: FontWeight.w700,
                         color: primaryText,
@@ -8318,7 +8657,7 @@ class _AssetsPageState extends State<AssetsPage> {
                       child: Text(
                         'USDT',
                         style: TextStyle(
-                          fontSize: 16.5,
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: primaryText,
                         ),
@@ -8328,12 +8667,12 @@ class _AssetsPageState extends State<AssetsPage> {
                 ),
                 Text(
                   '≈ \$${_formatWithCommas(displayBalance, decimals: 2)}',
-                  style: TextStyle(fontSize: 18, color: secondaryText),
+                  style: TextStyle(fontSize: 13.2, color: secondaryText),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Today\'s PnL ≈ \$0.00 (0.00%)',
-                  style: TextStyle(fontSize: 15, color: secondaryText),
+                  style: TextStyle(fontSize: 12, color: secondaryText),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -8424,7 +8763,7 @@ class _AssetsPageState extends State<AssetsPage> {
                 Text(
                   'Assets',
                   style: TextStyle(
-                    fontSize: 40,
+                    fontSize: 24,
                     fontWeight: FontWeight.w700,
                     color: primaryText,
                   ),
@@ -8452,7 +8791,7 @@ class _AssetsPageState extends State<AssetsPage> {
                           Text(
                             'Hide assets < 1 USDT',
                             style: TextStyle(
-                              fontSize: 17,
+                              fontSize: 13.4,
                               color: secondaryText,
                             ),
                           ),
@@ -8462,7 +8801,7 @@ class _AssetsPageState extends State<AssetsPage> {
                     const Spacer(),
                     IconButton(
                       onPressed: () => widget.onNavigateTab(1),
-                      icon: const Icon(Icons.search_rounded, size: 34),
+                      icon: const Icon(Icons.search_rounded, size: 26),
                     ),
                   ],
                 ),
@@ -8482,7 +8821,7 @@ class _AssetsPageState extends State<AssetsPage> {
                           child: Text(
                             row['symbol']!,
                             style: TextStyle(
-                              fontSize: 40 / 1.7,
+                              fontSize: 17.2,
                               fontWeight: FontWeight.w600,
                               color: primaryText,
                             ),
@@ -8494,7 +8833,7 @@ class _AssetsPageState extends State<AssetsPage> {
                             Text(
                               row['value']!,
                               style: TextStyle(
-                                fontSize: 40 / 1.7,
+                                fontSize: 17.2,
                                 fontWeight: FontWeight.w600,
                                 color: primaryText,
                               ),
@@ -8502,7 +8841,7 @@ class _AssetsPageState extends State<AssetsPage> {
                             Text(
                               '\$${row['usd']}',
                               style: TextStyle(
-                                fontSize: 35 / 2.2,
+                                fontSize: 13.2,
                                 color: secondaryText,
                               ),
                             ),
@@ -9736,10 +10075,22 @@ class _DepositPageState extends State<DepositPage> {
   late String _network;
   final TextEditingController _amountController = TextEditingController();
   bool _showAddress = false;
+  bool _submitting = false;
+  bool _loadingHistory = true;
+  List<AssetTransactionRecord> _deposits = <AssetTransactionRecord>[];
 
   List<String> get _availableNetworks =>
       kDepositAddressBook[_coin]!.keys.toList();
-  String get _address => kDepositAddressBook[_coin]![_network]!;
+  String get _address {
+    if (_coin == 'USDT') {
+      final backendAddress =
+          usdtDepositAddressByNetworkNotifier.value[_network] ?? '';
+      if (backendAddress.trim().isNotEmpty) {
+        return backendAddress.trim();
+      }
+    }
+    return kDepositAddressBook[_coin]?[_network] ?? '';
+  }
   ChainNetworkMeta get _networkMeta =>
       kNetworkMeta[_network] ??
       const ChainNetworkMeta(
@@ -9755,6 +10106,7 @@ class _DepositPageState extends State<DepositPage> {
   void initState() {
     super.initState();
     _network = _availableNetworks.first;
+    unawaited(_refreshDepositData());
   }
 
   @override
@@ -9764,14 +10116,30 @@ class _DepositPageState extends State<DepositPage> {
   }
 
   void _showDepositAddress() {
-    final amount = double.tryParse(_amountController.text.trim());
-    if (amount == null || amount <= 0) {
+    if (_address.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid amount first')),
+        const SnackBar(content: Text('Deposit address is not available yet.')),
       );
       return;
     }
     setState(() => _showAddress = true);
+  }
+
+  Future<void> _refreshDepositData() async {
+    setState(() => _loadingHistory = true);
+    try {
+      await _syncWalletFromBackend();
+      await _syncDepositSessionFromBackend();
+      final rows = await _fetchDepositHistory(limit: 20);
+      if (!mounted) return;
+      setState(() {
+        _deposits = rows;
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _loadingHistory = false);
+      }
+    }
   }
 
   Future<void> _selectCoin() async {
@@ -9934,34 +10302,85 @@ class _DepositPageState extends State<DepositPage> {
     });
   }
 
-  void _confirmDeposit() {
+  Future<void> _confirmDeposit() async {
+    if (_submitting) return;
     final amount = double.tryParse(_amountController.text.trim());
-    if (amount == null || amount <= 0) return;
-    fundingUsdtBalanceNotifier.value += amount;
-    if (_coin == 'USDT') {
-      spotUsdtBalanceNotifier.value += amount * 0.25;
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid deposit amount.')),
+      );
+      return;
     }
-    _syncActiveUserState(walletBalanceUsdt: fundingUsdtBalanceNotifier.value);
-    kAssetTxHistory.insert(
-      0,
-      AssetTransactionRecord(
-        id: 'DEP-${DateTime.now().millisecondsSinceEpoch}',
+    if (_address.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Deposit address is not available.')),
+      );
+      return;
+    }
+    if (hasActiveDepositSessionNotifier.value) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('A deposit request is already pending admin review.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      final deposit = await _createDepositRequest(
+        coin: _coin,
+        network: _network,
+        address: _address,
+        amount: amount,
+      );
+
+      final createdAt = DateTime.tryParse(
+            (deposit['createdAt'] ?? '').toString().trim(),
+          ) ??
+          DateTime.now();
+      final statusRaw =
+          (deposit['status'] ?? 'PENDING').toString().trim().toUpperCase();
+      final status = switch (statusRaw) {
+        'COMPLETED' => 'Completed',
+        'REJECTED' => 'Rejected',
+        _ => 'Pending',
+      };
+
+      final record = AssetTransactionRecord(
+        id: (deposit['id'] ?? 'DEP-${DateTime.now().millisecondsSinceEpoch}')
+            .toString(),
         type: 'deposit',
         coin: _coin,
         amount: amount,
-        time: DateTime.now(),
-        status: 'Completed',
+        time: createdAt,
+        status: status,
         network: _network,
-      ),
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Deposit confirmed: ${amount.toStringAsFixed(4)} $_coin credited',
+      );
+      setState(() {
+        _deposits = [record, ..._deposits];
+      });
+      hasActiveDepositSessionNotifier.value = status == 'Pending';
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Deposit request submitted. Balance updates after admin approval.',
+          ),
         ),
-      ),
-    );
-    Navigator.of(context).pop(amount);
+      );
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   @override
@@ -9971,10 +10390,7 @@ class _DepositPageState extends State<DepositPage> {
     final secondary = isLight ? const Color(0xFF6C7485) : Colors.white70;
     final card = isLight ? Colors.white : const Color(0xFF0B1323);
     final border = isLight ? const Color(0xFFD6DEEC) : const Color(0xFF1D2D49);
-    final deposits = kAssetTxHistory
-        .where((item) => item.type == 'deposit')
-        .take(8)
-        .toList();
+    final deposits = _deposits.take(8).toList();
     return Scaffold(
       appBar: AppBar(title: const Text('Deposit')),
       body: ListView(
@@ -10089,15 +10505,15 @@ class _DepositPageState extends State<DepositPage> {
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            child: FilledButton(
-              onPressed: _showDepositAddress,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                backgroundColor: const Color(0xFFF0A344),
+                child: FilledButton(
+                  onPressed: _showDepositAddress,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    backgroundColor: const Color(0xFFF0A344),
                 foregroundColor: Colors.black,
               ),
-              child: const Text(
-                'Generate Deposit Address',
+                  child: const Text(
+                'Show Deposit Address',
                 style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
               ),
             ),
@@ -10151,13 +10567,15 @@ class _DepositPageState extends State<DepositPage> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: _confirmDeposit,
+                      onPressed: _submitting ? null : _confirmDeposit,
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF53D983),
                         foregroundColor: Colors.black,
                       ),
-                      child: const Text(
-                        'I Have Deposited',
+                      child: Text(
+                        _submitting
+                            ? 'Submitting...'
+                            : 'I have sent the deposit',
                         style: TextStyle(
                           fontSize: 11.8,
                           fontWeight: FontWeight.w700,
@@ -10187,15 +10605,16 @@ class _DepositPageState extends State<DepositPage> {
               ),
               const Spacer(),
               TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const AssetHistoryPage(),
-                  ),
-                ),
-                child: const Text('View all'),
+                onPressed: _loadingHistory ? null : _refreshDepositData,
+                child: const Text('Refresh'),
               ),
             ],
           ),
+          if (_loadingHistory)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
           ...deposits.map((item) {
             final y = item.time.year.toString().padLeft(4, '0');
             final m = item.time.month.toString().padLeft(2, '0');
@@ -10798,6 +11217,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
   final TextEditingController _googleCodeController = TextEditingController();
   final TextEditingController _fundPasswordController = TextEditingController();
   String _network = 'TRC20';
+  bool _submitting = false;
 
   List<String> get _availableNetworks =>
       kDepositAddressBook[_coin]?.keys.toList() ?? const ['TRC20'];
@@ -10811,6 +11231,12 @@ class _WithdrawPageState extends State<WithdrawPage> {
         minWithdrawUsdt: 0,
         arrival: 'N/A',
       );
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_syncWalletFromBackend());
+  }
 
   @override
   void dispose() {
@@ -10946,7 +11372,8 @@ class _WithdrawPageState extends State<WithdrawPage> {
     setState(() => _network = selected);
   }
 
-  void _submitWithdrawal() {
+  Future<void> _submitWithdrawal() async {
+    if (_submitting) return;
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
     final available = fundingUsdtBalanceNotifier.value;
     if (_addressController.text.trim().isEmpty) {
@@ -10965,19 +11392,6 @@ class _WithdrawPageState extends State<WithdrawPage> {
       );
       return;
     }
-    final requiredSecurityFilled =
-        _emailCodeController.text.trim().isNotEmpty &&
-        _smsCodeController.text.trim().isNotEmpty &&
-        _googleCodeController.text.trim().isNotEmpty &&
-        _fundPasswordController.text.trim().isNotEmpty;
-    if (!requiredSecurityFilled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Complete Email, SMS, Google Auth and Fund password'),
-        ),
-      );
-      return;
-    }
     final finalAmount = amount + _networkMeta.feeUsdt;
     if (finalAmount > available) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -10985,26 +11399,56 @@ class _WithdrawPageState extends State<WithdrawPage> {
       );
       return;
     }
-    fundingUsdtBalanceNotifier.value = available - finalAmount;
-    _syncActiveUserState(walletBalanceUsdt: fundingUsdtBalanceNotifier.value);
-    kAssetTxHistory.insert(
-      0,
-      AssetTransactionRecord(
-        id: 'WDR-${DateTime.now().millisecondsSinceEpoch}',
-        type: 'withdraw',
-        coin: _coin,
-        amount: amount,
-        time: DateTime.now(),
-        status: 'Completed',
+
+    setState(() => _submitting = true);
+    try {
+      final withdrawal = await _createWithdrawalRequest(
+        currency: _coin,
         network: _network,
-      ),
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Withdrawal request submitted successfully'),
-      ),
-    );
-    Navigator.of(context).pop();
+        address: _addressController.text.trim(),
+        amount: amount,
+      );
+
+      final createdAt = DateTime.tryParse(
+            (withdrawal['createdAt'] ?? '').toString().trim(),
+          ) ??
+          DateTime.now();
+      kAssetTxHistory.insert(
+        0,
+        AssetTransactionRecord(
+          id:
+              (withdrawal['requestId'] ??
+                      withdrawal['id'] ??
+                      'WDR-${DateTime.now().millisecondsSinceEpoch}')
+                  .toString(),
+          type: 'withdraw',
+          coin: _coin,
+          amount: amount,
+          time: createdAt,
+          status: 'Pending',
+          network: _network,
+        ),
+      );
+
+      await _syncWalletFromBackend();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Withdrawal request submitted. Awaiting admin approval.'),
+        ),
+      );
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   @override
@@ -11151,13 +11595,16 @@ class _WithdrawPageState extends State<WithdrawPage> {
           ),
           const SizedBox(height: 12),
           FilledButton(
-            onPressed: _submitWithdrawal,
+            onPressed: _submitting ? null : _submitWithdrawal,
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFE4C657),
               foregroundColor: Colors.black87,
               minimumSize: const Size.fromHeight(48),
             ),
-            child: const Text('Withdraw', style: TextStyle(fontSize: 14.2)),
+            child: Text(
+              _submitting ? 'Submitting...' : 'Withdraw',
+              style: const TextStyle(fontSize: 14.2),
+            ),
           ),
         ],
       ),
@@ -15635,7 +16082,7 @@ class _P2PPageState extends State<P2PPage> {
     if (!kycVerifiedNotifier.value) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Complete KYC before creating P2P orders.'),
+          content: Text('KYC required to trade in P2P'),
         ),
       );
       await Navigator.of(context).push(
@@ -15842,7 +16289,7 @@ class _P2PPageState extends State<P2PPage> {
               Text(
                 verified
                     ? 'You can place P2P buy/sell orders now.'
-                    : 'KYC verification required before P2P buy orders.',
+                    : 'KYC required to trade in P2P',
                 style: const TextStyle(color: Colors.white70, fontSize: 10.2),
               ),
             ],

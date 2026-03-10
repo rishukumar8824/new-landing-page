@@ -4,6 +4,8 @@ const ADMIN_ROLES = ['SUPER_ADMIN', 'FINANCE_ADMIN', 'SUPPORT_ADMIN', 'COMPLIANC
 const USER_STATUSES = ['ACTIVE', 'FROZEN', 'BANNED'];
 const WITHDRAWAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'];
 const DEPOSIT_STATUSES = ['PENDING', 'COMPLETED', 'REJECTED'];
+const DEPOSIT_COINS = ['USDT', 'BTC', 'ETH', 'LTC', 'BCH', 'TRX', 'DOGE', 'XRP', 'SOL', 'BNB'];
+const DEPOSIT_NETWORKS = ['TRC20', 'ERC20', 'BEP20', 'BTC', 'ETH', 'TRX', 'XRP', 'SOL', 'BSC', 'LTC', 'BCH', 'DOGE'];
 const USDT_NETWORKS = ['TRC20', 'ERC20', 'BEP20'];
 const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
 const ENCRYPTION_IV_LENGTH = 16;
@@ -120,6 +122,22 @@ function normalizeDepositDecision(decision) {
     return 'REJECTED';
   }
   if (DEPOSIT_STATUSES.includes(normalized)) {
+    return normalized;
+  }
+  return '';
+}
+
+function normalizeDepositCoin(coin) {
+  const normalized = String(coin || '').trim().toUpperCase();
+  if (DEPOSIT_COINS.includes(normalized)) {
+    return normalized;
+  }
+  return '';
+}
+
+function normalizeDepositNetwork(network) {
+  const normalized = String(network || '').trim().toUpperCase();
+  if (DEPOSIT_NETWORKS.includes(normalized)) {
     return normalized;
   }
   return '';
@@ -1239,6 +1257,98 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     return { page, limit, total, deposits: rows };
   }
 
+  async function createDepositRequest(payload = {}) {
+    const userId = String(payload.userId || '').trim();
+    if (!userId) {
+      throw new Error('User id is required');
+    }
+
+    const coin = normalizeDepositCoin(payload.coin || 'USDT');
+    if (!coin) {
+      throw new Error('Unsupported coin for deposit');
+    }
+
+    const network = normalizeDepositNetwork(payload.network);
+    if (!network) {
+      throw new Error('Unsupported network for deposit');
+    }
+
+    const amount = Number(toNumber(payload.amount, 0).toFixed(8));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error('Deposit amount must be greater than 0');
+    }
+
+    const address = sanitizeAddress(payload.address);
+    if (!address) {
+      throw new Error('Deposit address is required');
+    }
+
+    const existingPending = await adminDeposits.findOne({
+      userId,
+      status: 'PENDING'
+    });
+    if (existingPending) {
+      throw new Error('An active deposit request already exists. Wait for admin review.');
+    }
+
+    const now = new Date();
+    const deposit = {
+      id: makeId('dep'),
+      userId,
+      email: String(payload.email || '').trim().toLowerCase(),
+      username: String(payload.username || '').trim(),
+      coin,
+      network,
+      address,
+      amount,
+      txHash: String(payload.txHash || payload.txid || '').trim(),
+      proofUrl: String(payload.proofUrl || payload.depositProof || '').trim(),
+      type: 'ONCHAIN',
+      status: 'PENDING',
+      reviewReason: '',
+      reviewedBy: '',
+      reviewedByRole: '',
+      reviewedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      metadata:
+        payload.metadata && typeof payload.metadata === 'object'
+          ? payload.metadata
+          : {}
+    };
+
+    await adminDeposits.insertOne(deposit);
+    return deposit;
+  }
+
+  async function listUserDeposits(userId, options = {}) {
+    const normalizedUserId = String(userId || '').trim();
+    if (!normalizedUserId) {
+      throw new Error('User id is required');
+    }
+
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(options.limit || 20), 10) || 20));
+    const rows = await adminDeposits
+      .find({ userId: normalizedUserId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray();
+
+    return rows;
+  }
+
+  async function getPendingDepositByUser(userId) {
+    const normalizedUserId = String(userId || '').trim();
+    if (!normalizedUserId) {
+      return null;
+    }
+
+    return adminDeposits.findOne(
+      { userId: normalizedUserId, status: 'PENDING' },
+      { sort: { createdAt: -1 } }
+    );
+  }
+
   async function reviewDeposit(depositId, decision, reason, actor = {}) {
     const normalizedDepositId = String(depositId || '').trim();
     if (!normalizedDepositId) {
@@ -1263,6 +1373,41 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       return existing;
     }
 
+    let creditedWallet = null;
+    if (normalizedDecision === 'COMPLETED' && currentStatus !== 'COMPLETED') {
+      const userId = String(existing.userId || '').trim();
+      const amount = toNumber(existing.amount, 0);
+      const coin = String(existing.coin || 'USDT').trim().toUpperCase() || 'USDT';
+      if (!userId) {
+        throw new Error('Deposit request missing userId');
+      }
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error('Deposit amount is invalid');
+      }
+
+      await walletService.ensureWallet(userId, {
+        username: String(existing.username || userId).trim()
+      });
+
+      creditedWallet = await walletService.creditAvailable(
+        userId,
+        amount,
+        {
+          type: 'deposit',
+          currency: coin,
+          referenceId: `deposit_credit_${normalizedDepositId}`,
+          username: String(existing.username || userId).trim(),
+          metadata: {
+            source: 'admin.review_deposit',
+            depositId: normalizedDepositId,
+            network: String(existing.network || '').trim().toUpperCase(),
+            txHash: String(existing.txHash || existing.txid || '').trim(),
+            proofUrl: String(existing.proofUrl || existing.depositProof || '').trim()
+          }
+        }
+      );
+    }
+
     const now = new Date();
     const result = await adminDeposits.findOneAndUpdate(
       { id: normalizedDepositId },
@@ -1273,7 +1418,13 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
           reviewedByRole: String(actor.role || '').trim(),
           reviewReason: String(reason || ''),
           reviewedAt: now,
-          updatedAt: now
+          updatedAt: now,
+          ...(creditedWallet
+            ? {
+                creditedAt: now,
+                walletCreditApplied: true
+              }
+            : {})
         }
       },
       { returnDocument: 'after' }
@@ -2146,6 +2297,9 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     reviewKycSubmission,
     getWalletOverview,
     listDeposits,
+    createDepositRequest,
+    listUserDeposits,
+    getPendingDepositByUser,
     reviewDeposit,
     listWithdrawals,
     reviewWithdrawal,

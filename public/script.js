@@ -1090,9 +1090,6 @@ async function startEmailSignup(email, name = 'Website Lead') {
   pendingName = name;
   otpRow?.classList.remove('hidden');
   setMessage(data.message, 'success');
-  if (data.devCode) {
-    setMessage(`${data.message} Demo code: ${data.devCode}`, 'success');
-  }
   focusLeadForm();
   return data;
 }

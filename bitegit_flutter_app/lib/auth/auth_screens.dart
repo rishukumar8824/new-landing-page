@@ -631,7 +631,7 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
       setState(() {
         _loading = false;
         _error =
-            'Captcha service is temporarily unavailable. Continue to backup verification.';
+            'Captcha service is temporarily unavailable. Please try again in a few moments.';
       });
       return;
     }
@@ -691,24 +691,6 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
                                 ),
                               ),
                               child: const Text('Retry'),
-                            ),
-                            const SizedBox(height: 8),
-                            FilledButton(
-                              onPressed: () {
-                                Navigator.of(context).pop(
-                                  const GeetestValidatePayload(
-                                    lotNumber: '',
-                                    captchaOutput: '',
-                                    passToken: '',
-                                    genTime: '',
-                                  ),
-                                );
-                              },
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.black,
-                              ),
-                              child: const Text('Continue'),
                             ),
                           ],
                         ),

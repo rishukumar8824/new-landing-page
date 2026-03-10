@@ -72,7 +72,6 @@ function registerAuthRoutes(app, deps) {
     auditLogService,
     authEmailService,
     otpTtlMs = 10 * 60 * 1000,
-    allowDemoOtp = false,
     onLoginSuccess = null
   } = deps;
 
@@ -147,8 +146,6 @@ function registerAuthRoutes(app, deps) {
   async function sendOtpEmail(contact, purpose, options = {}) {
     const code = createOtpCode();
     const effectiveOtpTtlMs = Math.max(60 * 1000, Number(options.ttlMs || otpTtlMs || 0));
-    const allowDemoFallback =
-      options.allowDemoFallback !== undefined ? Boolean(options.allowDemoFallback) : Boolean(allowDemoOtp);
     const otpState = {
       code,
       type: 'email',
@@ -188,22 +185,13 @@ function registerAuthRoutes(app, deps) {
       };
     }
 
-    if (!allowDemoFallback) {
-      await repos.deleteSignupOtp(contact, { purpose });
-      const failureReason = String(sendResult.reason || 'email_provider_unavailable').trim();
-      return {
-        error: true,
-        status: 503,
-        message: 'Unable to send email OTP right now.',
-        reason: failureReason
-      };
-    }
-
+    await repos.deleteSignupOtp(contact, { purpose });
+    const failureReason = String(sendResult.reason || 'email_provider_unavailable').trim();
     return {
-      message: 'Email provider not configured, using demo verification code.',
-      delivery: 'simulated',
-      expiresInSeconds: Math.floor(effectiveOtpTtlMs / 1000),
-      devCode: code
+      error: true,
+      status: 503,
+      message: 'Unable to send email OTP right now.',
+      reason: failureReason
     };
   }
 
@@ -356,7 +344,6 @@ function registerAuthRoutes(app, deps) {
       const passwordHash = repos.hashPassword(password);
       const result = await sendOtpEmail(email, REGISTER_EMAIL_VERIFY_PURPOSE, {
         ttlMs: REGISTER_EMAIL_VERIFY_TTL_MS,
-        allowDemoFallback: false,
         payload: {
           passwordHash,
           role: 'USER',

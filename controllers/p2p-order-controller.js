@@ -134,9 +134,9 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
 
         if (kycStatus !== 'VERIFIED') {
           const statusMessageMap = {
-            NOT_SUBMITTED: 'Complete KYC verification before placing a buy order.',
-            PENDING_REVIEW: 'KYC is under review. You can place buy orders after verification.',
-            REJECTED: 'KYC verification was rejected. Please resubmit documents to continue.'
+            NOT_SUBMITTED: 'KYC required to trade in P2P',
+            PENDING_REVIEW: 'KYC required to trade in P2P',
+            REJECTED: 'KYC required to trade in P2P'
           };
 
           const codeMap = {
