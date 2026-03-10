@@ -62,45 +62,145 @@ class AuthApiService {
         : fromEnv;
   }
 
+  static Uri _uri(String path) => Uri.parse('${_baseUrl()}$path');
+
+  static List<Uri> _legacySendOtpUris() => <Uri>[
+    _uri('/api/signup/send-code'),
+    _uri('/auth/signup/send-otp'),
+    _uri('/api/auth/otp/request'),
+  ];
+
+  static List<Uri> _legacyVerifyOtpUris() => <Uri>[
+    _uri('/api/signup/verify-code'),
+    _uri('/api/auth/otp/verify'),
+  ];
+
+  static bool _is2xx(int statusCode) => statusCode >= 200 && statusCode < 300;
+
+  static bool _isExplicitFailure(Map<String, dynamic>? map) {
+    if (map == null) {
+      return false;
+    }
+    if (map['success'] == false) {
+      return true;
+    }
+    final status = (map['status'] ?? '').toString().trim().toLowerCase();
+    return status == 'error' || status == 'failed' || status == 'failure';
+  }
+
+  static bool _looksSuccessful(_HttpJsonResponse response) {
+    return _is2xx(response.statusCode) && !_isExplicitFailure(response.bodyMap);
+  }
+
+  static String _messageFrom(_HttpJsonResponse response, String fallback) {
+    return (response.bodyMap?['message'] ?? fallback).toString();
+  }
+
   static Future<OtpSendResult> sendOtp({
     required String email,
     required GeetestValidatePayload geetest,
     String? referralCode,
   }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final referral = (referralCode ?? '').toString().trim();
+
     final payload = <String, dynamic>{
-      'email': email.trim().toLowerCase(),
-      'referralCode': (referralCode ?? '').toString().trim(),
+      'email': normalizedEmail,
+      'referralCode': referral,
       'geetest': geetest.toJson(),
     };
 
-    final response = await _postJson(_sendOtpUri, payload);
-    final ok = response.statusCode >= 200 && response.statusCode < 300;
-    final message =
-        (response.bodyMap?['message'] ?? 'Unable to send verification code.')
-            .toString();
+    final primary = await _postJson(_sendOtpUri, payload);
+    if (_looksSuccessful(primary)) {
+      return OtpSendResult(
+        success: true,
+        message: _messageFrom(primary, 'Verification code sent to your email.'),
+      );
+    }
 
-    return OtpSendResult(success: ok, message: message);
+    for (final uri in _legacySendOtpUris()) {
+      final fallbackResponse = await _postJson(uri, <String, dynamic>{
+        'contact': normalizedEmail,
+        'identity': normalizedEmail,
+        'email': normalizedEmail,
+        'channel': 'email',
+        if (referral.isNotEmpty) 'referralCode': referral,
+      });
+      if (_looksSuccessful(fallbackResponse)) {
+        return OtpSendResult(
+          success: true,
+          message: _messageFrom(
+            fallbackResponse,
+            'Verification code sent to your email.',
+          ),
+        );
+      }
+    }
+
+    return OtpSendResult(
+      success: false,
+      message: _messageFrom(
+        primary,
+        'Unable to send verification code. Please try again.',
+      ),
+    );
   }
 
   static Future<OtpVerifyResult> verifyOtp({
     required String email,
     required String otp,
   }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final trimmedOtp = otp.trim();
+
     final payload = <String, dynamic>{
-      'email': email.trim().toLowerCase(),
-      'otp': otp.trim(),
+      'email': normalizedEmail,
+      'otp': trimmedOtp,
     };
 
-    final response = await _postJson(_verifyOtpUri, payload);
-    final ok = response.statusCode >= 200 && response.statusCode < 300;
-    final message = (response.bodyMap?['message'] ?? 'OTP verification failed.')
-        .toString();
+    final primary = await _postJson(_verifyOtpUri, payload);
+    if (_looksSuccessful(primary)) {
+      final accessToken =
+          (primary.bodyMap?['accessToken'] ?? primary.bodyMap?['token'] ?? '')
+              .toString();
+      final refreshToken = (primary.bodyMap?['refreshToken'] ?? '').toString();
+      return OtpVerifyResult(
+        success: true,
+        message: _messageFrom(primary, 'Authentication successful.'),
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+      );
+    }
+
+    for (final uri in _legacyVerifyOtpUris()) {
+      final fallbackResponse = await _postJson(uri, <String, dynamic>{
+        'contact': normalizedEmail,
+        'identity': normalizedEmail,
+        'email': normalizedEmail,
+        'otp': trimmedOtp,
+        'code': trimmedOtp,
+      });
+      if (_looksSuccessful(fallbackResponse)) {
+        final accessToken =
+            (fallbackResponse.bodyMap?['accessToken'] ??
+                    fallbackResponse.bodyMap?['token'] ??
+                    fallbackResponse.bodyMap?['jwt'] ??
+                    'legacy-${DateTime.now().millisecondsSinceEpoch}')
+                .toString();
+        final refreshToken = (fallbackResponse.bodyMap?['refreshToken'] ?? '')
+            .toString();
+        return OtpVerifyResult(
+          success: true,
+          message: _messageFrom(fallbackResponse, 'Authentication successful.'),
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+        );
+      }
+    }
 
     return OtpVerifyResult(
-      success: ok,
-      message: message,
-      accessToken: response.bodyMap?['accessToken']?.toString(),
-      refreshToken: response.bodyMap?['refreshToken']?.toString(),
+      success: false,
+      message: _messageFrom(primary, 'OTP verification failed.'),
     );
   }
 
