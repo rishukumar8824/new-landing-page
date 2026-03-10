@@ -559,7 +559,7 @@ class GeetestCaptchaDialog extends StatefulWidget {
 }
 
 class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
-  static const String _captchaId = String.fromEnvironment(
+  static const String _captchaIdFromBuild = String.fromEnvironment(
     'BITEGIT_GEETEST_CAPTCHA_ID',
     defaultValue: '',
   );
@@ -610,14 +610,32 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
         ),
       );
 
-    if (_captchaId.isEmpty) {
-      _error =
-          'Geetest captcha ID is missing. Build with --dart-define=BITEGIT_GEETEST_CAPTCHA_ID=<id>';
-      _loading = false;
-      return;
+    _loadCaptcha();
+  }
+
+  Future<void> _loadCaptcha() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
     }
 
-    _controller.loadHtmlString(_captchaHtml(_captchaId));
+    var captchaId = _captchaIdFromBuild.trim();
+    if (captchaId.isEmpty) {
+      captchaId = await AuthApiService.resolveGeetestCaptchaId();
+    }
+
+    if (!mounted) return;
+    if (captchaId.isEmpty) {
+      setState(() {
+        _loading = false;
+        _error =
+            'Captcha is temporarily unavailable. Please try again in a few moments.';
+      });
+      return;
+    }
+    _controller.loadHtmlString(_captchaHtml(captchaId));
   }
 
   @override
@@ -655,9 +673,26 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
                   ? Center(
                       child: Padding(
                         padding: const EdgeInsets.all(20),
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(color: Colors.redAccent),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _error!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.redAccent),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton(
+                              onPressed: _loadCaptcha,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: const BorderSide(
+                                  color: Color(0xFF3A4050),
+                                ),
+                              ),
+                              child: const Text('Retry'),
+                            ),
+                          ],
                         ),
                       ),
                     )

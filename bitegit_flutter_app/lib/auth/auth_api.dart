@@ -25,10 +25,7 @@ class GeetestValidatePayload {
 }
 
 class OtpSendResult {
-  const OtpSendResult({
-    required this.success,
-    required this.message,
-  });
+  const OtpSendResult({required this.success, required this.message});
 
   final bool success;
   final String message;
@@ -49,11 +46,10 @@ class OtpVerifyResult {
 }
 
 class AuthApiService {
-  static final Uri _sendOtpUri = Uri.parse(
-    '${_baseUrl()}/auth/send-otp',
-  );
-  static final Uri _verifyOtpUri = Uri.parse(
-    '${_baseUrl()}/auth/verify-otp',
+  static final Uri _sendOtpUri = Uri.parse('${_baseUrl()}/auth/send-otp');
+  static final Uri _verifyOtpUri = Uri.parse('${_baseUrl()}/auth/verify-otp');
+  static final Uri _geetestConfigUri = Uri.parse(
+    '${_baseUrl()}/auth/geetest/config',
   );
 
   static String _baseUrl() {
@@ -97,8 +93,8 @@ class AuthApiService {
 
     final response = await _postJson(_verifyOtpUri, payload);
     final ok = response.statusCode >= 200 && response.statusCode < 300;
-    final message =
-        (response.bodyMap?['message'] ?? 'OTP verification failed.').toString();
+    final message = (response.bodyMap?['message'] ?? 'OTP verification failed.')
+        .toString();
 
     return OtpVerifyResult(
       success: ok,
@@ -106,6 +102,42 @@ class AuthApiService {
       accessToken: response.bodyMap?['accessToken']?.toString(),
       refreshToken: response.bodyMap?['refreshToken']?.toString(),
     );
+  }
+
+  static Future<String> resolveGeetestCaptchaId() async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 12);
+    try {
+      final req = await client.getUrl(_geetestConfigUri);
+      final resp = await req.close();
+      final body = await resp.transform(utf8.decoder).join();
+
+      Map<String, dynamic>? decodedMap;
+      try {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) {
+          decodedMap = decoded;
+        }
+      } catch (_) {
+        decodedMap = null;
+      }
+
+      if (resp.statusCode < 200 || resp.statusCode >= 300) {
+        return '';
+      }
+      final geetest = decodedMap?['geetest'];
+      if (geetest is! Map<String, dynamic>) {
+        return '';
+      }
+      final isConfigured = geetest['isConfigured'] == true;
+      final captchaId = (geetest['captchaId'] ?? '').toString().trim();
+      if (!isConfigured) {
+        return '';
+      }
+      return captchaId;
+    } finally {
+      client.close(force: true);
+    }
   }
 
   static Future<_HttpJsonResponse> _postJson(
@@ -143,10 +175,7 @@ class AuthApiService {
 }
 
 class _HttpJsonResponse {
-  const _HttpJsonResponse({
-    required this.statusCode,
-    required this.bodyMap,
-  });
+  const _HttpJsonResponse({required this.statusCode, required this.bodyMap});
 
   final int statusCode;
   final Map<String, dynamic>? bodyMap;
