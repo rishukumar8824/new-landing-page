@@ -33,7 +33,8 @@ const { createAdminControllers } = require('./admin/controllers/admin-controller
 const { registerAdminRoutes } = require('./admin/routes/admin-routes');
 
 const app = express();
-const PORT = Number.parseInt(process.env.PORT, 10);
+const PORT = Number.parseInt(String(process.env.PORT || '10000'), 10);
+const HOST = '0.0.0.0';
 app.set('trust proxy', 1);
 
 const ADMIN_SEED_USERNAME = String(process.env.ADMIN_USERNAME || 'admin')
@@ -160,6 +161,7 @@ let userCenterService = null;
 let persistenceReady = false;
 let httpServer = null;
 let shuttingDown = false;
+let bootRetryTimer = null;
 
 const validation = validationRules();
 app.use(express.json({ limit: '1mb' }));
@@ -181,8 +183,8 @@ function validateStartupConfig() {
     .trim()
     .toLowerCase() === 'production';
 
-  if (!String(process.env.MONGODB_URI || '').trim()) {
-    missing.push('MONGODB_URI');
+  if (!String(process.env.MONGO_URI || process.env.MONGODB_URI || '').trim()) {
+    missing.push('MONGO_URI or MONGODB_URI');
   }
   if (!String(process.env.JWT_SECRET || '').trim()) {
     missing.push('JWT_SECRET');
@@ -2546,6 +2548,51 @@ if (ENABLE_DEV_TEST_ROUTES) {
   });
 }
 
+function registerShutdownHandlers() {
+  ['SIGINT', 'SIGTERM'].forEach((signal) => {
+    process.on(signal, () => {
+      if (shuttingDown) {
+        return;
+      }
+      shuttingDown = true;
+      console.log(`${signal} received, shutting down HTTP server...`);
+
+      if (!httpServer) {
+        return;
+      }
+
+      httpServer.close(() => {
+        if (userCenterStore) {
+          userCenterStore
+            .close()
+            .then(() => {
+              console.log('[user-center] MySQL store closed.');
+            })
+            .catch((closeError) => {
+              console.error('[user-center] Failed to close MySQL store:', closeError.message);
+            });
+        }
+        if (otpAuthStore) {
+          otpAuthStore
+            .close()
+            .then(() => {
+              console.log('[auth-otp] MySQL store closed.');
+            })
+            .catch((closeError) => {
+              console.error('[auth-otp] Failed to close MySQL store:', closeError.message);
+            });
+        }
+        console.log('HTTP server closed.');
+      });
+
+      // Ensure shutdown does not hang forever.
+      setTimeout(() => {
+        console.log('Shutdown timeout reached.');
+      }, 8000).unref();
+    });
+  });
+}
+
 async function boot() {
   try {
     validateStartupConfig();
@@ -2553,6 +2600,13 @@ async function boot() {
     const mongoConfig = getMongoConfig();
     console.log(`MongoDB target URI: ${mongoConfig.maskedUri}`);
     console.log('Environment loader: dotenv');
+
+    if (!httpServer) {
+      httpServer = app.listen(PORT, HOST, () => {
+        console.log(`Server running on port ${PORT}`);
+      });
+      registerShutdownHandlers();
+    }
 
     await connectToMongo();
     const collections = getCollections();
@@ -2798,57 +2852,24 @@ async function boot() {
     }, P2P_EXPIRY_SWEEP_INTERVAL_MS);
 
     persistenceReady = true;
-    httpServer = app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`MongoDB connected to ${mongoConfig.dbName}`);
-    });
-
-    ['SIGINT', 'SIGTERM'].forEach((signal) => {
-      process.on(signal, () => {
-        if (shuttingDown) {
-          return;
-        }
-        shuttingDown = true;
-        console.log(`${signal} received, shutting down HTTP server...`);
-
-        if (!httpServer) {
-          return;
-        }
-
-        httpServer.close(() => {
-          if (userCenterStore) {
-            userCenterStore
-              .close()
-              .then(() => {
-                console.log('[user-center] MySQL store closed.');
-              })
-              .catch((closeError) => {
-                console.error('[user-center] Failed to close MySQL store:', closeError.message);
-              });
-          }
-          if (otpAuthStore) {
-            otpAuthStore
-              .close()
-              .then(() => {
-                console.log('[auth-otp] MySQL store closed.');
-              })
-              .catch((closeError) => {
-                console.error('[auth-otp] Failed to close MySQL store:', closeError.message);
-              });
-          }
-          console.log('HTTP server closed.');
-        });
-
-        // Ensure shutdown does not hang forever.
-        setTimeout(() => {
-          console.log('Shutdown timeout reached.');
-        }, 8000).unref();
-      });
-    });
+    console.log(`MongoDB connected to ${mongoConfig.dbName}`);
   } catch (error) {
     console.error('Failed to start server:', error.message);
     if (!IS_PRODUCTION && error.stack) {
       console.error(error.stack);
+    }
+
+    if (!persistenceReady && !bootRetryTimer) {
+      bootRetryTimer = setTimeout(() => {
+        bootRetryTimer = null;
+        boot().catch((bootError) => {
+          console.error('Boot retry failed:', bootError?.message || bootError);
+        });
+      }, 15000);
+      if (typeof bootRetryTimer.unref === 'function') {
+        bootRetryTimer.unref();
+      }
+      console.log('Will retry startup in 15 seconds...');
     }
   }
 }
