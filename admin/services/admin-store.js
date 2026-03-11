@@ -466,6 +466,7 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     adminP2PConfig,
     adminComplianceFlags,
     adminApiLogs,
+    adminNotifications,
     adminKycDocuments,
     p2pKycRequests,
     p2pCredentials,
@@ -508,7 +509,10 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       adminSpotPairs.createIndex({ symbol: 1 }, { unique: true }),
       adminComplianceFlags.createIndex({ id: 1 }, { unique: true }),
       adminComplianceFlags.createIndex({ createdAt: -1 }),
-      adminP2PConfig.createIndex({ key: 1 }, { unique: true })
+      adminP2PConfig.createIndex({ key: 1 }, { unique: true }),
+      adminNotifications.createIndex({ id: 1 }, { unique: true }),
+      adminNotifications.createIndex({ createdAt: -1 }),
+      adminNotifications.createIndex({ target: 1, createdAt: -1 })
     ]);
   }
 
@@ -592,6 +596,33 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       },
       { upsert: true }
     );
+
+    const notificationCount = await adminNotifications.countDocuments({});
+    if (notificationCount === 0) {
+      const now = new Date();
+      await adminNotifications.insertMany([
+        {
+          id: makeId('ntf'),
+          title: 'Platform health check complete',
+          message: 'All core trading services are operating normally.',
+          type: 'SYSTEM',
+          target: 'ALL_USERS',
+          priority: 'NORMAL',
+          createdBy: 'system',
+          createdAt: now
+        },
+        {
+          id: makeId('ntf'),
+          title: 'KYC queue reminder',
+          message: 'Pending KYC submissions are available for compliance review.',
+          type: 'ANNOUNCEMENT',
+          target: 'ADMIN',
+          priority: 'HIGH',
+          createdBy: 'system',
+          createdAt: new Date(now.getTime() - 1000 * 60 * 60)
+        }
+      ]);
+    }
   }
 
   async function seedAdminUser(seed = {}) {
@@ -1015,6 +1046,220 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       limit,
       total,
       users
+    };
+  }
+
+  async function getDashboardKpis() {
+    const [totalUsers, emailUnverifiedUsers, mobileUnverifiedUsers, totalTrades, totalPairs, activeUsers] = await Promise.all([
+      p2pCredentials.countDocuments({}),
+      p2pCredentials.countDocuments({ emailVerified: { $ne: true } }),
+      p2pCredentials.countDocuments({
+        $and: [
+          { mobileVerified: { $ne: true } },
+          { phoneVerified: { $ne: true } }
+        ]
+      }),
+      tradeOrders.countDocuments({}),
+      adminSpotPairs.countDocuments({}),
+      p2pCredentials.countDocuments({
+        $or: [
+          { lastLoginAt: { $gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30) } },
+          { updatedAt: { $gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7) } }
+        ]
+      })
+    ]);
+
+    const [statusAgg] = await adminUserProfiles
+      .aggregate([
+        {
+          $group: {
+            _id: null,
+            banned: {
+              $sum: {
+                $cond: [{ $eq: ['$status', 'BANNED'] }, 1, 0]
+              }
+            },
+            frozen: {
+              $sum: {
+                $cond: [{ $eq: ['$status', 'FROZEN'] }, 1, 0]
+              }
+            }
+          }
+        }
+      ])
+      .toArray();
+
+    const [volumeAgg] = await tradeOrders
+      .aggregate([
+        {
+          $group: {
+            _id: null,
+            totalVolume: { $sum: { $ifNull: ['$amountUsdt', 0] } }
+          }
+        }
+      ])
+      .toArray();
+
+    const currencies = new Set();
+    const pairs = await adminSpotPairs.find({}, { projection: { symbol: 1 } }).toArray();
+    for (const pair of pairs) {
+      const symbol = String(pair?.symbol || '').trim().toUpperCase();
+      if (!symbol) continue;
+      const match = symbol.match(/^([A-Z0-9]+)(USDT|USDC|BTC|ETH|BNB|INR|USD)$/);
+      if (match) {
+        currencies.add(match[1]);
+        currencies.add(match[2]);
+      } else if (symbol.includes('/')) {
+        symbol.split('/').forEach((token) => currencies.add(String(token || '').trim().toUpperCase()));
+      }
+    }
+
+    const normalizedActiveUsers = Math.max(0, Number(activeUsers || 0));
+    const bannedUsers = Number(statusAgg?.banned || 0);
+    const frozenUsers = Number(statusAgg?.frozen || 0);
+    return {
+      totalUsers: Number(totalUsers || 0),
+      activeUsers: normalizedActiveUsers,
+      emailUnverifiedUsers: Number(emailUnverifiedUsers || 0),
+      mobileUnverifiedUsers: Number(mobileUnverifiedUsers || 0),
+      totalTrades: Number(totalTrades || 0),
+      totalCurrencies: Math.max(Number(totalPairs || 0), currencies.size),
+      bannedUsers,
+      frozenUsers,
+      tradeVolumeUsdt: Number(toNumber(volumeAgg?.totalVolume, 0).toFixed(2))
+    };
+  }
+
+  async function getUserAdminDetail(userId) {
+    const normalizedUserId = String(userId || '').trim();
+    if (!normalizedUserId) {
+      return null;
+    }
+
+    const [base, profile, wallet, deposits, withdrawals, trades, orders] = await Promise.all([
+      getUserById(normalizedUserId),
+      adminUserProfiles.findOne({ userId: normalizedUserId }),
+      wallets.findOne({ userId: normalizedUserId }),
+      adminDeposits.find({ userId: normalizedUserId }).sort({ createdAt: -1 }).limit(20).toArray(),
+      adminWithdrawals.find({ userId: normalizedUserId }).sort({ createdAt: -1 }).limit(20).toArray(),
+      tradeOrders.find({ userId: normalizedUserId }).sort({ createdAt: -1 }).limit(20).toArray(),
+      p2pOrders
+        .find({ $or: [{ buyerUserId: normalizedUserId }, { sellerUserId: normalizedUserId }] })
+        .sort({ updatedAt: -1 })
+        .limit(20)
+        .toArray()
+    ]);
+
+    if (!base) {
+      return null;
+    }
+
+    const credential = profile?.email
+      ? await p2pCredentials.findOne({ email: String(profile.email).trim().toLowerCase() })
+      : null;
+
+    const completedDeposits = deposits.filter((row) => String(row?.status || '').toUpperCase() === 'COMPLETED');
+    const approvedWithdrawals = withdrawals.filter((row) => String(row?.status || '').toUpperCase() === 'APPROVED');
+    const totalDeposit = completedDeposits.reduce((sum, row) => sum + toNumber(row?.amount, 0), 0);
+    const totalWithdrawals = approvedWithdrawals.reduce((sum, row) => sum + toNumber(row?.amount, 0), 0);
+
+    const loginHistory = [];
+    if (credential?.lastLoginAt) {
+      loginHistory.push({
+        loginAt: toDate(credential.lastLoginAt).toISOString(),
+        ip: String(credential.lastLoginIp || '').trim(),
+        device: String(credential.lastLoginDevice || credential.lastUserAgent || '').trim()
+      });
+    }
+
+    return {
+      ...base,
+      username: String(profile?.username || credential?.username || String(base.email || '').split('@')[0] || '').trim(),
+      twoFactorEnabled: Boolean(profile?.user2faEnabled),
+      totals: {
+        totalOrders: Number(base?.stats?.p2pOrderCount || 0) + Number(base?.stats?.tradeOrderCount || 0),
+        totalTrades: Number(base?.stats?.tradeOrderCount || 0),
+        totalDeposit: Number(totalDeposit.toFixed(8)),
+        totalWithdrawals: Number(totalWithdrawals.toFixed(8))
+      },
+      walletBalances: {
+        available: getAvailableBalance(wallet),
+        locked: toNumber(wallet?.lockedBalance, 0),
+        total: toNumber(getAvailableBalance(wallet), 0) + toNumber(wallet?.lockedBalance, 0)
+      },
+      loginHistory,
+      recentDeposits: deposits.slice(0, 8),
+      recentWithdrawals: withdrawals.slice(0, 8),
+      recentTrades: trades.slice(0, 8),
+      recentP2POrders: orders.slice(0, 8),
+      kyc: {
+        status: String(base?.kycStatus || 'PENDING').toUpperCase(),
+        remarks: String(base?.kycRemarks || ''),
+        fullName: String(profile?.fullName || ''),
+        aadhaarNumber: String(profile?.aadhaarNumber || ''),
+        panNumber: String(profile?.panNumber || ''),
+        gender: String(profile?.gender || '')
+      }
+    };
+  }
+
+  async function setUserTwoFactor(userId, enabled) {
+    const normalizedUserId = String(userId || '').trim();
+    if (!normalizedUserId) {
+      throw new Error('userId is required');
+    }
+
+    const existingProfile = await adminUserProfiles.findOne({ userId: normalizedUserId });
+    await upsertUserProfile(normalizedUserId, existingProfile?.email || '', {
+      status: existingProfile?.status || 'ACTIVE',
+      kycStatus: existingProfile?.kycStatus || 'PENDING'
+    });
+
+    await adminUserProfiles.updateOne(
+      { userId: normalizedUserId },
+      {
+        $set: {
+          user2faEnabled: Boolean(enabled),
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    return {
+      userId: normalizedUserId,
+      twoFactorEnabled: Boolean(enabled)
+    };
+  }
+
+  async function createUserImpersonationSession(userId) {
+    const detail = await getUserAdminDetail(userId);
+    if (!detail || !detail.email) {
+      throw new Error('User not found for impersonation');
+    }
+
+    const normalizedUser = {
+      id: String(detail.userId || '').trim(),
+      username: String(detail.username || detail.email.split('@')[0] || 'user').trim(),
+      email: String(detail.email || '').trim().toLowerCase(),
+      role: 'USER'
+    };
+
+    const tokenPair = tokenService.createTokenPair({
+      id: normalizedUser.id,
+      role: normalizedUser.role,
+      email: normalizedUser.email,
+      username: normalizedUser.username
+    });
+
+    const legacyToken = makeId('imp');
+    const expiresAtMs = Date.now() + 1000 * 60 * 60 * 24 * 7;
+    await repos.createP2PUserSession(legacyToken, normalizedUser, expiresAtMs);
+
+    return {
+      user: normalizedUser,
+      tokenPair,
+      legacyToken,
+      legacyExpiresAt: new Date(expiresAtMs).toISOString()
     };
   }
 
@@ -2469,6 +2714,116 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     return { page, limit, total, logs: rows };
   }
 
+  async function listAdminLoginHistory(params = {}) {
+    const { page, limit, skip } = parsePagination(params);
+    const rows = await adminLoginHistory
+      .find({})
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    const total = await adminLoginHistory.countDocuments({});
+    return { page, limit, total, items: rows };
+  }
+
+  async function listNotifications(params = {}) {
+    const { page, limit, skip } = parsePagination(params);
+    const query = {};
+    const type = String(params.type || '').trim().toUpperCase();
+    if (type) {
+      query.type = type;
+    }
+    const rows = await adminNotifications
+      .find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    const total = await adminNotifications.countDocuments(query);
+    return { page, limit, total, notifications: rows };
+  }
+
+  async function createNotification(payload = {}, actor = {}) {
+    const title = String(payload.title || '').trim();
+    const message = String(payload.message || '').trim();
+    const type = String(payload.type || 'ANNOUNCEMENT').trim().toUpperCase();
+    const target = String(payload.target || 'ALL_USERS').trim().toUpperCase();
+    const priority = String(payload.priority || 'NORMAL').trim().toUpperCase();
+
+    if (!title || !message) {
+      throw new Error('title and message are required');
+    }
+
+    const record = {
+      id: makeId('ntf'),
+      title,
+      message,
+      type,
+      target,
+      priority,
+      metadata: payload.metadata && typeof payload.metadata === 'object' ? payload.metadata : {},
+      createdBy: String(actor.id || actor.email || 'system').trim(),
+      createdAt: new Date()
+    };
+
+    await adminNotifications.insertOne(record);
+    return record;
+  }
+
+  async function getReferralOverview() {
+    const settings = await getPlatformSettings();
+    const allUsers = await p2pCredentials
+      .find(
+        {},
+        {
+          projection: {
+            email: 1,
+            referralCode: 1,
+            referredBy: 1,
+            referrerId: 1,
+            referralEarnings: 1
+          }
+        }
+      )
+      .toArray();
+
+    const referredUsers = allUsers.filter(
+      (user) =>
+        String(user?.referredBy || '').trim() ||
+        String(user?.referrerId || '').trim()
+    );
+    const totalEarnings = referredUsers.reduce(
+      (sum, user) => sum + toNumber(user?.referralEarnings, 0),
+      0
+    );
+
+    const bucket = new Map();
+    for (const user of referredUsers) {
+      const key =
+        String(user?.referredBy || '').trim() ||
+        String(user?.referrerId || '').trim();
+      if (!key) continue;
+      const row = bucket.get(key) || { key, count: 0 };
+      row.count += 1;
+      bucket.set(key, row);
+    }
+
+    const topReferrers = Array.from(bucket.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8)
+      .map((row) => ({
+        referrer: row.key,
+        referredUsers: row.count
+      }));
+
+    return {
+      commissionPercent: toNumber(settings?.referralCommissionPercent, 0),
+      totalReferralUsers: referredUsers.length,
+      totalReferralEarnings: Number(totalEarnings.toFixed(2)),
+      topReferrers
+    };
+  }
+
   return {
     ADMIN_ROLES,
     USER_STATUSES,
@@ -2488,8 +2843,12 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     writeLoginHistory,
     writeAuditLog,
     writeApiLog,
+    getDashboardKpis,
     listUsers,
     getUserById,
+    getUserAdminDetail,
+    setUserTwoFactor,
+    createUserImpersonationSession,
     upsertUserProfile,
     updateUserStatus,
     resetUserPassword,
@@ -2538,6 +2897,10 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     getMonitoringOverview,
     listApiLogs,
     listAuditLogs,
+    listAdminLoginHistory,
+    listNotifications,
+    createNotification,
+    getReferralOverview,
     makeP2PUserId
   };
 }
