@@ -185,7 +185,7 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return AuthScaffold(
-      title: 'Welcome to Bitegit',
+      title: 'Create your account',
       emailController: _emailController,
       loading: _loading,
       nextEnabled:
@@ -497,7 +497,7 @@ class AuthScaffold extends StatelessWidget {
                     child: Padding(
                       padding: EdgeInsets.only(top: 10),
                       child: Text(
-                        'I have read and agree to the Bitegit User Agreement.',
+                        'I have read and agree to the User Agreement.',
                         style: TextStyle(fontSize: 16, color: Colors.white70),
                       ),
                     ),

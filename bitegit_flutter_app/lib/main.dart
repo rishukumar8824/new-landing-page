@@ -219,7 +219,7 @@ String _apiErrorMessage(
     return msg;
   }
   if (response.statusCode == 0) {
-    return 'Network error while reaching Bitegit API.';
+    return 'Network error while reaching exchange API.';
   }
   return fallback;
 }
@@ -346,6 +346,94 @@ Future<void> _syncDepositSessionFromBackend({String? accessToken}) async {
     }
     final hasActive = response.bodyMap?['hasActiveDeposit'] == true;
     hasActiveDepositSessionNotifier.value = hasActive;
+    return;
+  }
+}
+
+Future<void> _syncHomeNotificationsFromBackend({String? accessToken}) async {
+  var token = (accessToken ?? authAccessTokenNotifier.value).trim();
+
+  for (final base in _apiBaseUrls()) {
+    var response = await _getJsonFromApi(
+      _apiUri(base, '/api/social/feed').replace(
+        queryParameters: const <String, String>{
+          'tab': 'announcement',
+          'page': '1',
+          'pageSize': '6',
+        },
+      ),
+      accessToken: token.isEmpty ? null : token,
+    );
+
+    if (response.statusCode == 401 && token.isNotEmpty) {
+      final refreshed = await _refreshAccessTokenWithRefreshToken();
+      if (refreshed) {
+        token = authAccessTokenNotifier.value.trim();
+        response = await _getJsonFromApi(
+          _apiUri(base, '/api/social/feed').replace(
+            queryParameters: const <String, String>{
+              'tab': 'announcement',
+              'page': '1',
+              'pageSize': '6',
+            },
+          ),
+          accessToken: token,
+        );
+      }
+    }
+
+    if (!_apiSuccess(response)) {
+      continue;
+    }
+
+    final body = response.bodyMap ?? const <String, dynamic>{};
+    final rawItems = body['items'] is List<dynamic>
+        ? body['items'] as List<dynamic>
+        : const <dynamic>[];
+    if (rawItems.isEmpty) {
+      return;
+    }
+
+    final existing = supportAlertsNotifier.value;
+    final knownMessages = existing.map((item) => item.message).toSet();
+    final userUid = currentUserUid.trim().isEmpty ? '--' : currentUserUid;
+    final mapped = <SupportAlert>[];
+
+    for (final item in rawItems) {
+      if (item is! Map<String, dynamic>) {
+        continue;
+      }
+      final message =
+          (item['contentText'] ??
+                  item['content_text'] ??
+                  item['text'] ??
+                  item['title'] ??
+                  '')
+              .toString()
+              .trim();
+      if (message.isEmpty || knownMessages.contains(message)) {
+        continue;
+      }
+      final rawTime = (item['createdAt'] ?? item['created_at'] ?? '')
+          .toString()
+          .trim();
+      final parsedTime = DateTime.tryParse(rawTime) ?? DateTime.now();
+      mapped.add(
+        SupportAlert(
+          id: _supportAlertCounter++,
+          userUid: userUid,
+          message: message,
+          timestamp: parsedTime,
+        ),
+      );
+    }
+
+    if (mapped.isNotEmpty) {
+      supportAlertsNotifier.value = <SupportAlert>[
+        ...mapped,
+        ...existing,
+      ].take(20).toList(growable: false);
+    }
     return;
   }
 }
@@ -1063,11 +1151,184 @@ class BitegitApp extends StatelessWidget {
       builder: (context, mode, child) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'Bitegit',
+          title: 'Exchange',
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: mode,
-          home: const AuthGatePage(),
+          home: const AppLaunchBootstrap(),
+        );
+      },
+    );
+  }
+}
+
+class _ExchangeLogoGlyph extends StatelessWidget {
+  const _ExchangeLogoGlyph({this.size = 64, this.glowStrength = 0.45});
+
+  final double size;
+  final double glowStrength;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFF29A), Color(0xFFF1CB3E)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(
+              0xFFF1CB3E,
+            ).withValues(alpha: (0.26 + (glowStrength * 0.24)).clamp(0, 1)),
+            blurRadius: size * (0.34 + (glowStrength * 0.18)),
+            spreadRadius: size * (0.03 + (glowStrength * 0.01)),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Icon(
+          Icons.candlestick_chart_rounded,
+          size: size * 0.56,
+          color: const Color(0xFF111827),
+        ),
+      ),
+    );
+  }
+}
+
+class AppLaunchBootstrap extends StatefulWidget {
+  const AppLaunchBootstrap({super.key});
+
+  @override
+  State<AppLaunchBootstrap> createState() => _AppLaunchBootstrapState();
+}
+
+class _AppLaunchBootstrapState extends State<AppLaunchBootstrap>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool _splashComplete = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..forward();
+
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _splashComplete = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: _splashComplete
+          ? const AuthGatePage(key: ValueKey<String>('auth-gate'))
+          : _AnimatedSplashScreen(
+              key: const ValueKey<String>('launch-splash'),
+              animation: _controller,
+            ),
+    );
+  }
+}
+
+class _AnimatedSplashScreen extends StatelessWidget {
+  const _AnimatedSplashScreen({super.key, required this.animation});
+
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF05070B),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF05070B), Color(0xFF0A1422), Color(0xFF05070B)],
+          ),
+        ),
+        child: Center(
+          child: AnimatedBuilder(
+            animation: animation,
+            builder: (context, child) {
+              final fade = Curves.easeOutCubic.transform(animation.value);
+              final pulse =
+                  0.92 + (0.1 * sin(animation.value * pi * 2.2).abs());
+              return Opacity(
+                opacity: 0.2 + (0.8 * fade),
+                child: Transform.scale(
+                  scale: pulse,
+                  child: _ExchangeLogoGlyph(size: 108, glowStrength: 0.8),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeRefreshLogoLoader extends StatefulWidget {
+  const _HomeRefreshLogoLoader();
+
+  @override
+  State<_HomeRefreshLogoLoader> createState() => _HomeRefreshLogoLoaderState();
+}
+
+class _HomeRefreshLogoLoaderState extends State<_HomeRefreshLogoLoader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 950),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final turn = _controller.value * pi * 2;
+        final pulse = 0.93 + (0.08 * sin(turn).abs());
+        return Transform.rotate(
+          angle: turn,
+          child: Transform.scale(
+            scale: pulse,
+            child: const _ExchangeLogoGlyph(size: 46, glowStrength: 0.6),
+          ),
         );
       },
     );
@@ -1198,18 +1459,13 @@ class AuthLandingPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'BITEGIT',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.3,
-                  color: Colors.white,
-                ),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: _ExchangeLogoGlyph(size: 38, glowStrength: 0.5),
               ),
               const Spacer(flex: 2),
               const Text(
-                'Welcome to Bitegit',
+                'Welcome',
                 style: TextStyle(
                   fontSize: 38,
                   fontWeight: FontWeight.w800,
@@ -1218,7 +1474,7 @@ class AuthLandingPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Join Bitegit and unlock crypto trading.',
+                'Secure crypto trading starts here.',
                 style: TextStyle(fontSize: 15, color: Colors.white70),
               ),
               const Spacer(),
@@ -1753,7 +2009,7 @@ class _HttpJsonResponse {
 
 String _displayNameFromIdentity(String identity) {
   final raw = identity.trim();
-  if (raw.isEmpty) return 'Bitegit User';
+  if (raw.isEmpty) return 'Exchange User';
   if (raw.contains('@')) {
     final local = raw.split('@').first;
     if (local.trim().isNotEmpty) return local.trim();
@@ -1762,7 +2018,7 @@ String _displayNameFromIdentity(String identity) {
   if (digits.length >= 4) {
     return 'User ${digits.substring(digits.length - 4)}';
   }
-  return 'Bitegit User';
+  return 'Exchange User';
 }
 
 class OtpRequestResult {
@@ -2615,7 +2871,7 @@ const List<SupportHelpArticle> kSupportHelpArticles = [
     id: 'account-security-guide',
     title: 'Account & Security - Full Guide',
     category: 'Account & Security',
-    body: '''Bitegit Account & Security Full Guide
+    body: '''Account & Security Full Guide
 
 1) Verification code not received
 - Check spam/junk and promotions tabs.
@@ -2645,7 +2901,7 @@ If you still face issues, tap "Chat with us" and share UID, device model, and er
     id: 'deposit-withdraw-guide',
     title: 'Deposit & Withdrawal - Full Guide',
     category: 'Deposit & Withdrawal',
-    body: '''Bitegit Deposit & Withdrawal Full Guide
+    body: '''Deposit & Withdrawal Full Guide
 
 Deposit flow:
 1) Assets -> Deposit -> Select Coin -> Select Network.
@@ -2680,7 +2936,7 @@ Never withdraw to unsupported chains. Wrong-chain transfers can be irreversible.
     id: 'p2p-guide',
     title: 'P2P Trading - Full Guide',
     category: 'P2P',
-    body: '''Bitegit P2P Full Guide
+    body: '''P2P Full Guide
 
 How to buy:
 1) Open P2P -> Buy tab.
@@ -2698,7 +2954,7 @@ How to sell:
 
 Important protection rules:
 - Never release crypto without receiving money.
-- Never chat/settle outside Bitegit order chat.
+- Never chat/settle outside in-order chat.
 - Use exact payment reference rules.
 - Keep screenshots and UTR/transaction ID.
 
@@ -2718,7 +2974,7 @@ This workflow keeps crypto locked in escrow until safe release.''',
     id: 'kyc-full-guide',
     title: 'Identity Verification - Full Guide',
     category: 'Identity Verification',
-    body: '''Bitegit Identity Verification (KYC) Guide
+    body: '''Identity Verification (KYC) Guide
 
 Level 1 (Basic):
 - Full legal name
@@ -2750,7 +3006,7 @@ If rejected, re-upload clear images and contact support with rejection code.''',
     id: 'promotion-bonus-guide',
     title: 'Promotion & Bonus - Full Guide',
     category: 'Promotion & Bonus',
-    body: '''Bitegit Promotion & Bonus Guide
+    body: '''Promotion & Bonus Guide
 
 Reward credit timing:
 - Most campaign rewards are credited within 7 working days after campaign settlement.
@@ -2781,11 +3037,11 @@ How to raise reward claim:
 
 1) Inbox and filters
 - Check Inbox, Promotions, Spam, Junk, and Updates tabs.
-- Search by keywords: Bitegit, verification, security code.
+- Search by keywords: verification, security code.
 - Remove any mailbox rule that auto-archives or auto-deletes exchange emails.
 
 2) Safe sender setup
-- Add official Bitegit support/notification domains to your safe sender list.
+- Add official support/notification domains to your safe sender list.
 - Whitelist no-reply and service addresses in your email provider settings.
 
 3) Request OTP correctly
@@ -2847,13 +3103,13 @@ What to prepare before ticket:
 - Deposit address screenshot
 - Amount + transfer timestamp
 
-Open support with these details and Bitegit team can trace credit status quickly.''',
+Open support with these details and the team can trace credit status quickly.''',
   ),
   SupportHelpArticle(
     id: 'withdraw-howto',
     title: 'How to submit a withdrawal?',
     category: 'Deposit & Withdrawal',
-    body: '''To submit withdrawal safely on Bitegit:
+    body: '''To submit withdrawal safely:
 
 1) Open Assets -> Withdraw.
 2) Select coin and destination network.
@@ -2901,7 +3157,7 @@ Important:
     id: 'kyc-guide',
     title: 'Identity verification',
     category: 'Identity Verification',
-    body: '''Identity verification on Bitegit has two levels:
+    body: '''Identity verification has two levels:
 
 Level 1 (Basic):
 - Full legal name
@@ -2931,7 +3187,7 @@ If rejected:
     body: '''P2P issue resolution playbook:
 
 1) Open the exact order and verify current status.
-2) Use in-order chat first and keep all communication on Bitegit only.
+2) Use in-order chat first and keep all communication inside the order.
 3) For payment disputes:
 - Upload payment screenshot
 - Share UTR/reference number
@@ -3186,7 +3442,10 @@ class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<_HomeSocialDiscoveryFeedState> _socialFeedKey =
       GlobalKey<_HomeSocialDiscoveryFeedState>();
+  final GlobalKey<_HomePopularPairsSectionState> _pairsSectionKey =
+      GlobalKey<_HomePopularPairsSectionState>();
   bool _composerOpen = false;
+  bool _refreshingHome = false;
 
   @override
   void initState() {
@@ -3208,11 +3467,36 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _refreshHomeContent() async {
+    if (_refreshingHome) {
+      return;
+    }
+    setState(() => _refreshingHome = true);
+
+    final token = authAccessTokenNotifier.value.trim();
+    try {
+      await Future.wait<void>([
+        _syncWalletFromBackend(accessToken: token),
+        _syncDepositSessionFromBackend(accessToken: token),
+        _syncHomeNotificationsFromBackend(accessToken: token),
+        _pairsSectionKey.currentState?.refreshFromParent() ??
+            Future<void>.value(),
+        _socialFeedKey.currentState?.refreshFromParent() ??
+            Future<void>.value(),
+      ]);
+    } finally {
+      if (mounted) {
+        await Future<void>.delayed(const Duration(milliseconds: 220));
+        setState(() => _refreshingHome = false);
+      }
+    }
+  }
+
   void _handleComposerAction(String action) {
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('$action publishing will open here.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$action publishing will open here.')),
+      );
     }
     setState(() => _composerOpen = false);
   }
@@ -3224,61 +3508,98 @@ class _HomePageState extends State<HomePage> {
       builder: (context, settings, _) {
         return Stack(
           children: [
-            ListView(
-              controller: _scrollController,
-              cacheExtent: 1800,
-              padding: const EdgeInsets.all(14),
-              children: [
-                _TopHeader(onOpenProfile: widget.onOpenProfile),
-                const SizedBox(height: 8),
-                const _HomeBrandProgress(),
-                const SizedBox(height: 10),
-                if (settings.showDepositBanner) ...[
-                  _HomeDepositBanner(
-                    onDeposit: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => const DepositPage()),
+            RefreshIndicator(
+              displacement: 74,
+              edgeOffset: 8,
+              color: Colors.transparent,
+              backgroundColor: Colors.transparent,
+              onRefresh: _refreshHomeContent,
+              child: ListView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                cacheExtent: 1800,
+                padding: const EdgeInsets.all(14),
+                children: [
+                  _TopHeader(onOpenProfile: widget.onOpenProfile),
+                  const SizedBox(height: 8),
+                  const _HomeBrandProgress(),
+                  const SizedBox(height: 10),
+                  if (settings.showDepositBanner) ...[
+                    _HomeDepositBanner(
+                      onDeposit: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const DepositPage(),
+                        ),
+                      ),
+                      onOpenAssets: () => widget.onNavigateTab(4),
                     ),
-                    onOpenAssets: () => widget.onNavigateTab(4),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                if (settings.showQuickActions) ...[
-                  _HomeQuickActions(
-                    onDeposit: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => const DepositPage()),
-                    ),
-                    onOpenP2POrders: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => const P2PPage()),
-                    ),
-                    onWithdraw: () => Navigator.of(
-                      context,
-                    ).push(MaterialPageRoute<void>(builder: (_) => const WithdrawPage())),
-                    onReward: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const RewardsContestOverviewPage(),
+                    const SizedBox(height: 12),
+                  ],
+                  if (settings.showQuickActions) ...[
+                    _HomeQuickActions(
+                      onDeposit: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const DepositPage(),
+                        ),
+                      ),
+                      onOpenP2POrders: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const P2PPage(),
+                        ),
+                      ),
+                      onWithdraw: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const WithdrawPage(),
+                        ),
+                      ),
+                      onReward: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const RewardsContestOverviewPage(),
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 10),
+                  ],
+                  if (settings.showPromoScroller) ...[
+                    const _HomeP2PTemplateScroller(),
+                    const SizedBox(height: 10),
+                  ],
+                  if (settings.showTicker) ...[
+                    const _AnnouncementTicker(items: kMarketNotices),
+                    const SizedBox(height: 10),
+                  ],
+                  if (settings.showPairs) ...[
+                    _HomePopularPairsSection(
+                      key: _pairsSectionKey,
+                      onOpenTradePair: widget.onOpenTradePair,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  _HomeSocialDiscoveryFeed(
+                    key: _socialFeedKey,
+                    accessTokenListenable: authAccessTokenNotifier,
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 104),
                 ],
-                if (settings.showPromoScroller) ...[
-                  const _HomeP2PTemplateScroller(),
-                  const SizedBox(height: 10),
-                ],
-                if (settings.showTicker) ...[
-                  const _AnnouncementTicker(items: kMarketNotices),
-                  const SizedBox(height: 10),
-                ],
-                if (settings.showPairs) ...[
-                  _HomePopularPairsSection(onOpenTradePair: widget.onOpenTradePair),
-                  const SizedBox(height: 12),
-                ],
-                _HomeSocialDiscoveryFeed(
-                  key: _socialFeedKey,
-                  accessTokenListenable: authAccessTokenNotifier,
+              ),
+            ),
+            Positioned(
+              top: 12,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 180),
+                  offset: _refreshingHome ? Offset.zero : const Offset(0, -1.2),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: _refreshingHome ? 1 : 0,
+                    child: const Center(child: _HomeRefreshLogoLoader()),
+                  ),
                 ),
-                const SizedBox(height: 104),
-              ],
+              ),
             ),
             Positioned(
               right: 18,
@@ -3869,23 +4190,21 @@ class _HomeBrandProgress extends StatelessWidget {
       ),
       child: Column(
         children: [
-          RichText(
-            text: TextSpan(
-              style: TextStyle(
-                color: primary,
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.4,
-              ),
-              children: [
-                const TextSpan(text: 'BITE'),
-                TextSpan(
-                  text: 'G',
-                  style: TextStyle(color: accent),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const _ExchangeLogoGlyph(size: 34, glowStrength: 0.45),
+              const SizedBox(width: 10),
+              Text(
+                'Get Started',
+                style: TextStyle(
+                  color: primary,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
                 ),
-                const TextSpan(text: 'IT'),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           Row(
@@ -4353,7 +4672,7 @@ class _HomeP2PTemplateScrollerState extends State<_HomeP2PTemplateScroller> {
 }
 
 class _HomePopularPairsSection extends StatefulWidget {
-  const _HomePopularPairsSection({required this.onOpenTradePair});
+  const _HomePopularPairsSection({super.key, required this.onOpenTradePair});
 
   final ValueChanged<MarketPair> onOpenTradePair;
 
@@ -4386,7 +4705,11 @@ class _HomePopularPairsSectionState extends State<_HomePopularPairsSection> {
   Future<void> _refresh() async {
     try {
       final live = await _marketService.fetchPairs();
-      if (!mounted || live.isEmpty) return;
+      if (!mounted) return;
+      if (live.isEmpty) {
+        setState(() => _loading = false);
+        return;
+      }
       setState(() {
         _pairs = live;
         _loading = false;
@@ -4395,6 +4718,12 @@ class _HomePopularPairsSectionState extends State<_HomePopularPairsSection> {
       if (!mounted) return;
       setState(() => _loading = false);
     }
+  }
+
+  Future<void> refreshFromParent() async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+    await _refresh();
   }
 
   List<MarketPair> _rowsForCurrentTab() {
@@ -4625,13 +4954,26 @@ class _SocialFeedPost {
     }
     return _SocialFeedPost(
       id: (map['id'] ?? '').toString().trim(),
-      username: (map['username'] ?? map['name'] ?? 'Bitegit User').toString().trim(),
-      avatarUrl: (map['avatarUrl'] ?? map['avatar_url'] ?? '').toString().trim(),
+      username: (map['username'] ?? map['name'] ?? 'Exchange User')
+          .toString()
+          .trim(),
+      avatarUrl: (map['avatarUrl'] ?? map['avatar_url'] ?? '')
+          .toString()
+          .trim(),
       createdAt: parsedDate,
-      contentText: (map['contentText'] ?? map['content_text'] ?? map['text'] ?? '').toString().trim(),
-      mediaType: (map['mediaType'] ?? map['media_type'] ?? 'text').toString().trim().toLowerCase(),
+      contentText:
+          (map['contentText'] ?? map['content_text'] ?? map['text'] ?? '')
+              .toString()
+              .trim(),
+      mediaType: (map['mediaType'] ?? map['media_type'] ?? 'text')
+          .toString()
+          .trim()
+          .toLowerCase(),
       mediaUrl: (map['mediaUrl'] ?? map['media_url'] ?? '').toString().trim(),
-      isLive: map['isLive'] == true || map['is_live'] == true || map['is_live'] == 1,
+      isLive:
+          map['isLive'] == true ||
+          map['is_live'] == true ||
+          map['is_live'] == 1,
       commentCount: _parseCounter(map['commentCount'] ?? map['comment_count']),
       repostCount: _parseCounter(map['repostCount'] ?? map['repost_count']),
       likeCount: _parseCounter(map['likeCount'] ?? map['like_count']),
@@ -4659,9 +5001,13 @@ class _SuggestedCreator {
     return _SuggestedCreator(
       id: (map['id'] ?? '').toString().trim(),
       name: (map['name'] ?? 'Creator').toString().trim(),
-      followersCount: _parseCounter(map['followersCount'] ?? map['followers_count']),
+      followersCount: _parseCounter(
+        map['followersCount'] ?? map['followers_count'],
+      ),
       verified: map['verified'] == true || map['verified'] == 1,
-      avatarUrl: (map['avatarUrl'] ?? map['avatar_url'] ?? '').toString().trim(),
+      avatarUrl: (map['avatarUrl'] ?? map['avatar_url'] ?? '')
+          .toString()
+          .trim(),
     );
   }
 }
@@ -4691,7 +5037,9 @@ class _CopyTrader {
     return _CopyTrader(
       id: (map['id'] ?? '').toString().trim(),
       username: (map['username'] ?? 'Trader').toString().trim(),
-      avatarUrl: (map['avatarUrl'] ?? map['avatar_url'] ?? '').toString().trim(),
+      avatarUrl: (map['avatarUrl'] ?? map['avatar_url'] ?? '')
+          .toString()
+          .trim(),
       minCopyAmount: _toDouble(map['minCopyAmount'] ?? map['min_copy_amount']),
       pnl7d: _toDouble(map['pnl7d'] ?? map['pnl_7d']),
       roiPercent: _toDouble(map['roiPercent'] ?? map['roi_percent']),
@@ -4709,7 +5057,10 @@ int _parseCounter(dynamic value) {
 String _initialsOf(String input) {
   final cleaned = input.trim();
   if (cleaned.isEmpty) return 'B';
-  final parts = cleaned.split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+  final parts = cleaned
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .toList();
   if (parts.length >= 2) {
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
@@ -4740,16 +5091,25 @@ String _timeAgo(DateTime value) {
 }
 
 class _HomeSocialDiscoveryFeed extends StatefulWidget {
-  const _HomeSocialDiscoveryFeed({super.key, required this.accessTokenListenable});
+  const _HomeSocialDiscoveryFeed({
+    super.key,
+    required this.accessTokenListenable,
+  });
 
   final ValueNotifier<String> accessTokenListenable;
 
   @override
-  State<_HomeSocialDiscoveryFeed> createState() => _HomeSocialDiscoveryFeedState();
+  State<_HomeSocialDiscoveryFeed> createState() =>
+      _HomeSocialDiscoveryFeedState();
 }
 
 class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
-  static const List<String> _tabs = ['Discover', 'Following', 'Campaign', 'Announcement'];
+  static const List<String> _tabs = [
+    'Discover',
+    'Following',
+    'Campaign',
+    'Announcement',
+  ];
   int _tabIndex = 0;
   bool _loading = true;
   bool _loadingMore = false;
@@ -4790,10 +5150,16 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
     bool includeAuth = true,
   }) async {
     final token = includeAuth ? widget.accessTokenListenable.value.trim() : '';
-    _ApiHttpResponse last = const _ApiHttpResponse(statusCode: 0, bodyMap: null);
+    _ApiHttpResponse last = const _ApiHttpResponse(
+      statusCode: 0,
+      bodyMap: null,
+    );
     for (final base in _apiBaseUrls()) {
       final uri = _apiUri(base, path).replace(queryParameters: query);
-      final response = await _getJsonFromApi(uri, accessToken: token.isEmpty ? null : token);
+      final response = await _getJsonFromApi(
+        uri,
+        accessToken: token.isEmpty ? null : token,
+      );
       last = response;
       if (response.statusCode > 0 && response.statusCode < 500) {
         return response;
@@ -4802,9 +5168,15 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
     return last;
   }
 
-  Future<_ApiHttpResponse> _fetchPost(String path, Map<String, dynamic> payload) async {
+  Future<_ApiHttpResponse> _fetchPost(
+    String path,
+    Map<String, dynamic> payload,
+  ) async {
     final token = widget.accessTokenListenable.value.trim();
-    _ApiHttpResponse last = const _ApiHttpResponse(statusCode: 0, bodyMap: null);
+    _ApiHttpResponse last = const _ApiHttpResponse(
+      statusCode: 0,
+      bodyMap: null,
+    );
     for (final base in _apiBaseUrls()) {
       final response = await _postJsonToApi(
         _apiUri(base, path),
@@ -4837,17 +5209,21 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
 
   Future<void> _loadFeedPage({required bool append}) async {
     final targetPage = append ? _page + 1 : 1;
-    final response = await _fetchGet('/api/social/feed', query: <String, String>{
-      'tab': _tabKey,
-      'page': '$targetPage',
-      'pageSize': '10',
-    });
+    final response = await _fetchGet(
+      '/api/social/feed',
+      query: <String, String>{
+        'tab': _tabKey,
+        'page': '$targetPage',
+        'pageSize': '10',
+      },
+    );
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final body = response.bodyMap ?? const <String, dynamic>{};
       final rawItems = (body['items'] is List)
           ? body['items'] as List<dynamic>
-          : (body['data'] is Map<String, dynamic> && (body['data'] as Map<String, dynamic>)['items'] is List)
+          : (body['data'] is Map<String, dynamic> &&
+                (body['data'] as Map<String, dynamic>)['items'] is List)
           ? ((body['data'] as Map<String, dynamic>)['items'] as List<dynamic>)
           : const <dynamic>[];
 
@@ -4880,10 +5256,15 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
   }
 
   Future<void> _loadCreators() async {
-    final response = await _fetchGet('/api/social/suggested-creators', query: const <String, String>{'limit': '6'});
+    final response = await _fetchGet(
+      '/api/social/suggested-creators',
+      query: const <String, String>{'limit': '6'},
+    );
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final body = response.bodyMap ?? const <String, dynamic>{};
-      final rawItems = body['items'] is List ? body['items'] as List<dynamic> : const <dynamic>[];
+      final rawItems = body['items'] is List
+          ? body['items'] as List<dynamic>
+          : const <dynamic>[];
       final parsed = rawItems
           .whereType<Map<String, dynamic>>()
           .map(_SuggestedCreator.fromMap)
@@ -4900,10 +5281,15 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
   }
 
   Future<void> _loadCopyTraders() async {
-    final response = await _fetchGet('/api/social/copy-traders', query: const <String, String>{'limit': '8'});
+    final response = await _fetchGet(
+      '/api/social/copy-traders',
+      query: const <String, String>{'limit': '8'},
+    );
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final body = response.bodyMap ?? const <String, dynamic>{};
-      final rawItems = body['items'] is List ? body['items'] as List<dynamic> : const <dynamic>[];
+      final rawItems = body['items'] is List
+          ? body['items'] as List<dynamic>
+          : const <dynamic>[];
       final parsed = rawItems
           .whereType<Map<String, dynamic>>()
           .map(_CopyTrader.fromMap)
@@ -4924,18 +5310,25 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
       return;
     }
     setState(() => _followingCreators.add(creator.id));
-    final response = await _fetchPost('/api/social/creators/${creator.id}/follow', const <String, dynamic>{});
+    final response = await _fetchPost(
+      '/api/social/creators/${creator.id}/follow',
+      const <String, dynamic>{},
+    );
     if (!mounted) return;
     if (!_apiSuccess(response)) {
       setState(() => _followingCreators.remove(creator.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_apiErrorMessage(response, fallback: 'Unable to follow creator.'))),
+        SnackBar(
+          content: Text(
+            _apiErrorMessage(response, fallback: 'Unable to follow creator.'),
+          ),
+        ),
       );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Following ${creator.name}')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Following ${creator.name}')));
   }
 
   void _dismissPost(String id) {
@@ -4957,6 +5350,10 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
     await _loadFeedPage(append: false);
     if (!mounted) return;
     setState(() => _loading = false);
+  }
+
+  Future<void> refreshFromParent() async {
+    await _reloadAll();
   }
 
   Future<void> loadMoreIfNeeded() async {
@@ -5011,24 +5408,35 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
               children: List.generate(_tabs.length, (index) {
                 final selected = _tabIndex == index;
                 return Padding(
-                  padding: EdgeInsets.only(right: index == _tabs.length - 1 ? 0 : 8),
+                  padding: EdgeInsets.only(
+                    right: index == _tabs.length - 1 ? 0 : 8,
+                  ),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(999),
                     onTap: () => _changeTab(index),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: selected
-                            ? (isLight ? const Color(0xFF111827) : const Color(0xFFF4F6FA))
-                            : (isLight ? const Color(0xFFECEFF7) : const Color(0xFF151D2A)),
+                            ? (isLight
+                                  ? const Color(0xFF111827)
+                                  : const Color(0xFFF4F6FA))
+                            : (isLight
+                                  ? const Color(0xFFECEFF7)
+                                  : const Color(0xFF151D2A)),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
                         _tabs[index],
                         style: TextStyle(
                           color: selected
-                              ? (isLight ? Colors.white : const Color(0xFF111827))
+                              ? (isLight
+                                    ? Colors.white
+                                    : const Color(0xFF111827))
                               : secondary,
                           fontSize: 12.4,
                           fontWeight: FontWeight.w700,
@@ -5056,13 +5464,17 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: isLight ? const Color(0xFFF7EBEB) : const Color(0xFF2A1720),
+                color: isLight
+                    ? const Color(0xFFF7EBEB)
+                    : const Color(0xFF2A1720),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 _errorText!,
                 style: TextStyle(
-                  color: isLight ? const Color(0xFF912E39) : const Color(0xFFFFB9C1),
+                  color: isLight
+                      ? const Color(0xFF912E39)
+                      : const Color(0xFFFFB9C1),
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -5071,19 +5483,23 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
             const SizedBox(height: 8),
           ],
           if (!_loading)
-            ..._posts.map((post) => RepaintBoundary(
-                  child: _SocialPostCard(
-                    post: post,
-                    onClose: () => _dismissPost(post.id),
-                  ),
-                )),
+            ..._posts.map(
+              (post) => RepaintBoundary(
+                child: _SocialPostCard(
+                  post: post,
+                  onClose: () => _dismissPost(post.id),
+                ),
+              ),
+            ),
           if (!_loading && _posts.isEmpty)
             Container(
               width: double.infinity,
               margin: const EdgeInsets.only(top: 6),
               padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
               decoration: BoxDecoration(
-                color: isLight ? const Color(0xFFF6F8FC) : const Color(0xFF101522),
+                color: isLight
+                    ? const Color(0xFFF6F8FC)
+                    : const Color(0xFF101522),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
@@ -5139,9 +5555,10 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
       return <_SocialFeedPost>[
         _SocialFeedPost(
           id: 'fallback-campaign-1',
-          username: 'Bitegit Campaign',
+          username: 'Campaign Desk',
           createdAt: now.subtract(const Duration(minutes: 20)),
-          contentText: 'Campaign: Trade Futures and unlock up to 20% fee rebate this week.',
+          contentText:
+              'Campaign: Trade Futures and unlock up to 20% fee rebate this week.',
           mediaType: 'image',
           mediaUrl: '',
           isLive: false,
@@ -5156,9 +5573,10 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
       return <_SocialFeedPost>[
         _SocialFeedPost(
           id: 'fallback-announcement-1',
-          username: 'Bitegit Official',
+          username: 'Official Desk',
           createdAt: now.subtract(const Duration(minutes: 15)),
-          contentText: 'Announcement: Wallet maintenance scheduled at 02:00 UTC.',
+          contentText:
+              'Announcement: Wallet maintenance scheduled at 02:00 UTC.',
           mediaType: 'text',
           mediaUrl: '',
           isLive: false,
@@ -5174,7 +5592,8 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
         id: 'fallback-discover-1',
         username: 'Alpha Whale',
         createdAt: now.subtract(const Duration(minutes: 4)),
-        contentText: 'BTC liquidity zones updated for NY session. Watching 67.8k-68.2k.',
+        contentText:
+            'BTC liquidity zones updated for NY session. Watching 67.8k-68.2k.',
         mediaType: 'image',
         mediaUrl: '',
         isLive: false,
@@ -5187,7 +5606,8 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
         id: 'fallback-discover-2',
         username: 'Chain Pulse',
         createdAt: now.subtract(const Duration(minutes: 11)),
-        contentText: 'ETH perp basis stable. No aggressive long until confirmation close.',
+        contentText:
+            'ETH perp basis stable. No aggressive long until confirmation close.',
         mediaType: 'video',
         mediaUrl: '',
         isLive: false,
@@ -5200,31 +5620,46 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
   }
 
   List<_SuggestedCreator> get _fallbackCreators => const <_SuggestedCreator>[
-        _SuggestedCreator(id: 'c1', name: 'Alpha Whale', followersCount: 21873, verified: true),
-        _SuggestedCreator(id: 'c2', name: 'Chain Pulse', followersCount: 14704, verified: true),
-        _SuggestedCreator(id: 'c3', name: 'Macro Desk', followersCount: 9931, verified: false),
-      ];
+    _SuggestedCreator(
+      id: 'c1',
+      name: 'Alpha Whale',
+      followersCount: 21873,
+      verified: true,
+    ),
+    _SuggestedCreator(
+      id: 'c2',
+      name: 'Chain Pulse',
+      followersCount: 14704,
+      verified: true,
+    ),
+    _SuggestedCreator(
+      id: 'c3',
+      name: 'Macro Desk',
+      followersCount: 9931,
+      verified: false,
+    ),
+  ];
 
   List<_CopyTrader> get _fallbackCopyTraders => const <_CopyTrader>[
-        _CopyTrader(
-          id: 't1',
-          username: 'Alpha Whale',
-          minCopyAmount: 10,
-          pnl7d: 2142.33,
-          roiPercent: 38.1,
-          aumValue: 930241.24,
-          winRate: 82.6,
-        ),
-        _CopyTrader(
-          id: 't2',
-          username: 'Chain Pulse',
-          minCopyAmount: 25,
-          pnl7d: 1497.2,
-          roiPercent: 31.7,
-          aumValue: 512630.11,
-          winRate: 77.5,
-        ),
-      ];
+    _CopyTrader(
+      id: 't1',
+      username: 'Alpha Whale',
+      minCopyAmount: 10,
+      pnl7d: 2142.33,
+      roiPercent: 38.1,
+      aumValue: 930241.24,
+      winRate: 82.6,
+    ),
+    _CopyTrader(
+      id: 't2',
+      username: 'Chain Pulse',
+      minCopyAmount: 25,
+      pnl7d: 1497.2,
+      roiPercent: 31.7,
+      aumValue: 512630.11,
+      winRate: 77.5,
+    ),
+  ];
 }
 
 class _SocialPostCard extends StatelessWidget {
@@ -5241,10 +5676,13 @@ class _SocialPostCard extends StatelessWidget {
     final primary = isLight ? const Color(0xFF121722) : Colors.white;
     final secondary = isLight ? const Color(0xFF6D768A) : Colors.white60;
 
-    final showMedia = post.mediaType != 'text' || post.mediaUrl.isNotEmpty || post.isLive;
+    final showMedia =
+        post.mediaType != 'text' || post.mediaUrl.isNotEmpty || post.isLive;
     final mediaType = post.mediaType.toLowerCase();
     final mediaLabel = mediaType == 'video' ? 'Video preview' : 'Image preview';
-    final mediaIcon = mediaType == 'video' ? Icons.play_circle_fill_rounded : Icons.photo_library_rounded;
+    final mediaIcon = mediaType == 'video'
+        ? Icons.play_circle_fill_rounded
+        : Icons.photo_library_rounded;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -5261,7 +5699,9 @@ class _SocialPostCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: 0.22),
+                backgroundColor: const Color(
+                  0xFFF1CB3E,
+                ).withValues(alpha: 0.22),
                 child: Text(
                   _initialsOf(post.username),
                   style: TextStyle(
@@ -5297,11 +5737,7 @@ class _SocialPostCard extends StatelessWidget {
               ),
               IconButton(
                 onPressed: onClose,
-                icon: Icon(
-                  Icons.close_rounded,
-                  color: secondary,
-                  size: 18,
-                ),
+                icon: Icon(Icons.close_rounded, color: secondary, size: 18),
                 tooltip: 'Hide',
               ),
             ],
@@ -5338,29 +5774,38 @@ class _SocialPostCard extends StatelessWidget {
                         ? Image.network(
                             post.mediaUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(mediaIcon, color: Colors.white70, size: 32),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    mediaLabel,
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12.4,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                            errorBuilder: (context, error, stackTrace) =>
+                                Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        mediaIcon,
+                                        color: Colors.white70,
+                                        size: 32,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        mediaLabel,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12.4,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            ),
+                                ),
                           )
                         : Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(mediaIcon, color: Colors.white70, size: 32),
+                                Icon(
+                                  mediaIcon,
+                                  color: Colors.white70,
+                                  size: 32,
+                                ),
                                 const SizedBox(height: 6),
                                 Text(
                                   mediaLabel,
@@ -5379,7 +5824,10 @@ class _SocialPostCard extends StatelessWidget {
                       left: 10,
                       top: 10,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFE93E59),
                           borderRadius: BorderRadius.circular(999),
@@ -5402,13 +5850,25 @@ class _SocialPostCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              _StatPill(icon: Icons.chat_bubble_outline_rounded, text: _formatCountCompact(post.commentCount)),
+              _StatPill(
+                icon: Icons.chat_bubble_outline_rounded,
+                text: _formatCountCompact(post.commentCount),
+              ),
               const SizedBox(width: 8),
-              _StatPill(icon: Icons.repeat_rounded, text: _formatCountCompact(post.repostCount)),
+              _StatPill(
+                icon: Icons.repeat_rounded,
+                text: _formatCountCompact(post.repostCount),
+              ),
               const SizedBox(width: 8),
-              _StatPill(icon: Icons.favorite_border_rounded, text: _formatCountCompact(post.likeCount)),
+              _StatPill(
+                icon: Icons.favorite_border_rounded,
+                text: _formatCountCompact(post.likeCount),
+              ),
               const Spacer(),
-              _StatPill(icon: Icons.remove_red_eye_outlined, text: _formatCountCompact(post.viewCount)),
+              _StatPill(
+                icon: Icons.remove_red_eye_outlined,
+                text: _formatCountCompact(post.viewCount),
+              ),
             ],
           ),
         ],
@@ -5435,7 +5895,11 @@ class _StatPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13.8, color: isLight ? const Color(0xFF313A4E) : Colors.white70),
+          Icon(
+            icon,
+            size: 13.8,
+            color: isLight ? const Color(0xFF313A4E) : Colors.white70,
+          ),
           const SizedBox(width: 4),
           Text(
             text,
@@ -5492,7 +5956,9 @@ class _SuggestedCreatorsSection extends StatelessWidget {
               final isFollowing = following.contains(creator.id);
               return Container(
                 width: 174,
-                margin: EdgeInsets.only(right: index == creators.length - 1 ? 0 : 8),
+                margin: EdgeInsets.only(
+                  right: index == creators.length - 1 ? 0 : 8,
+                ),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: cardBg,
@@ -5506,7 +5972,9 @@ class _SuggestedCreatorsSection extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: .24),
+                          backgroundColor: const Color(
+                            0xFFF1CB3E,
+                          ).withValues(alpha: .24),
                           child: Text(
                             _initialsOf(creator.name),
                             style: const TextStyle(
@@ -5552,7 +6020,9 @@ class _SuggestedCreatorsSection extends StatelessWidget {
                       child: FilledButton(
                         onPressed: isFollowing ? null : () => onFollow(creator),
                         style: FilledButton.styleFrom(
-                          backgroundColor: isFollowing ? const Color(0xFF2ABF74) : const Color(0xFFF1CB3E),
+                          backgroundColor: isFollowing
+                              ? const Color(0xFF2ABF74)
+                              : const Color(0xFFF1CB3E),
                           foregroundColor: const Color(0xFF121722),
                           disabledBackgroundColor: const Color(0xFF2ABF74),
                           disabledForegroundColor: const Color(0xFF0B1F12),
@@ -5619,7 +6089,9 @@ class _CopyTradingForYouSection extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 17,
-                  backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: .24),
+                  backgroundColor: const Color(
+                    0xFFF1CB3E,
+                  ).withValues(alpha: .24),
                   child: Text(
                     _initialsOf(trader.username),
                     style: const TextStyle(
@@ -5690,7 +6162,11 @@ class _CopyTradingForYouSection extends StatelessWidget {
                     FilledButton(
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Copying ${trader.username} will open next.')),
+                          SnackBar(
+                            content: Text(
+                              'Copying ${trader.username} will open next.',
+                            ),
+                          ),
                         );
                       },
                       style: FilledButton.styleFrom(
@@ -5698,7 +6174,9 @@ class _CopyTradingForYouSection extends StatelessWidget {
                         foregroundColor: const Color(0xFF111827),
                         minimumSize: const Size(64, 30),
                         padding: const EdgeInsets.symmetric(horizontal: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(9),
+                        ),
                       ),
                       child: const Text(
                         'Copy',
@@ -5759,30 +6237,34 @@ class _HomeFeedComposerFab extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: options.map((item) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: OutlinedButton(
-                          onPressed: () => onSelect(item),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF3B4560)),
-                            backgroundColor: const Color(0xFF1D2739),
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(168, 34),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                    children: options
+                        .map((item) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: OutlinedButton(
+                              onPressed: () => onSelect(item),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(
+                                  color: Color(0xFF3B4560),
+                                ),
+                                backgroundColor: const Color(0xFF1D2739),
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(168, 34),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              child: Text(
+                                item,
+                                style: const TextStyle(
+                                  fontSize: 11.8,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            item,
-                            style: const TextStyle(
-                              fontSize: 11.8,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(growable: false),
+                          );
+                        })
+                        .toList(growable: false),
                   ),
                 ),
         ),
@@ -14519,7 +15001,7 @@ class _SupportBotPageState extends State<SupportBotPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Live Agent'),
-        content: const Text('Are you a Bitegit registered user?'),
+        content: const Text('Are you already a registered user?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -14638,7 +15120,7 @@ class _SupportBotPageState extends State<SupportBotPage> {
         _showUnresolvedSuggestions = false;
         _showEscalationActions = false;
         _appendBot(
-          'Bitegit Assistant quick help:\n${_quickAnswerForArticle(faqArticle)}\n\nIf still unresolved, tap Live Agent.',
+          'Assistant quick help:\n${_quickAnswerForArticle(faqArticle)}\n\nIf still unresolved, tap Live Agent.',
         );
       });
       _scrollToBottomSoon();
@@ -15606,7 +16088,7 @@ class _HelpCenterHubPageState extends State<HelpCenterHubPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bitegit Help Center'),
+        title: const Text('Help Center'),
         actions: [
           IconButton(
             onPressed: _openAiChat,
@@ -17001,14 +17483,7 @@ class _SupportHomePageState extends State<SupportHomePage> {
             ),
             child: Column(
               children: [
-                Text(
-                  'BITEGIT',
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: textColor,
-                  ),
-                ),
+                const _ExchangeLogoGlyph(size: 28, glowStrength: 0.35),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 12,
