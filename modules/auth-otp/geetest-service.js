@@ -45,10 +45,14 @@ function createGeetestService(config = {}) {
   const sliderFallbackEnabled = config.sliderFallbackEnabled !== false;
   const sliderFallbackTtlMs = Math.max(30 * 1000, toInt(config.sliderFallbackTtlMs, 2 * 60 * 1000));
   const sliderFallbackTolerance = Math.max(1, toInt(config.sliderFallbackTolerance, 4));
+  const forceSliderOnly = config.forceSliderOnly !== false;
+  const offlineBypassEnabled = config.offlineBypassEnabled !== false;
+
   const sliderFallbackSecret =
     String(config.sliderFallbackSecret || captchaKey || '').trim() || crypto.randomBytes(32).toString('hex');
 
-  const hasGeetestConfig = Boolean(captchaId && captchaKey);
+  const hasGeetestCredentials = Boolean(captchaId && captchaKey);
+  const geetestEnabled = hasGeetestCredentials && !forceSliderOnly;
 
   function signSliderToken(serializedPayload) {
     return crypto.createHmac('sha256', sliderFallbackSecret).update(serializedPayload).digest('hex');
@@ -121,6 +125,22 @@ function createGeetestService(config = {}) {
     };
   }
 
+  function verifyOfflineSliderChallenge(challengePayload = {}) {
+    if (!sliderFallbackEnabled || !offlineBypassEnabled) {
+      throw createHttpError(503, 'Slider captcha is unavailable.', 'SLIDER_DISABLED');
+    }
+
+    const position = Number(challengePayload.position);
+    if (!Number.isFinite(position) || position < 0 || position > 100) {
+      throw createHttpError(400, 'Slider position is invalid.', 'SLIDER_POSITION_INVALID');
+    }
+
+    return {
+      provider: 'slider_local',
+      position
+    };
+  }
+
   function verifySliderChallenge(challengePayload = {}, context = {}) {
     if (!sliderFallbackEnabled) {
       throw createHttpError(503, 'Slider captcha fallback is disabled.', 'SLIDER_DISABLED');
@@ -131,6 +151,9 @@ function createGeetestService(config = {}) {
     const position = Number(challengePayload.position);
 
     if (!challengeId || !token || !Number.isFinite(position)) {
+      if (offlineBypassEnabled) {
+        return verifyOfflineSliderChallenge(challengePayload);
+      }
       throw createHttpError(400, 'Slider captcha payload is incomplete.', 'SLIDER_PAYLOAD_INVALID');
     }
 
@@ -183,7 +206,7 @@ function createGeetestService(config = {}) {
   }
 
   async function verifyGeetestChallenge(challengePayload = {}) {
-    if (!hasGeetestConfig) {
+    if (!geetestEnabled) {
       throw createHttpError(503, 'Geetest captcha is not configured.', 'GEETEST_NOT_CONFIGURED');
     }
 
@@ -257,16 +280,20 @@ function createGeetestService(config = {}) {
       challengePayload.challenge_id || challengePayload.challengeId || challengePayload.token || challengePayload.position
     );
 
-    if (fallbackType === 'slider' || (hasSliderPayload && (!hasGeetestConfig || !challengePayload.lot_number))) {
+    if (fallbackType === 'slider_local' || fallbackType === 'offline_slider' || fallbackType === 'bypass') {
+      return verifyOfflineSliderChallenge(challengePayload);
+    }
+
+    if (fallbackType === 'slider' || hasSliderPayload) {
       return verifySliderChallenge(challengePayload, context);
     }
 
-    if (hasGeetestConfig) {
+    if (geetestEnabled) {
       return verifyGeetestChallenge(challengePayload);
     }
 
     if (sliderFallbackEnabled) {
-      throw createHttpError(400, 'Captcha verification is required.', 'CAPTCHA_REQUIRED');
+      throw createHttpError(400, 'Captcha verification is required. Complete slider puzzle to continue.', 'CAPTCHA_REQUIRED');
     }
 
     throw createHttpError(503, 'Captcha service is not configured.', 'CAPTCHA_NOT_CONFIGURED');
@@ -274,15 +301,17 @@ function createGeetestService(config = {}) {
 
   function getPublicConfig() {
     return {
-      captchaId,
-      isConfigured: hasGeetestConfig,
-      sliderFallbackEnabled
+      captchaId: geetestEnabled ? captchaId : '',
+      isConfigured: geetestEnabled,
+      sliderFallbackEnabled,
+      forceSliderOnly,
+      offlineBypassEnabled
     };
   }
 
   return {
-    isConfigured: hasGeetestConfig,
-    captchaId,
+    isConfigured: geetestEnabled,
+    captchaId: geetestEnabled ? captchaId : '',
     verifyChallenge,
     createSliderChallenge,
     getPublicConfig

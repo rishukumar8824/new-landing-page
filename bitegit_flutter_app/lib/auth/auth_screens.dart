@@ -565,9 +565,14 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
     'BITEGIT_GEETEST_CAPTCHA_ID',
     defaultValue: '',
   );
+  static const bool _forceSliderCaptcha = bool.fromEnvironment(
+    'BITEGIT_FORCE_SLIDER_CAPTCHA',
+    defaultValue: true,
+  );
 
   bool _loading = true;
   bool _useSliderFallback = false;
+  bool _useOfflineSliderMode = false;
   String? _error;
   String? _sliderHint;
   SliderCaptchaChallenge? _sliderChallenge;
@@ -644,10 +649,16 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
         _error = null;
         _sliderHint = null;
         _useSliderFallback = false;
+        _useOfflineSliderMode = false;
         _sliderChallenge = null;
         _sliderAligned = false;
         _sliderValue = 0;
       });
+    }
+
+    if (_forceSliderCaptcha) {
+      await _enableSliderFallback('Slide to verify and continue.');
+      return;
     }
 
     final runtimeConfig = await AuthApiService.resolveCaptchaRuntimeConfig();
@@ -683,6 +694,7 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
     setState(() {
       _loading = true;
       _useSliderFallback = true;
+      _useOfflineSliderMode = false;
       _error = null;
       _sliderHint = hint;
       _sliderChallenge = null;
@@ -701,10 +713,28 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
     if (!mounted) return;
 
     if (challenge == null) {
+      final localTarget = 15 + math.Random().nextInt(70);
+      final localChallenge = SliderCaptchaChallenge(
+        challengeId: 'local-${DateTime.now().millisecondsSinceEpoch}',
+        token: 'local',
+        minPosition: 0,
+        maxPosition: 100,
+        targetPosition: localTarget,
+        tolerance: 5,
+      );
+
+      final initial = localChallenge.minPosition.toDouble();
       setState(() {
         _loading = false;
-        _error =
-            'Captcha is temporarily unavailable. Please try again in a few moments.';
+        _useSliderFallback = true;
+        _useOfflineSliderMode = true;
+        _sliderHint =
+            'Server captcha sync unavailable. Local slider verification enabled.';
+        _sliderChallenge = localChallenge;
+        _sliderValue = initial;
+        _sliderAligned =
+            (localChallenge.targetPosition - initial).abs() <=
+            localChallenge.tolerance;
       });
       return;
     }
@@ -713,6 +743,7 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
     setState(() {
       _loading = false;
       _useSliderFallback = true;
+      _useOfflineSliderMode = false;
       _sliderChallenge = challenge;
       _sliderValue = initial;
       _sliderAligned =
@@ -742,11 +773,13 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
       return;
     }
 
-    final payload = GeetestValidatePayload.slider(
-      challengeId: challenge.challengeId,
-      position: _sliderValue.round(),
-      token: challenge.token,
-    );
+    final payload = _useOfflineSliderMode
+        ? GeetestValidatePayload.offlineSlider(position: _sliderValue.round())
+        : GeetestValidatePayload.slider(
+            challengeId: challenge.challengeId,
+            position: _sliderValue.round(),
+            token: challenge.token,
+          );
 
     Navigator.of(context).pop(payload);
   }
@@ -802,9 +835,14 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
             style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
           const SizedBox(height: 18),
-          const Text(
-            'Align the slider with the marker',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          Text(
+            _useOfflineSliderMode
+                ? 'Quick local verification'
+                : 'Align the slider with the marker',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 12),
           LayoutBuilder(

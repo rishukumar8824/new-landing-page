@@ -44,7 +44,15 @@ function readAuthOtpConfig() {
           : normalizeBool(process.env.GEETEST_SLIDER_FALLBACK_ENABLED),
       sliderFallbackSecret: String(process.env.GEETEST_SLIDER_FALLBACK_SECRET || process.env.JWT_SECRET || '').trim(),
       sliderFallbackTtlMs: Math.max(30 * 1000, toInt(process.env.GEETEST_SLIDER_FALLBACK_TTL_MS, 2 * 60 * 1000)),
-      sliderFallbackTolerance: Math.max(1, toInt(process.env.GEETEST_SLIDER_FALLBACK_TOLERANCE, 4))
+      sliderFallbackTolerance: Math.max(1, toInt(process.env.GEETEST_SLIDER_FALLBACK_TOLERANCE, 4)),
+      forceSliderOnly:
+        process.env.GEETEST_FORCE_SLIDER_ONLY === undefined
+          ? true
+          : normalizeBool(process.env.GEETEST_FORCE_SLIDER_ONLY),
+      offlineBypassEnabled:
+        process.env.GEETEST_OFFLINE_BYPASS_ENABLED === undefined
+          ? true
+          : normalizeBool(process.env.GEETEST_OFFLINE_BYPASS_ENABLED)
     },
     smtp: {
       host: String(process.env.SMTP_HOST || '').trim(),

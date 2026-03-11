@@ -22,6 +22,15 @@ class GeetestValidatePayload {
        passToken = '',
        genTime = '';
 
+  const GeetestValidatePayload.offlineSlider({required this.position})
+    : fallbackType = 'slider_local',
+      lotNumber = '',
+      captchaOutput = '',
+      passToken = '',
+      genTime = '',
+      challengeId = '',
+      token = '';
+
   final String lotNumber;
   final String captchaOutput;
   final String passToken;
@@ -40,6 +49,10 @@ class GeetestValidatePayload {
         'position': position,
         'token': token,
       };
+    }
+
+    if (fallbackType == 'slider_local') {
+      return {'fallback_type': 'slider_local', 'position': position};
     }
 
     return {
