@@ -11,6 +11,7 @@ class BitegitUserCenterPage extends StatefulWidget {
   const BitegitUserCenterPage({
     super.key,
     required this.accessToken,
+    required this.onToggleTheme,
     required this.fallbackIdentity,
     required this.fallbackUid,
     required this.fallbackNickname,
@@ -21,6 +22,7 @@ class BitegitUserCenterPage extends StatefulWidget {
   });
 
   final String accessToken;
+  final VoidCallback onToggleTheme;
   final String fallbackIdentity;
   final String fallbackUid;
   final String fallbackNickname;
@@ -53,6 +55,19 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
   List<dynamic> _tickets = <dynamic>[];
   List<dynamic> _helpArticles = <dynamic>[];
   Map<String, dynamic> _about = <String, dynamic>{};
+
+  bool get _isLight => Theme.of(context).brightness == Brightness.light;
+  Color get _bgColor => _isLight ? const Color(0xFFF5F7FB) : Colors.black;
+  Color get _surfaceColor => _isLight ? Colors.white : const Color(0xFF0D0F14);
+  Color get _cardBorderColor =>
+      _isLight ? const Color(0xFFDCE2ED) : const Color(0xFF20232A);
+  Color get _titleColor => _isLight ? const Color(0xFF121722) : Colors.white;
+  Color get _subtleColor =>
+      _isLight ? const Color(0xFF5F6777) : const Color(0xFF7B818F);
+  Color get _mutedIconColor =>
+      _isLight ? const Color(0xFF606978) : const Color(0xFF8D94A4);
+  Color get _dividerColor =>
+      _isLight ? const Color(0xFFE1E6F0) : const Color(0xFF1C1F25);
 
   @override
   void initState() {
@@ -148,19 +163,39 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
   }
 
   Future<void> _loadAll() async {
-    setState(() => _loading = true);
+    if (mounted) {
+      setState(() => _loading = true);
+    }
 
-    final meRes = await _safeCall(_api.getMe());
-    final identityRes = await _safeCall(_api.getIdentity());
-    final prefRes = await _safeCall(_api.getPreferences());
-    final feesRes = await _safeCall(_api.getFees());
-    final addressesRes = await _safeCall(_api.addresses());
-    final giftsRes = await _safeCall(_api.listGifts());
-    final referralRes = await _safeCall(_api.referral());
-    final supportRes = await _safeCall(_api.supportCenter());
-    final ticketsRes = await _safeCall(_api.listTickets());
-    final helpRes = await _safeCall(_api.helpArticles());
-    final aboutRes = await _safeCall(_api.about());
+    final responses = await Future.wait<Map<String, dynamic>?>([
+      _safeCall(_api.getMe()),
+      _safeCall(_api.getIdentity()),
+      _safeCall(_api.getPreferences()),
+      _safeCall(_api.getFees()),
+      _safeCall(_api.addresses()),
+      _safeCall(_api.listGifts()),
+      _safeCall(_api.referral()),
+      _safeCall(_api.supportCenter()),
+      _safeCall(_api.listTickets()),
+      _safeCall(_api.helpArticles()),
+      _safeCall(_api.about()),
+    ]);
+
+    if (!mounted) {
+      return;
+    }
+
+    final meRes = responses[0];
+    final identityRes = responses[1];
+    final prefRes = responses[2];
+    final feesRes = responses[3];
+    final addressesRes = responses[4];
+    final giftsRes = responses[5];
+    final referralRes = responses[6];
+    final supportRes = responses[7];
+    final ticketsRes = responses[8];
+    final helpRes = responses[9];
+    final aboutRes = responses[10];
 
     final summary = _asMap(meRes?['data']);
     final profile = _asMap(summary['profile']);
@@ -2092,15 +2127,15 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
     return Container(
       width: 42,
       height: 42,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Color(0xFF2A2D33),
+        color: _isLight ? const Color(0xFFE6EAF3) : const Color(0xFF2A2D33),
       ),
       alignment: Alignment.center,
       child: Text(
         symbol,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: _isLight ? const Color(0xFF162033) : Colors.white,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -2116,18 +2151,24 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: Color(0xFF1C1F25))),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: _dividerColor)),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: const Color(0xFFA3A7AF)),
-            const SizedBox(width: 10),
+            Icon(
+              icon,
+              size: 20,
+              color: _isLight
+                  ? const Color(0xFF4F5868)
+                  : const Color(0xFFA3A7AF),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(color: Colors.white, fontSize: 13.2),
+                style: TextStyle(color: _titleColor, fontSize: 16.5),
               ),
             ),
             if (value.isNotEmpty)
@@ -2136,17 +2177,21 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF747A86),
-                    fontSize: 11.5,
+                  style: TextStyle(
+                    color: _isLight
+                        ? const Color(0xFF6D7685)
+                        : const Color(0xFF747A86),
+                    fontSize: 13.2,
                   ),
                 ),
               ),
             const SizedBox(width: 6),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
               size: 19,
-              color: Color(0xFF5F6673),
+              color: _isLight
+                  ? const Color(0xFF788293)
+                  : const Color(0xFF5F6673),
             ),
           ],
         ),
@@ -2281,207 +2326,231 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
     final uid = _asString(_profile['uid'], widget.fallbackUid);
     final securityLevel = _asString(_security['level'], 'Low');
     final verificationBadge = _statusText(
-      _asString(_identity['kycStatus'], _asString(_profile['kycStatus'], 'pending')),
+      _asString(
+        _identity['kycStatus'],
+        _asString(_profile['kycStatus'], 'pending'),
+      ),
     );
     final vipBadge = _asString(_profile['vipLevel'], 'Non-VIP');
 
+    final headingSize = MediaQuery.of(context).size.width < 390 ? 38.0 : 42.0;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: _bgColor,
       body: SafeArea(
-        child: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              )
-            : RefreshIndicator(
-                color: Colors.black,
-                backgroundColor: Colors.white,
-                onRefresh: _loadAll,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
-                  children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            size: 19,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const Expanded(
-                          child: Text(
-                            'User Center',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const Icon(
-                          Icons.nightlight_round,
-                          size: 18,
-                          color: Color(0xFF8D94A4),
-                        ),
-                        const SizedBox(width: 12),
-                        const Icon(
-                          Icons.language,
-                          size: 18,
-                          color: Color(0xFF8D94A4),
-                        ),
-                      ],
+        child: RefreshIndicator(
+          color: _isLight ? Colors.white : Colors.black,
+          backgroundColor: _isLight ? const Color(0xFF101522) : Colors.white,
+          onRefresh: _loadAll,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+            children: [
+              if (_loading)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      minHeight: 3.5,
+                      backgroundColor: _isLight
+                          ? const Color(0xFFD8DFED)
+                          : const Color(0xFF222A36),
+                      color: _isLight
+                          ? const Color(0xFF111522)
+                          : Colors.white70,
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _buildAvatar(),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                maskedEmail,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 27,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.05,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              const Text(
-                                'Bitegit · Bitegit Global',
-                                style: TextStyle(
-                                  color: Color(0xFF7B818F),
-                                  fontSize: 11,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: [
-                                  _headerBadge(
-                                    icon: Icons.verified_user_outlined,
-                                    label: verificationBadge,
-                                  ),
-                                  _headerBadge(
-                                    icon: Icons.workspace_premium_outlined,
-                                    label: vipBadge,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                  ),
+                ),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 20,
+                      color: _titleColor,
                     ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(11, 10, 11, 9),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0D0F14),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF20232A)),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'User Center',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _titleColor,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
                       ),
-                      child: Row(
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: widget.onToggleTheme,
+                    icon: Icon(
+                      _isLight
+                          ? Icons.nightlight_round
+                          : Icons.light_mode_outlined,
+                      size: 20,
+                      color: _mutedIconColor,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _openPreferencesSheet,
+                    icon: Icon(
+                      Icons.language,
+                      size: 20,
+                      color: _mutedIconColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _buildAvatar(),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          maskedEmail,
+                          style: TextStyle(
+                            color: _titleColor,
+                            fontSize: headingSize,
+                            fontWeight: FontWeight.w700,
+                            height: 1.05,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Bitegit · Bitegit Global',
+                          style: TextStyle(color: _subtleColor, fontSize: 12),
+                        ),
+                        const SizedBox(height: 5),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _headerBadge(
+                              icon: Icons.verified_user_outlined,
+                              label: verificationBadge,
+                            ),
+                            _headerBadge(
+                              icon: Icons.workspace_premium_outlined,
+                              label: vipBadge,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.fromLTRB(11, 10, 11, 9),
+                decoration: BoxDecoration(
+                  color: _surfaceColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _cardBorderColor),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          RichText(
+                            text: TextSpan(
                               children: [
-                                RichText(
-                                  text: TextSpan(
-                                    children: [
-                                      const TextSpan(
-                                        text: 'Security level ',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 13.5,
-                                        ),
-                                      ),
-                                      TextSpan(
-                                        text: securityLevel,
-                                        style: const TextStyle(
-                                          color: Color(0xFFFF5B70),
-                                          fontSize: 13.5,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                const TextSpan(
+                                  text: 'Security level ',
+                                  style: TextStyle(fontSize: 14.4),
                                 ),
-                                const SizedBox(height: 2),
-                                const Text(
-                                  'At least 1 authentication methods need to be enabled.',
+                                TextSpan(
+                                  text: securityLevel,
                                   style: TextStyle(
-                                    color: Color(0xFF7B818F),
-                                    fontSize: 11,
+                                    color: _isLight
+                                        ? const Color(0xFFD64252)
+                                        : const Color(0xFFFF5B70),
+                                    fontSize: 14.4,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ],
+                              style: TextStyle(color: _titleColor),
                             ),
                           ),
-                          const Icon(
-                            Icons.chevron_right_rounded,
-                            color: Color(0xFF575D69),
+                          const SizedBox(height: 2),
+                          Text(
+                            'At least 1 authentication methods need to be enabled.',
+                            style: TextStyle(
+                              color: _subtleColor,
+                              fontSize: 12.2,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        _tabChip('My info', 'my-info'),
-                        const SizedBox(width: 14),
-                        _tabChip('Preferences', 'preference'),
-                        const SizedBox(width: 14),
-                        _tabChip('General', 'general'),
-                      ],
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: _isLight
+                          ? const Color(0xFF80899B)
+                          : const Color(0xFF575D69),
                     ),
-                    const SizedBox(height: 4),
-                    if (_activeTab == 'my-info') ..._myInfoRows(),
-                    if (_activeTab == 'preference') ..._preferenceRows(),
-                    if (_activeTab == 'general') ..._generalRows(),
-                    const SizedBox(height: 14),
-                    OutlinedButton(
-                      onPressed: _busy
-                          ? null
-                          : () {
-                              widget.onLogout();
-                              Navigator.of(
-                                context,
-                              ).popUntil((route) => route.isFirst);
-                            },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFF30343E)),
-                        minimumSize: const Size.fromHeight(44),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22),
-                        ),
-                      ),
-                      child: const Text('Log Out'),
-                    ),
-                    if (uid.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          'UID: $uid',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Color(0xFF6C7280),
-                            fontSize: 10.5,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  _tabChip('My info', 'my-info'),
+                  const SizedBox(width: 14),
+                  _tabChip('Preference', 'preference'),
+                  const SizedBox(width: 14),
+                  _tabChip('General', 'general'),
+                ],
+              ),
+              const SizedBox(height: 4),
+              if (_activeTab == 'my-info') ..._myInfoRows(),
+              if (_activeTab == 'preference') ..._preferenceRows(),
+              if (_activeTab == 'general') ..._generalRows(),
+              const SizedBox(height: 14),
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () {
+                        widget.onLogout();
+                        Navigator.of(
+                          context,
+                        ).popUntil((route) => route.isFirst);
+                      },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _titleColor,
+                  side: BorderSide(
+                    color: _isLight
+                        ? const Color(0xFFD4DBE8)
+                        : const Color(0xFF30343E),
+                  ),
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                ),
+                child: const Text('Log Out', style: TextStyle(fontSize: 19)),
+              ),
+              if (uid.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'UID: $uid',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: _subtleColor, fontSize: 11),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2493,9 +2562,9 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
       child: Text(
         label,
         style: TextStyle(
-          color: active ? Colors.white : const Color(0xFF6F7581),
-          fontSize: 13,
-          fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+          color: active ? _titleColor : _subtleColor,
+          fontSize: 16,
+          fontWeight: active ? FontWeight.w700 : FontWeight.w500,
         ),
       ),
     );
@@ -2505,19 +2574,27 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF10131A),
+        color: _isLight ? const Color(0xFFF2F5FB) : const Color(0xFF10131A),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFF2A2F3A)),
+        border: Border.all(
+          color: _isLight ? const Color(0xFFD5DCEA) : const Color(0xFF2A2F3A),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: const Color(0xFFCDD2DB), size: 13),
+          Icon(
+            icon,
+            color: _isLight ? const Color(0xFF5D6778) : const Color(0xFFCDD2DB),
+            size: 13,
+          ),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFFCDD2DB),
+            style: TextStyle(
+              color: _isLight
+                  ? const Color(0xFF4B5567)
+                  : const Color(0xFFCDD2DB),
               fontSize: 10.5,
               fontWeight: FontWeight.w600,
             ),

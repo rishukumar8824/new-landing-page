@@ -26,9 +26,7 @@ final ValueNotifier<ThemeMode> appThemeModeNotifier = ValueNotifier<ThemeMode>(
 final ValueNotifier<String?> profileImagePathNotifier = ValueNotifier<String?>(
   null,
 );
-final ValueNotifier<String> nicknameNotifier = ValueNotifier<String>(
-  'Guest',
-);
+final ValueNotifier<String> nicknameNotifier = ValueNotifier<String>('Guest');
 final ValueNotifier<String> avatarSymbolNotifier = ValueNotifier<String>('S');
 String currentUserUid = '--';
 final ValueNotifier<List<SupportAlert>> supportAlertsNotifier =
@@ -37,7 +35,9 @@ final ValueNotifier<List<SubmittedSupportTicket>>
 submittedSupportTicketsNotifier = ValueNotifier<List<SubmittedSupportTicket>>(
   [],
 );
-final ValueNotifier<String> kycStatusNotifier = ValueNotifier<String>('pending');
+final ValueNotifier<String> kycStatusNotifier = ValueNotifier<String>(
+  'pending',
+);
 final ValueNotifier<bool> showHomeFavoritesWidget = ValueNotifier<bool>(true);
 final ValueNotifier<bool> showHomeTopMoversWidget = ValueNotifier<bool>(true);
 final ValueNotifier<bool> isUserLoggedInNotifier = ValueNotifier<bool>(false);
@@ -53,8 +53,9 @@ final ValueNotifier<List<P2PAdItem>> p2pMarketplaceAdsNotifier =
     ValueNotifier<List<P2PAdItem>>(<P2PAdItem>[]);
 final ValueNotifier<List<P2POrderItem>> p2pOrdersNotifier =
     ValueNotifier<List<P2POrderItem>>(<P2POrderItem>[]);
-final ValueNotifier<bool> hasActiveDepositSessionNotifier =
-    ValueNotifier<bool>(false);
+final ValueNotifier<bool> hasActiveDepositSessionNotifier = ValueNotifier<bool>(
+  false,
+);
 final ValueNotifier<Map<String, String>> usdtDepositAddressByNetworkNotifier =
     ValueNotifier<Map<String, String>>(<String, String>{});
 String _authRefreshToken = '';
@@ -100,10 +101,7 @@ double _toDouble(dynamic input, [double fallback = 0]) {
 }
 
 class _ApiHttpResponse {
-  const _ApiHttpResponse({
-    required this.statusCode,
-    required this.bodyMap,
-  });
+  const _ApiHttpResponse({required this.statusCode, required this.bodyMap});
 
   final int statusCode;
   final Map<String, dynamic>? bodyMap;
@@ -137,10 +135,7 @@ class DepositWalletCoin {
   final List<DepositWalletNetwork> networks;
 }
 
-Future<_ApiHttpResponse> _getJsonFromApi(
-  Uri uri, {
-  String? accessToken,
-}) async {
+Future<_ApiHttpResponse> _getJsonFromApi(Uri uri, {String? accessToken}) async {
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
   try {
     final req = await client.getUrl(uri);
@@ -244,10 +239,12 @@ Future<bool> _refreshAccessTokenWithRefreshToken() async {
       continue;
     }
 
-    final nextAccessToken =
-        (response.bodyMap?['accessToken'] ?? '').toString().trim();
-    final nextRefreshToken =
-        (response.bodyMap?['refreshToken'] ?? '').toString().trim();
+    final nextAccessToken = (response.bodyMap?['accessToken'] ?? '')
+        .toString()
+        .trim();
+    final nextRefreshToken = (response.bodyMap?['refreshToken'] ?? '')
+        .toString()
+        .trim();
     if (nextAccessToken.isEmpty) {
       continue;
     }
@@ -291,9 +288,7 @@ Future<void> _syncWalletFromBackend({String? accessToken}) async {
     final wallet = response.bodyMap?['wallet'];
     final summaryMap = summary is Map<String, dynamic>
         ? summary
-        : (wallet is Map<String, dynamic>
-              ? wallet
-              : const <String, dynamic>{});
+        : (wallet is Map<String, dynamic> ? wallet : const <String, dynamic>{});
     final available = _toDouble(
       summaryMap['available_balance'] ?? summaryMap['availableBalance'],
       0,
@@ -308,7 +303,10 @@ Future<void> _syncWalletFromBackend({String? accessToken}) async {
       final addresses = <String, String>{};
       for (final item in rawNetworks) {
         if (item is! Map) continue;
-        final network = (item['network'] ?? item['chain'] ?? '').toString().trim().toUpperCase();
+        final network = (item['network'] ?? item['chain'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
         final address = (item['address'] ?? '').toString().trim();
         if (network.isEmpty || address.isEmpty) continue;
         addresses[network] = address;
@@ -434,7 +432,8 @@ Future<List<DepositWalletCoin>> _fetchDepositWalletCatalog({
           DepositWalletNetwork(
             network: network,
             address: (rawNetwork['address'] ?? '').toString().trim(),
-            minConfirmations: int.tryParse(
+            minConfirmations:
+                int.tryParse(
                   (rawNetwork['minConfirmations'] ?? 1).toString(),
                 ) ??
                 1,
@@ -455,8 +454,9 @@ Future<List<DepositWalletCoin>> _fetchDepositWalletCatalog({
       coins.add(
         DepositWalletCoin(
           coin: coin,
-          defaultNetwork:
-              defaultNetwork.isEmpty ? activeNetworks.first.network : defaultNetwork,
+          defaultNetwork: defaultNetwork.isEmpty
+              ? activeNetworks.first.network
+              : defaultNetwork,
           networks: activeNetworks,
         ),
       );
@@ -503,7 +503,8 @@ Future<List<AssetTransactionRecord>> _fetchDepositHistory({
     }
     return deposits.whereType<Map>().map((row) {
       final amount = _toDouble(row['amount'], 0);
-      final createdAt = DateTime.tryParse((row['createdAt'] ?? '').toString()) ??
+      final createdAt =
+          DateTime.tryParse((row['createdAt'] ?? '').toString()) ??
           DateTime.now();
       final statusRaw = (row['status'] ?? '').toString().trim().toUpperCase();
       final status = switch (statusRaw) {
@@ -542,18 +543,15 @@ Future<Map<String, dynamic>> _createDepositRequest({
 
   String firstFailure = '';
   for (final base in _apiBaseUrls()) {
-    var response = await _postJsonToApi(
-      _apiUri(base, '/api/deposits'),
-      <String, dynamic>{
-        'coin': coin,
-        'network': network,
-        'address': address,
-        'amount': amount,
-        if (txHash.trim().isNotEmpty) 'txHash': txHash.trim(),
-        if (proofUrl.trim().isNotEmpty) 'proofUrl': proofUrl.trim(),
-      },
-      accessToken: token,
-    );
+    var response =
+        await _postJsonToApi(_apiUri(base, '/api/deposits'), <String, dynamic>{
+          'coin': coin,
+          'network': network,
+          'address': address,
+          'amount': amount,
+          if (txHash.trim().isNotEmpty) 'txHash': txHash.trim(),
+          if (proofUrl.trim().isNotEmpty) 'proofUrl': proofUrl.trim(),
+        }, accessToken: token);
     if (response.statusCode == 401) {
       final refreshed = await _refreshAccessTokenWithRefreshToken();
       if (refreshed) {
@@ -725,7 +723,9 @@ Future<void> _restoreSessionState() async {
       await _refreshAccessTokenWithRefreshToken();
     }
     await _syncWalletFromBackend(accessToken: authAccessTokenNotifier.value);
-    await _syncDepositSessionFromBackend(accessToken: authAccessTokenNotifier.value);
+    await _syncDepositSessionFromBackend(
+      accessToken: authAccessTokenNotifier.value,
+    );
   } catch (_) {
     // Ignore invalid session payload.
   }
@@ -903,7 +903,9 @@ void _syncActiveUserState({
 }) {
   final current = activeExchangeUserNotifier.value;
   if (current == null) return;
-  final resolvedKycStatus = (kycStatus ?? current.kycStatus).trim().toLowerCase();
+  final resolvedKycStatus = (kycStatus ?? current.kycStatus)
+      .trim()
+      .toLowerCase();
   final resolvedCanPostAds = canPostAds ?? (resolvedKycStatus == 'verified');
   final next = current.copyWith(
     walletBalanceUsdt: walletBalanceUsdt,
@@ -919,10 +921,7 @@ ExchangeUser? _findUserByIdentity(String identity) {
   return _exchangeUsersByEmail[identity.trim().toLowerCase()];
 }
 
-String? _createUser({
-  required String email,
-  required String password,
-}) {
+String? _createUser({required String email, required String password}) {
   final key = email.trim().toLowerCase();
   if (key.isEmpty || _exchangeUsersByEmail.containsKey(key)) return null;
   final user = ExchangeUser(
@@ -1099,41 +1098,33 @@ class AuthGatePage extends StatelessWidget {
 class AuthLandingPage extends StatelessWidget {
   const AuthLandingPage({super.key});
 
-  Future<void> _handleOtpAuthSuccess(
-    String email,
-    dynamic verifyResult,
-  ) async {
+  Future<void> _handleOtpAuthSuccess(String email, dynamic verifyResult) async {
     final normalizedEmail = email.trim().toLowerCase();
-    final accessToken =
-        verifyResult != null
-            ? ((verifyResult as dynamic).accessToken ?? '').toString().trim()
-            : '';
+    final accessToken = verifyResult != null
+        ? ((verifyResult as dynamic).accessToken ?? '').toString().trim()
+        : '';
     if (accessToken.isEmpty) {
       return;
     }
 
-    final resolvedUserId =
-        verifyResult != null
-            ? ((verifyResult as dynamic).userId ?? '').toString().trim()
-            : '';
-    final resolvedEmail =
-        verifyResult != null
-            ? ((verifyResult as dynamic).email ?? normalizedEmail)
-                .toString()
-                .trim()
-                .toLowerCase()
-            : normalizedEmail;
-    final resolvedKycStatus =
-        verifyResult != null
-            ? ((verifyResult as dynamic).kycStatus ?? 'pending')
-                .toString()
-                .trim()
-                .toLowerCase()
-            : 'pending';
-    _authRefreshToken =
-        verifyResult != null
-            ? ((verifyResult as dynamic).refreshToken ?? '').toString().trim()
-            : '';
+    final resolvedUserId = verifyResult != null
+        ? ((verifyResult as dynamic).userId ?? '').toString().trim()
+        : '';
+    final resolvedEmail = verifyResult != null
+        ? ((verifyResult as dynamic).email ?? normalizedEmail)
+              .toString()
+              .trim()
+              .toLowerCase()
+        : normalizedEmail;
+    final resolvedKycStatus = verifyResult != null
+        ? ((verifyResult as dynamic).kycStatus ?? 'pending')
+              .toString()
+              .trim()
+              .toLowerCase()
+        : 'pending';
+    _authRefreshToken = verifyResult != null
+        ? ((verifyResult as dynamic).refreshToken ?? '').toString().trim()
+        : '';
 
     var user = _findUserByIdentity(resolvedEmail);
     if (user == null) {
@@ -2990,10 +2981,32 @@ class ExchangeShell extends StatefulWidget {
 class _ExchangeShellState extends State<ExchangeShell> {
   int _index = 0;
   bool _announcementCheckedThisSession = false;
+  late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
+    _pages = [
+      HomePage(
+        onOpenProfile: _openUserCenter,
+        onNavigateTab: _goToTab,
+        onOpenTradePair: _openTradePair,
+      ),
+      MarketsPage(
+        onOpenProfile: _openUserCenter,
+        onOpenTradePair: _openTradePair,
+      ),
+      FuturesPage(
+        onOpenProfile: _openUserCenter,
+        onOpenTradePair: _openTradePair,
+      ),
+      TradePage(onOpenProfile: _openUserCenter),
+      AssetsPage(
+        onOpenProfile: _openUserCenter,
+        onNavigateTab: _goToTab,
+        onOpenTradePair: _openTradePair,
+      ),
+    ];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeShowGlobalAnnouncement();
     });
@@ -3008,6 +3021,12 @@ class _ExchangeShellState extends State<ExchangeShell> {
       MaterialPageRoute<void>(
         builder: (_) => BitegitUserCenterPage(
           accessToken: authAccessTokenNotifier.value,
+          onToggleTheme: () {
+            appThemeModeNotifier.value =
+                appThemeModeNotifier.value == ThemeMode.dark
+                ? ThemeMode.light
+                : ThemeMode.dark;
+          },
           fallbackIdentity: fallbackIdentity,
           fallbackUid: currentUserUid,
           fallbackNickname: nicknameNotifier.value,
@@ -3101,31 +3120,9 @@ class _ExchangeShellState extends State<ExchangeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      HomePage(
-        onOpenProfile: _openUserCenter,
-        onNavigateTab: _goToTab,
-        onOpenTradePair: _openTradePair,
-      ),
-      MarketsPage(
-        onOpenProfile: _openUserCenter,
-        onOpenTradePair: _openTradePair,
-      ),
-      FuturesPage(
-        onOpenProfile: _openUserCenter,
-        onOpenTradePair: _openTradePair,
-      ),
-      TradePage(onOpenProfile: _openUserCenter),
-      AssetsPage(
-        onOpenProfile: _openUserCenter,
-        onNavigateTab: _goToTab,
-        onOpenTradePair: _openTradePair,
-      ),
-    ];
-
     return Scaffold(
       body: SafeArea(
-        child: IndexedStack(index: _index, children: pages),
+        child: IndexedStack(index: _index, children: _pages),
       ),
       bottomNavigationBar: Container(
         margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
@@ -3207,7 +3204,7 @@ class HomePage extends StatelessWidget {
                 ),
                 onOpenP2POrders: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => const P2PPage(startInOrders: true),
+                    builder: (_) => const P2PPage(startInAds: true),
                   ),
                 ),
                 onWithdraw: () => Navigator.of(context).push(
@@ -3453,18 +3450,23 @@ class _HomeDepositBanner extends StatelessWidget {
               builder: (context, hasActiveDeposit, __) {
                 final total = funding + spot;
                 final hasBalance = total > 0.0001;
-                final isLight = Theme.of(context).brightness == Brightness.light;
+                final isLight =
+                    Theme.of(context).brightness == Brightness.light;
                 final cardBg = isLight
                     ? const Color(0xFFE3E7EF)
                     : const Color(0xFF161A23);
                 final border = isLight
                     ? const Color(0xFFD2DAE8)
                     : const Color(0xFF222A3B);
-                final primary = isLight ? const Color(0xFF121722) : Colors.white;
+                final primary = isLight
+                    ? const Color(0xFF121722)
+                    : Colors.white;
                 final secondary = isLight
                     ? const Color(0xFF5E6779)
                     : Colors.white70;
-                final buttonBg = isLight ? const Color(0xFF11141C) : Colors.white;
+                final buttonBg = isLight
+                    ? const Color(0xFF11141C)
+                    : Colors.white;
                 final buttonFg = isLight ? Colors.white : Colors.black;
 
                 return Container(
@@ -3505,7 +3507,9 @@ class _HomeDepositBanner extends StatelessWidget {
                               style: FilledButton.styleFrom(
                                 backgroundColor: buttonBg,
                                 foregroundColor: buttonFg,
-                                disabledBackgroundColor: const Color(0xFF232323),
+                                disabledBackgroundColor: const Color(
+                                  0xFF232323,
+                                ),
                                 disabledForegroundColor: Colors.white54,
                                 minimumSize: const Size.fromHeight(44),
                                 shape: RoundedRectangleBorder(
@@ -3542,7 +3546,10 @@ class _HomeDepositBanner extends StatelessWidget {
                                 ),
                                 child: Text(
                                   'Assets',
-                                  style: TextStyle(fontSize: 13.4, color: primary),
+                                  style: TextStyle(
+                                    fontSize: 13.4,
+                                    color: primary,
+                                  ),
                                 ),
                               ),
                             ),
@@ -4864,9 +4871,9 @@ class _AuthEntryPageState extends State<AuthEntryPage> {
     final identity = _identityController.text.trim();
     final password = _passwordController.text;
     if (identity.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter email and password')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter email and password')));
       return;
     }
     setState(() => _loggingIn = true);
@@ -4875,9 +4882,9 @@ class _AuthEntryPageState extends State<AuthEntryPage> {
     if (!mounted) return;
     if (user == null || user.password != password) {
       setState(() => _loggingIn = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid credentials')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid credentials')));
       return;
     }
     _hydrateSessionFromUser(user);
@@ -5013,9 +5020,9 @@ class _SignupEntryPageState extends State<SignupEntryPage> {
       return;
     }
     if (password != confirm) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
       return;
     }
     setState(() => _creating = true);
@@ -5095,7 +5102,10 @@ class _SignupEntryPageState extends State<SignupEntryPage> {
               ),
               child: Text(
                 _creating ? 'Creating...' : 'Sign Up',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
@@ -7604,8 +7614,17 @@ class _TradeFocusedChartPageState extends State<TradeFocusedChartPage> {
   int _tabIndex = 0;
   int _timeframeIndex = 4;
   int _flowFrameIndex = 0;
+  int _overviewTabIndex = 0;
+  int _feedTabIndex = 0;
 
-  static const List<String> _tabs = ['Chart', 'Data', 'Square', 'About'];
+  static const List<String> _tabs = ['Chart', 'Overview', 'Data', 'Feed'];
+  static const List<String> _overviewTabs = [
+    'Info',
+    'Fundraising',
+    'Tokenomics',
+    'Network',
+  ];
+  static const List<String> _feedTabs = ['News', 'Market Trend', 'Calendar'];
   static const List<String> _timeframes = [
     '1m',
     '15m',
@@ -7958,6 +7977,62 @@ class _TradeFocusedChartPageState extends State<TradeFocusedChartPage> {
             _perfCell('180 days', '-38.28%'),
           ],
         ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Text(
+              'Similar pairs',
+              style: TextStyle(fontSize: 14.2, color: Colors.white70),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SizedBox(
+                height: 30,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children:
+                      <String>[
+                        widget.pair.symbol,
+                        '$_baseAsset/USDT',
+                        'BTC/USDT',
+                        'ETH/USDT',
+                        'SOL/USDT',
+                      ].map((symbol) {
+                        final isActive = symbol == widget.pair.symbol;
+                        return Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? const Color(0xFF1A2233)
+                                : const Color(0xFF121826),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: isActive
+                                  ? const Color(0xFF2B3D63)
+                                  : const Color(0xFF202B42),
+                            ),
+                          ),
+                          child: Text(
+                            symbol,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isActive ? Colors.white : Colors.white70,
+                              fontWeight: isActive
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -8231,6 +8306,284 @@ class _TradeFocusedChartPageState extends State<TradeFocusedChartPage> {
     );
   }
 
+  Widget _buildOverviewTab(double lastPrice) {
+    final description =
+        '$_baseAsset is a high-performance crypto asset with active spot liquidity and cross-market depth. '
+        'This overview includes token profile, official links, and current valuation signals for quick due diligence.';
+    final marketCap = _formatWithCommas(lastPrice * 98000000, decimals: 0);
+    final fdv = _formatWithCommas(lastPrice * 125000000, decimals: 0);
+
+    Widget sectionMetric(String title, String value) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 7),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontSize: 14, color: Colors.white60),
+              ),
+            ),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1522),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF1E2A44)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: List.generate(_overviewTabs.length, (index) {
+              final selected = _overviewTabIndex == index;
+              return InkWell(
+                onTap: () => setState(() => _overviewTabIndex = index),
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? const Color(0xFF202B43)
+                        : const Color(0xFF141C2D),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    _overviewTabs[index],
+                    style: TextStyle(
+                      fontSize: 12.4,
+                      color: selected ? Colors.white : Colors.white60,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'About $_baseAsset',
+            style: const TextStyle(
+              fontSize: 34 / 2,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: const TextStyle(
+              fontSize: 14.6,
+              color: Colors.white70,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Divider(color: Color(0xFF22324D), height: 1),
+          const SizedBox(height: 12),
+          sectionMetric('Explore', '${_baseAsset.toLowerCase()}scan.xyz'),
+          sectionMetric('Website', 'Official'),
+          sectionMetric('Whitepaper', 'Available'),
+          const SizedBox(height: 8),
+          const Divider(color: Color(0xFF22324D), height: 1),
+          const SizedBox(height: 12),
+          sectionMetric('Market Cap', '\$$marketCap'),
+          sectionMetric('FDV', '\$$fdv'),
+          sectionMetric('Circulating Supply', '3,899,984,688'),
+          sectionMetric('Total Supply', '10,000,000,000'),
+          sectionMetric('Max Supply', '10,000,000,000'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedTab() {
+    final items = <Map<String, String>>[
+      <String, String>{
+        'time': '2026-03-11 14:06 (UTC)',
+        'source': 'AI analysis',
+        'sentiment': 'Bullish',
+        'title': 'Analysts signal that current crypto dip may be stabilizing',
+      },
+      <String, String>{
+        'time': '2026-03-11 14:06 (UTC)',
+        'source': 'Macro Watch',
+        'sentiment': 'Bearish',
+        'title': 'US inflation risk keeps short-term market sentiment cautious',
+      },
+      <String, String>{
+        'time': '2026-03-11 13:49 (UTC)',
+        'source': 'WuBlock',
+        'sentiment': 'Neutral',
+        'title':
+            'Daily highlights: inflation prints and derivatives open interest',
+      },
+    ];
+
+    Color sentimentColor(String sentiment) {
+      final lower = sentiment.toLowerCase();
+      if (lower == 'bullish') return const Color(0xFF00C48C);
+      if (lower == 'bearish') return const Color(0xFFFF4D67);
+      return const Color(0xFF8D95A5);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1522),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF1E2A44)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: List.generate(_feedTabs.length, (index) {
+              final selected = _feedTabIndex == index;
+              return Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: InkWell(
+                  onTap: () => setState(() => _feedTabIndex = index),
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0xFF202B43)
+                          : const Color(0xFF141C2D),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      _feedTabs[index],
+                      style: TextStyle(
+                        fontSize: 12.4,
+                        color: selected ? Colors.white : Colors.white60,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A2234),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF2A3859)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.auto_awesome, size: 18, color: Color(0xFFB9C5E5)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'AI analysis',
+                    style: TextStyle(
+                      fontSize: 15.4,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Ask AI',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFFFFA726),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...items.map((item) {
+            final sentiment = item['sentiment'] ?? 'Neutral';
+            return Container(
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Color(0xFF1E2A44))),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item['time'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 12.8,
+                            color: Colors.white60,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: sentimentColor(
+                            sentiment,
+                          ).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: sentimentColor(
+                              sentiment,
+                            ).withValues(alpha: 0.45),
+                          ),
+                        ),
+                        child: Text(
+                          sentiment,
+                          style: TextStyle(
+                            fontSize: 11.8,
+                            color: sentimentColor(sentiment),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    item['title'] ?? '',
+                    style: const TextStyle(
+                      fontSize: 15.6,
+                      height: 1.42,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Widget _tagPill(String text, {required bool selected}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -8359,49 +8712,9 @@ class _TradeFocusedChartPageState extends State<TradeFocusedChartPage> {
                 _buildMainTabs(),
                 const SizedBox(height: 10),
                 if (_tabIndex == 0) _buildChartTab(lastPrice),
-                if (_tabIndex == 1) _buildDataTab(lastPrice),
-                if (_tabIndex == 2)
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F1522),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF1E2A44)),
-                    ),
-                    child: const Text(
-                      'Square feed is loading live market discussions.',
-                      style: TextStyle(fontSize: 15, color: Colors.white70),
-                    ),
-                  ),
-                if (_tabIndex == 3)
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F1522),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF1E2A44)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'About ${widget.pair.symbol}',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Last price ${_formatWithCommas(lastPrice, decimals: 2)}  •  24H volume ${widget.pair.volume}',
-                          style: const TextStyle(
-                            fontSize: 14.5,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                if (_tabIndex == 1) _buildOverviewTab(lastPrice),
+                if (_tabIndex == 2) _buildDataTab(lastPrice),
+                if (_tabIndex == 3) _buildFeedTab(),
               ],
             ),
           ),
@@ -9940,9 +10253,9 @@ class _KycVerificationPageState extends State<KycVerificationPage> {
 
     _setKycStatus('under_review');
     _syncActiveUserState(kycStatus: 'under_review', canPostAds: false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('KYC Under Review')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('KYC Under Review')));
     Navigator.of(context).pop();
   }
 
@@ -10369,7 +10682,8 @@ class _DepositPageState extends State<DepositPage> {
   }
 
   DepositWalletNetwork? get _selectedWallet {
-    final options = _coinWalletConfig?.networks ?? const <DepositWalletNetwork>[];
+    final options =
+        _coinWalletConfig?.networks ?? const <DepositWalletNetwork>[];
     for (final wallet in options) {
       if (wallet.network.toUpperCase() == _network.toUpperCase()) {
         return wallet;
@@ -10429,7 +10743,8 @@ class _DepositPageState extends State<DepositPage> {
             )) {
           _network = selectedCoinConfig.defaultNetwork.trim().toUpperCase();
         }
-        if (!_availableNetworks.contains(_network) && _availableNetworks.isNotEmpty) {
+        if (!_availableNetworks.contains(_network) &&
+            _availableNetworks.isNotEmpty) {
           _network = _availableNetworks.first;
         }
         _deposits = rows;
@@ -10451,7 +10766,9 @@ class _DepositPageState extends State<DepositPage> {
           title: 'Select Coin',
           items: _availableCoins,
           balances: {
-            'USDT': fundingUsdtBalanceNotifier.value + spotUsdtBalanceNotifier.value,
+            'USDT':
+                fundingUsdtBalanceNotifier.value +
+                spotUsdtBalanceNotifier.value,
           },
         ),
       ),
@@ -10629,12 +10946,13 @@ class _DepositPageState extends State<DepositPage> {
         proofUrl: _proofController.text.trim(),
       );
 
-      final createdAt = DateTime.tryParse(
-            (deposit['createdAt'] ?? '').toString().trim(),
-          ) ??
+      final createdAt =
+          DateTime.tryParse((deposit['createdAt'] ?? '').toString().trim()) ??
           DateTime.now();
-      final statusRaw =
-          (deposit['status'] ?? 'PENDING').toString().trim().toUpperCase();
+      final statusRaw = (deposit['status'] ?? 'PENDING')
+          .toString()
+          .trim()
+          .toUpperCase();
       final status = switch (statusRaw) {
         'COMPLETED' => 'Completed',
         'REJECTED' => 'Rejected',
@@ -10670,7 +10988,9 @@ class _DepositPageState extends State<DepositPage> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
       );
     } finally {
       if (mounted) {
@@ -10754,37 +11074,37 @@ class _DepositPageState extends State<DepositPage> {
               ),
             ),
           if (_step == 1) ...[
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: _selectCoin,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: card,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: border),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    _coin,
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: primary,
-                      fontWeight: FontWeight.w700,
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _selectCoin,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: card,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: border),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      _coin,
+                      style: TextStyle(
+                        fontSize: 20,
+                        color: primary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _coin == 'USDT' ? 'TetherUS' : 'Select token',
-                    style: TextStyle(fontSize: 13.4, color: secondary),
-                  ),
-                  const Spacer(),
-                  const Icon(Icons.chevron_right_rounded),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      _coin == 'USDT' ? 'TetherUS' : 'Select token',
+                      style: TextStyle(fontSize: 13.4, color: secondary),
+                    ),
+                    const Spacer(),
+                    const Icon(Icons.chevron_right_rounded),
+                  ],
+                ),
               ),
             ),
-          ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
@@ -10802,68 +11122,68 @@ class _DepositPageState extends State<DepositPage> {
           ],
           if (_step == 2) ...[
             const SizedBox(height: 2),
-          const SizedBox(height: 10),
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: _selectNetwork,
-            child: Container(
+            const SizedBox(height: 10),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _selectNetwork,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: card,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: border),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      _network,
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _networkMeta.display,
+                        style: TextStyle(fontSize: 13, color: secondary),
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down_rounded),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: card,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: border),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    _network,
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: primary,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  _networkInfoRow(
+                    'Network fee',
+                    '${_networkMeta.feeUsdt.toStringAsFixed(3)} USDT',
+                    secondary,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _networkMeta.display,
-                      style: TextStyle(fontSize: 13, color: secondary),
-                    ),
+                  _networkInfoRow(
+                    'Minimum deposit',
+                    '${_networkMeta.minDepositUsdt.toStringAsFixed(4).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\\.$'), '')} $_coin',
+                    secondary,
                   ),
-                  const Icon(Icons.keyboard_arrow_down_rounded),
+                  _networkInfoRow(
+                    'Estimated arrival',
+                    _networkMeta.arrival,
+                    secondary,
+                  ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: card,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _networkInfoRow(
-                  'Network fee',
-                  '${_networkMeta.feeUsdt.toStringAsFixed(3)} USDT',
-                  secondary,
-                ),
-                _networkInfoRow(
-                  'Minimum deposit',
-                  '${_networkMeta.minDepositUsdt.toStringAsFixed(4).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\\.$'), '')} $_coin',
-                  secondary,
-                ),
-                _networkInfoRow(
-                  'Estimated arrival',
-                  _networkMeta.arrival,
-                  secondary,
-                ),
-              ],
-            ),
-          ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
@@ -10893,18 +11213,20 @@ class _DepositPageState extends State<DepositPage> {
           ],
           if (_step == 3) ...[
             const SizedBox(height: 2),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _amountController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'Amount ($_coin)',
-              hintText: 'Enter amount',
-              suffixText: _coin,
+            const SizedBox(height: 10),
+            TextField(
+              controller: _amountController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Amount ($_coin)',
+                hintText: 'Enter amount',
+                suffixText: _coin,
+              ),
+              onChanged: (_) => setState(() {}),
             ),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
             TextField(
               controller: _proofController,
               decoration: const InputDecoration(
@@ -10961,11 +11283,12 @@ class _DepositPageState extends State<DepositPage> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        final scanned = await Navigator.of(context).push<String>(
-                          MaterialPageRoute<String>(
-                            builder: (_) => const ScanPage(),
-                          ),
-                        );
+                        final scanned = await Navigator.of(context)
+                            .push<String>(
+                              MaterialPageRoute<String>(
+                                builder: (_) => const ScanPage(),
+                              ),
+                            );
                         if (scanned == null || scanned.trim().isEmpty) {
                           return;
                         }
@@ -11821,7 +12144,8 @@ class _WithdrawPageState extends State<WithdrawPage> {
         amount: amount,
       );
 
-      final createdAt = DateTime.tryParse(
+      final createdAt =
+          DateTime.tryParse(
             (withdrawal['createdAt'] ?? '').toString().trim(),
           ) ??
           DateTime.now();
@@ -11847,14 +12171,18 @@ class _WithdrawPageState extends State<WithdrawPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Withdrawal request submitted. Awaiting admin approval.'),
+          content: Text(
+            'Withdrawal request submitted. Awaiting admin approval.',
+          ),
         ),
       );
       Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
       );
     } finally {
       if (mounted) {
@@ -16111,9 +16439,14 @@ class _P2PPostAdPageState extends State<P2PPostAdPage> {
 enum _P2PTab { p2p, orders, ads, profile }
 
 class P2PPage extends StatefulWidget {
-  const P2PPage({super.key, this.startInOrders = false});
+  const P2PPage({
+    super.key,
+    this.startInOrders = false,
+    this.startInAds = false,
+  });
 
   final bool startInOrders;
+  final bool startInAds;
 
   @override
   State<P2PPage> createState() => _P2PPageState();
@@ -16167,6 +16500,8 @@ class _P2PPageState extends State<P2PPage> {
     p2pOrdersNotifier.addListener(_syncOrdersFromNotifier);
     if (widget.startInOrders) {
       _activeTab = _P2PTab.orders;
+    } else if (widget.startInAds) {
+      _activeTab = _P2PTab.ads;
     }
     _orders = _orders
         .map(
@@ -16385,7 +16720,9 @@ class _P2PPageState extends State<P2PPage> {
     if (fundingUsdtBalanceNotifier.value <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('You must have USDT balance to create an advertisement.'),
+          content: Text(
+            'You must have USDT balance to create an advertisement.',
+          ),
         ),
       );
       return;
@@ -16493,9 +16830,7 @@ class _P2PPageState extends State<P2PPage> {
     }
     if (!kycVerifiedNotifier.value) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('KYC required to trade in P2P'),
-        ),
+        const SnackBar(content: Text('KYC required to trade in P2P')),
       );
       await Navigator.of(context).push(
         MaterialPageRoute<void>(builder: (_) => const KycVerificationPage()),
@@ -17241,6 +17576,12 @@ class _P2PPageState extends State<P2PPage> {
             MaterialPageRoute<void>(
               builder: (_) => BitegitUserCenterPage(
                 accessToken: authAccessTokenNotifier.value,
+                onToggleTheme: () {
+                  appThemeModeNotifier.value =
+                      appThemeModeNotifier.value == ThemeMode.dark
+                      ? ThemeMode.light
+                      : ThemeMode.dark;
+                },
                 fallbackIdentity: authIdentityNotifier.value.trim().isNotEmpty
                     ? authIdentityNotifier.value.trim()
                     : nicknameNotifier.value,
@@ -17253,8 +17594,9 @@ class _P2PPageState extends State<P2PPage> {
                   final trimmed = value.trim();
                   if (trimmed.isEmpty) return;
                   nicknameNotifier.value = trimmed;
-                  avatarSymbolNotifier.value =
-                      trimmed.substring(0, 1).toUpperCase();
+                  avatarSymbolNotifier.value = trimmed
+                      .substring(0, 1)
+                      .toUpperCase();
                 },
               ),
             ),
