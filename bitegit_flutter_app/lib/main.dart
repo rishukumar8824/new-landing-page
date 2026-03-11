@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
@@ -59,6 +60,8 @@ final ValueNotifier<Map<String, String>> usdtDepositAddressByNetworkNotifier =
 String _authRefreshToken = '';
 
 const String _sessionStorageKey = 'bitegit_session_v2';
+const String _secureSessionStorageKey = 'bitegit_session_secure_v1';
+const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
 String _normalizeApiBase(String raw) {
   final normalized = raw.trim();
@@ -104,6 +107,34 @@ class _ApiHttpResponse {
 
   final int statusCode;
   final Map<String, dynamic>? bodyMap;
+}
+
+class DepositWalletNetwork {
+  const DepositWalletNetwork({
+    required this.network,
+    required this.address,
+    required this.minConfirmations,
+    required this.enabled,
+    this.qrCodeUrl = '',
+  });
+
+  final String network;
+  final String address;
+  final int minConfirmations;
+  final bool enabled;
+  final String qrCodeUrl;
+}
+
+class DepositWalletCoin {
+  const DepositWalletCoin({
+    required this.coin,
+    required this.defaultNetwork,
+    required this.networks,
+  });
+
+  final String coin;
+  final String defaultNetwork;
+  final List<DepositWalletNetwork> networks;
 }
 
 Future<_ApiHttpResponse> _getJsonFromApi(
@@ -198,17 +229,61 @@ String _apiErrorMessage(
   return fallback;
 }
 
+Future<bool> _refreshAccessTokenWithRefreshToken() async {
+  final refreshToken = _authRefreshToken.trim();
+  if (refreshToken.isEmpty) {
+    return false;
+  }
+
+  for (final base in _apiBaseUrls()) {
+    final response = await _postJsonToApi(
+      _apiUri(base, '/auth/refresh'),
+      <String, dynamic>{'refreshToken': refreshToken},
+    );
+    if (!_apiSuccess(response)) {
+      continue;
+    }
+
+    final nextAccessToken =
+        (response.bodyMap?['accessToken'] ?? '').toString().trim();
+    final nextRefreshToken =
+        (response.bodyMap?['refreshToken'] ?? '').toString().trim();
+    if (nextAccessToken.isEmpty) {
+      continue;
+    }
+
+    authAccessTokenNotifier.value = nextAccessToken;
+    if (nextRefreshToken.isNotEmpty) {
+      _authRefreshToken = nextRefreshToken;
+    }
+    await _persistSessionState();
+    return true;
+  }
+
+  return false;
+}
+
 Future<void> _syncWalletFromBackend({String? accessToken}) async {
-  final token = (accessToken ?? authAccessTokenNotifier.value).trim();
+  var token = (accessToken ?? authAccessTokenNotifier.value).trim();
   if (token.isEmpty) {
     return;
   }
 
   for (final base in _apiBaseUrls()) {
-    final response = await _getJsonFromApi(
+    var response = await _getJsonFromApi(
       _apiUri(base, '/api/wallet/summary'),
       accessToken: token,
     );
+    if (response.statusCode == 401) {
+      final refreshed = await _refreshAccessTokenWithRefreshToken();
+      if (refreshed) {
+        token = authAccessTokenNotifier.value.trim();
+        response = await _getJsonFromApi(
+          _apiUri(base, '/api/wallet/summary'),
+          accessToken: token,
+        );
+      }
+    }
     if (!_apiSuccess(response)) {
       continue;
     }
@@ -247,17 +322,27 @@ Future<void> _syncWalletFromBackend({String? accessToken}) async {
 }
 
 Future<void> _syncDepositSessionFromBackend({String? accessToken}) async {
-  final token = (accessToken ?? authAccessTokenNotifier.value).trim();
+  var token = (accessToken ?? authAccessTokenNotifier.value).trim();
   if (token.isEmpty) {
     hasActiveDepositSessionNotifier.value = false;
     return;
   }
 
   for (final base in _apiBaseUrls()) {
-    final response = await _getJsonFromApi(
+    var response = await _getJsonFromApi(
       _apiUri(base, '/api/deposits/active'),
       accessToken: token,
     );
+    if (response.statusCode == 401) {
+      final refreshed = await _refreshAccessTokenWithRefreshToken();
+      if (refreshed) {
+        token = authAccessTokenNotifier.value.trim();
+        response = await _getJsonFromApi(
+          _apiUri(base, '/api/deposits/active'),
+          accessToken: token,
+        );
+      }
+    }
     if (!_apiSuccess(response)) {
       continue;
     }
@@ -267,20 +352,148 @@ Future<void> _syncDepositSessionFromBackend({String? accessToken}) async {
   }
 }
 
+List<DepositWalletCoin> _fallbackDepositWalletCatalog() {
+  return const <DepositWalletCoin>[
+    DepositWalletCoin(
+      coin: 'USDT',
+      defaultNetwork: 'TRC20',
+      networks: <DepositWalletNetwork>[
+        DepositWalletNetwork(
+          network: 'TRC20',
+          address: '',
+          minConfirmations: 20,
+          enabled: false,
+        ),
+        DepositWalletNetwork(
+          network: 'ERC20',
+          address: '',
+          minConfirmations: 12,
+          enabled: false,
+        ),
+        DepositWalletNetwork(
+          network: 'BEP20',
+          address: '',
+          minConfirmations: 15,
+          enabled: false,
+        ),
+      ],
+    ),
+  ];
+}
+
+Future<List<DepositWalletCoin>> _fetchDepositWalletCatalog({
+  String? accessToken,
+}) async {
+  var token = (accessToken ?? authAccessTokenNotifier.value).trim();
+  if (token.isEmpty) {
+    return _fallbackDepositWalletCatalog();
+  }
+
+  for (final base in _apiBaseUrls()) {
+    var response = await _getJsonFromApi(
+      _apiUri(base, '/api/deposits/wallets'),
+      accessToken: token,
+    );
+    if (response.statusCode == 401) {
+      final refreshed = await _refreshAccessTokenWithRefreshToken();
+      if (refreshed) {
+        token = authAccessTokenNotifier.value.trim();
+        response = await _getJsonFromApi(
+          _apiUri(base, '/api/deposits/wallets'),
+          accessToken: token,
+        );
+      }
+    }
+    if (!_apiSuccess(response)) {
+      continue;
+    }
+
+    final coinsRaw = response.bodyMap?['coins'];
+    if (coinsRaw is! List) {
+      continue;
+    }
+
+    final coins = <DepositWalletCoin>[];
+    for (final rawCoin in coinsRaw) {
+      if (rawCoin is! Map) continue;
+      final coin = (rawCoin['coin'] ?? '').toString().trim().toUpperCase();
+      if (coin.isEmpty) continue;
+
+      final networksRaw = rawCoin['networks'];
+      if (networksRaw is! List) continue;
+
+      final networks = <DepositWalletNetwork>[];
+      for (final rawNetwork in networksRaw) {
+        if (rawNetwork is! Map) continue;
+        final network = (rawNetwork['network'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
+        if (network.isEmpty) continue;
+        networks.add(
+          DepositWalletNetwork(
+            network: network,
+            address: (rawNetwork['address'] ?? '').toString().trim(),
+            minConfirmations: int.tryParse(
+                  (rawNetwork['minConfirmations'] ?? 1).toString(),
+                ) ??
+                1,
+            enabled: rawNetwork['enabled'] != false,
+            qrCodeUrl: (rawNetwork['qrCodeUrl'] ?? '').toString().trim(),
+          ),
+        );
+      }
+      final activeNetworks = networks
+          .where((row) => row.enabled && row.address.trim().isNotEmpty)
+          .toList();
+      if (activeNetworks.isEmpty) continue;
+
+      final defaultNetwork = (rawCoin['defaultNetwork'] ?? '')
+          .toString()
+          .trim()
+          .toUpperCase();
+      coins.add(
+        DepositWalletCoin(
+          coin: coin,
+          defaultNetwork:
+              defaultNetwork.isEmpty ? activeNetworks.first.network : defaultNetwork,
+          networks: activeNetworks,
+        ),
+      );
+    }
+
+    if (coins.isNotEmpty) {
+      return coins;
+    }
+  }
+
+  return _fallbackDepositWalletCatalog();
+}
+
 Future<List<AssetTransactionRecord>> _fetchDepositHistory({
   String? accessToken,
   int limit = 20,
 }) async {
-  final token = (accessToken ?? authAccessTokenNotifier.value).trim();
+  var token = (accessToken ?? authAccessTokenNotifier.value).trim();
   if (token.isEmpty) {
     return <AssetTransactionRecord>[];
   }
 
   for (final base in _apiBaseUrls()) {
-    final response = await _getJsonFromApi(
+    var response = await _getJsonFromApi(
       _apiUri(base, '/api/deposits?limit=$limit'),
       accessToken: token,
     );
+    if (response.statusCode == 401) {
+      final refreshed = await _refreshAccessTokenWithRefreshToken();
+      if (refreshed) {
+        token = authAccessTokenNotifier.value.trim();
+        response = await _getJsonFromApi(
+          _apiUri(base, '/api/deposits?limit=$limit'),
+          accessToken: token,
+        );
+      }
+    }
     if (!_apiSuccess(response)) {
       continue;
     }
@@ -322,14 +535,14 @@ Future<Map<String, dynamic>> _createDepositRequest({
   String proofUrl = '',
   String? accessToken,
 }) async {
-  final token = (accessToken ?? authAccessTokenNotifier.value).trim();
+  var token = (accessToken ?? authAccessTokenNotifier.value).trim();
   if (token.isEmpty) {
     throw Exception('Please login again to continue.');
   }
 
   String firstFailure = '';
   for (final base in _apiBaseUrls()) {
-    final response = await _postJsonToApi(
+    var response = await _postJsonToApi(
       _apiUri(base, '/api/deposits'),
       <String, dynamic>{
         'coin': coin,
@@ -341,6 +554,24 @@ Future<Map<String, dynamic>> _createDepositRequest({
       },
       accessToken: token,
     );
+    if (response.statusCode == 401) {
+      final refreshed = await _refreshAccessTokenWithRefreshToken();
+      if (refreshed) {
+        token = authAccessTokenNotifier.value.trim();
+        response = await _postJsonToApi(
+          _apiUri(base, '/api/deposits'),
+          <String, dynamic>{
+            'coin': coin,
+            'network': network,
+            'address': address,
+            'amount': amount,
+            if (txHash.trim().isNotEmpty) 'txHash': txHash.trim(),
+            if (proofUrl.trim().isNotEmpty) 'proofUrl': proofUrl.trim(),
+          },
+          accessToken: token,
+        );
+      }
+    }
     if (_apiSuccess(response)) {
       final deposit = response.bodyMap?['deposit'];
       if (deposit is Map<String, dynamic>) {
@@ -368,14 +599,14 @@ Future<Map<String, dynamic>> _createWithdrawalRequest({
   required double amount,
   String? accessToken,
 }) async {
-  final token = (accessToken ?? authAccessTokenNotifier.value).trim();
+  var token = (accessToken ?? authAccessTokenNotifier.value).trim();
   if (token.isEmpty) {
     throw Exception('Please login again to continue.');
   }
 
   String firstFailure = '';
   for (final base in _apiBaseUrls()) {
-    final response = await _postJsonToApi(
+    var response = await _postJsonToApi(
       _apiUri(base, '/api/withdrawals'),
       <String, dynamic>{
         'currency': currency,
@@ -385,6 +616,22 @@ Future<Map<String, dynamic>> _createWithdrawalRequest({
       },
       accessToken: token,
     );
+    if (response.statusCode == 401) {
+      final refreshed = await _refreshAccessTokenWithRefreshToken();
+      if (refreshed) {
+        token = authAccessTokenNotifier.value.trim();
+        response = await _postJsonToApi(
+          _apiUri(base, '/api/withdrawals'),
+          <String, dynamic>{
+            'currency': currency,
+            'network': network,
+            'address': address,
+            'amount': amount,
+          },
+          accessToken: token,
+        );
+      }
+    }
     if (_apiSuccess(response)) {
       final withdrawal = response.bodyMap?['withdrawal'];
       if (withdrawal is Map<String, dynamic>) {
@@ -411,6 +658,7 @@ Future<void> _persistSessionState() async {
   final active = activeExchangeUserNotifier.value;
   final prefs = await SharedPreferences.getInstance();
   if (active == null || authAccessTokenNotifier.value.trim().isEmpty) {
+    await _secureStorage.delete(key: _secureSessionStorageKey);
     await prefs.remove(_sessionStorageKey);
     return;
   }
@@ -423,12 +671,18 @@ Future<void> _persistSessionState() async {
     'accessToken': authAccessTokenNotifier.value,
     'refreshToken': _authRefreshToken,
   };
-  await prefs.setString(_sessionStorageKey, jsonEncode(payload));
+  final encoded = jsonEncode(payload);
+  await _secureStorage.write(key: _secureSessionStorageKey, value: encoded);
+  await prefs.setString(_sessionStorageKey, encoded);
 }
 
 Future<void> _restoreSessionState() async {
   final prefs = await SharedPreferences.getInstance();
-  final raw = prefs.getString(_sessionStorageKey) ?? '';
+  final secureRaw =
+      (await _secureStorage.read(key: _secureSessionStorageKey) ?? '').trim();
+  final raw = secureRaw.isNotEmpty
+      ? secureRaw
+      : (prefs.getString(_sessionStorageKey) ?? '');
   if (raw.isEmpty) {
     return;
   }
@@ -467,8 +721,11 @@ Future<void> _restoreSessionState() async {
     authAccessTokenNotifier.value = accessToken;
     _authRefreshToken = (decoded['refreshToken'] ?? '').toString().trim();
 
-    await _syncWalletFromBackend(accessToken: accessToken);
-    await _syncDepositSessionFromBackend(accessToken: accessToken);
+    if (_authRefreshToken.isNotEmpty) {
+      await _refreshAccessTokenWithRefreshToken();
+    }
+    await _syncWalletFromBackend(accessToken: authAccessTokenNotifier.value);
+    await _syncDepositSessionFromBackend(accessToken: authAccessTokenNotifier.value);
   } catch (_) {
     // Ignore invalid session payload.
   }
@@ -476,6 +733,7 @@ Future<void> _restoreSessionState() async {
 
 Future<void> _clearSessionState() async {
   final prefs = await SharedPreferences.getInstance();
+  await _secureStorage.delete(key: _secureSessionStorageKey);
   await prefs.remove(_sessionStorageKey);
 }
 
@@ -1989,21 +2247,14 @@ const List<String> kMarketNotices = [
   'Update: New merchant ads are now live in P2P marketplace.',
 ];
 
-const Map<String, Map<String, String>> kDepositAddressBook = {
-  'USDT': {
-    'TRC20': 'TVA3u7mqe8f4v2qd5YdKG8g8A2pZV8u9fH',
-    'ERC20': '0x54E7dB9Cd57F4D55a0B08E20B2Ef11A7f2a5A91E',
-    'BEP20': '0x3C5bF3D4f9A62a4f66eA85d2D0d8E0F8B21d9f3A',
-  },
-  'BTC': {'BTC': 'bc1q8c7rwdwhnh6w9mkrjeyr3h7qpk4m4x5l7j0v3g'},
-  'ETH': {
-    'ERC20': '0x14dA1E8c9147d9f6C87d0E0173Ec98AE06aD6E7c',
-    'BEP20': '0x87eE07E3A35E3a2E82f2A95A43bA699c6d01b20D',
-  },
-  'BNB': {'BEP20': '0xB4E5f0C2f78dc103D8f8b3FAb6D8Ae9F152A0d62'},
-  'SOL': {'SOL': '8N2K7T6QxYQHGqZzV4DgqP14jT7MGN6WSJfYfj8y9E8X'},
-  'XRP': {'XRP': 'rD2f4h9UoL3cP6sV8nA1kQ5mE7xJ0tY2w'},
-  'DOGE': {'DOGE': 'DH2w3Uo8LwY9r7mQvA4tS1kzJ5nB6xE2hP'},
+const Map<String, List<String>> kCoinNetworkBook = {
+  'USDT': ['TRC20', 'ERC20', 'BEP20'],
+  'BTC': ['BTC'],
+  'ETH': ['ERC20', 'BEP20'],
+  'BNB': ['BEP20'],
+  'SOL': ['SOL'],
+  'XRP': ['XRP'],
+  'DOGE': ['DOGE'],
 };
 
 class ChainNetworkMeta {
@@ -5597,7 +5848,7 @@ class _MarketsPageState extends State<MarketsPage> {
 
   static const Map<String, List<String>> _subTabMap = {
     'Favorites': ['Futures', 'Spot'],
-    'Futures': ['USDT-M', 'Demo'],
+    'Futures': ['USDT-M'],
     'Spot': ['All', 'Initial listing', '0 fees', 'Meme', 'Pre-market'],
   };
 
@@ -8185,7 +8436,7 @@ class _FuturesPageState extends State<FuturesPage> {
 
   static const Map<String, List<String>> _subTabMap = {
     'Favorites': ['Futures', 'Spot'],
-    'Futures': ['USDT-M', 'Demo'],
+    'Futures': ['USDT-M'],
     'Spot': ['All', 'Initial listing', '0 fees', 'Meme', 'Pre-market'],
   };
 
@@ -10071,26 +10322,65 @@ class DepositPage extends StatefulWidget {
 }
 
 class _DepositPageState extends State<DepositPage> {
+  int _step = 1;
   String _coin = 'USDT';
-  late String _network;
+  String _network = 'TRC20';
   final TextEditingController _amountController = TextEditingController();
-  bool _showAddress = false;
+  final TextEditingController _proofController = TextEditingController();
   bool _submitting = false;
+  bool _loadingWallets = true;
   bool _loadingHistory = true;
   List<AssetTransactionRecord> _deposits = <AssetTransactionRecord>[];
+  List<DepositWalletCoin> _walletCatalog = <DepositWalletCoin>[];
 
-  List<String> get _availableNetworks =>
-      kDepositAddressBook[_coin]!.keys.toList();
-  String get _address {
-    if (_coin == 'USDT') {
-      final backendAddress =
-          usdtDepositAddressByNetworkNotifier.value[_network] ?? '';
-      if (backendAddress.trim().isNotEmpty) {
-        return backendAddress.trim();
+  List<String> get _availableCoins {
+    final backendCoins = _walletCatalog
+        .map((row) => row.coin.trim().toUpperCase())
+        .where((row) => row.isNotEmpty)
+        .toSet()
+        .toList();
+    if (backendCoins.isNotEmpty) {
+      backendCoins.sort();
+      return backendCoins;
+    }
+    return kCoinNetworkBook.keys.toList();
+  }
+
+  DepositWalletCoin? get _coinWalletConfig {
+    for (final row in _walletCatalog) {
+      if (row.coin.toUpperCase() == _coin.toUpperCase()) {
+        return row;
       }
     }
-    return kDepositAddressBook[_coin]?[_network] ?? '';
+    return null;
   }
+
+  List<String> get _availableNetworks {
+    final backendNetworks =
+        _coinWalletConfig?.networks
+            .map((row) => row.network.trim().toUpperCase())
+            .where((row) => row.isNotEmpty)
+            .toList() ??
+        const <String>[];
+    if (backendNetworks.isNotEmpty) {
+      return backendNetworks;
+    }
+    return kCoinNetworkBook[_coin] ?? const <String>['TRC20'];
+  }
+
+  DepositWalletNetwork? get _selectedWallet {
+    final options = _coinWalletConfig?.networks ?? const <DepositWalletNetwork>[];
+    for (final wallet in options) {
+      if (wallet.network.toUpperCase() == _network.toUpperCase()) {
+        return wallet;
+      }
+    }
+    return null;
+  }
+
+  String get _address => _selectedWallet?.address.trim() ?? '';
+  String get _qrCodeUrl => _selectedWallet?.qrCodeUrl.trim() ?? '';
+
   ChainNetworkMeta get _networkMeta =>
       kNetworkMeta[_network] ??
       const ChainNetworkMeta(
@@ -10105,39 +10395,51 @@ class _DepositPageState extends State<DepositPage> {
   @override
   void initState() {
     super.initState();
-    _network = _availableNetworks.first;
     unawaited(_refreshDepositData());
   }
 
   @override
   void dispose() {
     _amountController.dispose();
+    _proofController.dispose();
     super.dispose();
   }
 
-  void _showDepositAddress() {
-    if (_address.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Deposit address is not available yet.')),
-      );
-      return;
-    }
-    setState(() => _showAddress = true);
-  }
-
   Future<void> _refreshDepositData() async {
-    setState(() => _loadingHistory = true);
+    setState(() {
+      _loadingHistory = true;
+      _loadingWallets = true;
+    });
     try {
       await _syncWalletFromBackend();
       await _syncDepositSessionFromBackend();
+      final wallets = await _fetchDepositWalletCatalog();
       final rows = await _fetchDepositHistory(limit: 20);
       if (!mounted) return;
       setState(() {
+        _walletCatalog = wallets;
+        if (!_availableCoins.contains(_coin) && _availableCoins.isNotEmpty) {
+          _coin = _availableCoins.first;
+        }
+        final selectedCoinConfig = _coinWalletConfig;
+        if (selectedCoinConfig != null &&
+            selectedCoinConfig.defaultNetwork.trim().isNotEmpty &&
+            _availableNetworks.contains(
+              selectedCoinConfig.defaultNetwork.trim().toUpperCase(),
+            )) {
+          _network = selectedCoinConfig.defaultNetwork.trim().toUpperCase();
+        }
+        if (!_availableNetworks.contains(_network) && _availableNetworks.isNotEmpty) {
+          _network = _availableNetworks.first;
+        }
         _deposits = rows;
       });
     } finally {
       if (mounted) {
-        setState(() => _loadingHistory = false);
+        setState(() {
+          _loadingHistory = false;
+          _loadingWallets = false;
+        });
       }
     }
   }
@@ -10147,17 +10449,9 @@ class _DepositPageState extends State<DepositPage> {
       MaterialPageRoute<String>(
         builder: (_) => _CoinSelectPage(
           title: 'Select Coin',
-          items: kDepositAddressBook.keys.toList(),
+          items: _availableCoins,
           balances: {
-            'USDT':
-                fundingUsdtBalanceNotifier.value +
-                spotUsdtBalanceNotifier.value,
-            'BTC': 0,
-            'ETH': 0,
-            'BNB': 0,
-            'SOL': 0,
-            'XRP': 0,
-            'DOGE': 0,
+            'USDT': fundingUsdtBalanceNotifier.value + spotUsdtBalanceNotifier.value,
           },
         ),
       ),
@@ -10166,7 +10460,6 @@ class _DepositPageState extends State<DepositPage> {
     setState(() {
       _coin = selected;
       _network = _availableNetworks.first;
-      _showAddress = false;
     });
   }
 
@@ -10298,7 +10591,6 @@ class _DepositPageState extends State<DepositPage> {
     if (selected == null) return;
     setState(() {
       _network = selected;
-      _showAddress = false;
     });
   }
 
@@ -10333,6 +10625,8 @@ class _DepositPageState extends State<DepositPage> {
         network: _network,
         address: _address,
         amount: amount,
+        txHash: _proofController.text.trim(),
+        proofUrl: _proofController.text.trim(),
       );
 
       final createdAt = DateTime.tryParse(
@@ -10359,6 +10653,9 @@ class _DepositPageState extends State<DepositPage> {
       );
       setState(() {
         _deposits = [record, ..._deposits];
+        _step = 1;
+        _amountController.clear();
+        _proofController.clear();
       });
       hasActiveDepositSessionNotifier.value = status == 'Pending';
 
@@ -10370,7 +10667,6 @@ class _DepositPageState extends State<DepositPage> {
           ),
         ),
       );
-      Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -10381,6 +10677,44 @@ class _DepositPageState extends State<DepositPage> {
         setState(() => _submitting = false);
       }
     }
+  }
+
+  Widget _stepPill(int index, String title) {
+    final active = _step == index;
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          color: active ? const Color(0xFFE5C863) : const Color(0xFF141B2A),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          '$index. $title',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 11.8,
+            fontWeight: FontWeight.w700,
+            color: active ? Colors.black : Colors.white70,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddressQr() {
+    if (_qrCodeUrl.startsWith('http://') || _qrCodeUrl.startsWith('https://')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(
+          _qrCodeUrl,
+          width: 160,
+          height: 160,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _AddressQrWidget(data: _address),
+        ),
+      );
+    }
+    return _AddressQrWidget(data: _address);
   }
 
   @override
@@ -10396,6 +10730,30 @@ class _DepositPageState extends State<DepositPage> {
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
+          Row(
+            children: [
+              _stepPill(1, 'Coin'),
+              const SizedBox(width: 8),
+              _stepPill(2, 'Network'),
+              const SizedBox(width: 8),
+              _stepPill(3, 'Address & Amount'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_loadingWallets)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
+          if (!_loadingWallets && _availableCoins.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Text(
+                'Deposit wallets are not configured by admin yet.',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+          if (_step == 1) ...[
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: _selectCoin,
@@ -10427,6 +10785,23 @@ class _DepositPageState extends State<DepositPage> {
               ),
             ),
           ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _availableCoins.isEmpty
+                    ? null
+                    : () => setState(() => _step = 2),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                ),
+                child: const Text('Continue'),
+              ),
+            ),
+          ],
+          if (_step == 2) ...[
+            const SizedBox(height: 2),
           const SizedBox(height: 10),
           InkWell(
             borderRadius: BorderRadius.circular(12),
@@ -10489,6 +10864,35 @@ class _DepositPageState extends State<DepositPage> {
               ],
             ),
           ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _availableNetworks.isEmpty
+                    ? null
+                    : () {
+                        if (_address.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Deposit wallet is not configured for selected coin/network.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        setState(() => _step = 3);
+                      },
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                ),
+                child: const Text('Continue'),
+              ),
+            ),
+          ],
+          if (_step == 3) ...[
+            const SizedBox(height: 2),
           const SizedBox(height: 10),
           TextField(
             controller: _amountController,
@@ -10498,27 +10902,16 @@ class _DepositPageState extends State<DepositPage> {
               hintText: 'Enter amount',
               suffixText: _coin,
             ),
-            onChanged: (_) {
-              if (_showAddress) setState(() => _showAddress = false);
-            },
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-                child: FilledButton(
-                  onPressed: _showDepositAddress,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    backgroundColor: const Color(0xFFF0A344),
-                foregroundColor: Colors.black,
-              ),
-                  child: const Text(
-                'Show Deposit Address',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+            TextField(
+              controller: _proofController,
+              decoration: const InputDecoration(
+                labelText: 'Transaction Hash / Proof URL (optional)',
+                hintText: 'Paste tx hash or screenshot URL',
               ),
             ),
-          ),
-          if (_showAddress) ...[
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(14),
@@ -10529,7 +10922,7 @@ class _DepositPageState extends State<DepositPage> {
               ),
               child: Column(
                 children: [
-                  _AddressQrWidget(data: _address),
+                  _buildAddressQr(),
                   const SizedBox(height: 8),
                   Text(
                     '$_coin • $_network',
@@ -10561,6 +10954,25 @@ class _DepositPageState extends State<DepositPage> {
                     label: const Text(
                       'Copy Address',
                       style: TextStyle(fontSize: 11.8),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final scanned = await Navigator.of(context).push<String>(
+                          MaterialPageRoute<String>(
+                            builder: (_) => const ScanPage(),
+                          ),
+                        );
+                        if (scanned == null || scanned.trim().isEmpty) {
+                          return;
+                        }
+                        _proofController.text = scanned.trim();
+                      },
+                      icon: const Icon(Icons.qr_code_scanner_rounded, size: 16),
+                      label: const Text('QR Code Scanner'),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -10716,7 +11128,7 @@ class _CoinSelectPage extends StatefulWidget {
 class _CoinSelectPageState extends State<_CoinSelectPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
-  static const _history = ['USDT', 'SPK', 'XRP'];
+  static const _history = ['USDT', 'BTC', 'ETH'];
 
   @override
   void dispose() {
@@ -10795,7 +11207,7 @@ class _CoinSelectPageState extends State<_CoinSelectPage> {
                 ),
               ),
               subtitle: Text(
-                coin == 'USDT' ? 'TetherUS' : (coin == 'SPK' ? 'Spark' : coin),
+                coin == 'USDT' ? 'TetherUS' : coin,
                 style: TextStyle(fontSize: 12.8, color: secondary),
               ),
               trailing: Column(
@@ -11220,7 +11632,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
   bool _submitting = false;
 
   List<String> get _availableNetworks =>
-      kDepositAddressBook[_coin]?.keys.toList() ?? const ['TRC20'];
+      kCoinNetworkBook[_coin] ?? const ['TRC20'];
   ChainNetworkMeta get _networkMeta =>
       kNetworkMeta[_network] ??
       const ChainNetworkMeta(
@@ -11254,7 +11666,7 @@ class _WithdrawPageState extends State<WithdrawPage> {
       MaterialPageRoute<String>(
         builder: (_) => _CoinSelectPage(
           title: 'Select Coin',
-          items: kDepositAddressBook.keys.toList(),
+          items: kCoinNetworkBook.keys.toList(),
           balances: {
             'USDT': fundingUsdtBalanceNotifier.value,
             'BTC': 0,

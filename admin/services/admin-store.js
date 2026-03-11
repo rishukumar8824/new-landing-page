@@ -153,6 +153,22 @@ function normalizeNetwork(rawNetwork) {
   return '';
 }
 
+function normalizeCoinSymbol(rawCoin) {
+  const normalized = String(rawCoin || '')
+    .trim()
+    .toUpperCase();
+  if (!normalized) {
+    return '';
+  }
+  if (DEPOSIT_COINS.includes(normalized)) {
+    return normalized;
+  }
+  if (/^[A-Z0-9]{2,12}$/.test(normalized)) {
+    return normalized;
+  }
+  return '';
+}
+
 function sanitizeAddress(value) {
   const address = String(value || '').trim();
   if (!address) {
@@ -179,14 +195,32 @@ function createDefaultConfirmationsMap() {
   };
 }
 
-function normalizeSupportedNetworks(rawNetworks) {
+function sanitizeQrCodeUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+  if (raw.length > 2048) {
+    throw new Error('QR code URL is too long');
+  }
+  if (/^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+  if (/^data:image\//i.test(raw)) {
+    return raw;
+  }
+  throw new Error('QR code URL format is invalid');
+}
+
+function normalizeSupportedNetworks(rawNetworks, options = {}) {
+  const usdtOnly = options.usdtOnly === true;
   if (!Array.isArray(rawNetworks)) {
-    return [...USDT_NETWORKS];
+    return usdtOnly ? [...USDT_NETWORKS] : [];
   }
 
   const unique = new Set();
   for (const rawNetwork of rawNetworks) {
-    const network = normalizeNetwork(rawNetwork);
+    const network = usdtOnly ? normalizeNetwork(rawNetwork) : normalizeDepositNetwork(rawNetwork);
     if (network) {
       unique.add(network);
     }
@@ -221,15 +255,86 @@ function normalizeMinDepositConfirmations(rawMap = {}) {
   return result;
 }
 
+function normalizeDepositQrCodes(rawMap = {}) {
+  const source = rawMap && typeof rawMap === 'object' ? rawMap : {};
+  const result = {};
+
+  for (const network of USDT_NETWORKS) {
+    result[network] = sanitizeQrCodeUrl(source[network]);
+  }
+
+  return result;
+}
+
+function normalizeDepositWalletEntries(rawWallets, fallbackCoin = 'USDT') {
+  if (!Array.isArray(rawWallets)) {
+    return [];
+  }
+
+  const unique = new Set();
+  const rows = [];
+  for (const rawWallet of rawWallets) {
+    if (!rawWallet || typeof rawWallet !== 'object') {
+      continue;
+    }
+    const coin = normalizeCoinSymbol(rawWallet.coin || fallbackCoin);
+    const network = normalizeDepositNetwork(rawWallet.network || rawWallet.chain || rawWallet.name || '');
+    if (!coin || !network) {
+      continue;
+    }
+
+    const address = sanitizeAddress(rawWallet.address || rawWallet.walletAddress || '');
+    const minConfirmations = Math.max(
+      1,
+      Number.parseInt(String(rawWallet.minConfirmations || rawWallet.confirmations || 1), 10) || 1
+    );
+    const enabled = rawWallet.enabled !== undefined ? Boolean(rawWallet.enabled) : Boolean(address);
+    const qrCodeUrl = sanitizeQrCodeUrl(
+      rawWallet.qrCodeUrl || rawWallet.qrUrl || rawWallet.qr || rawWallet.qrCode || ''
+    );
+
+    const dedupeKey = `${coin}:${network}`;
+    if (unique.has(dedupeKey)) {
+      continue;
+    }
+    unique.add(dedupeKey);
+    rows.push({
+      coin,
+      network,
+      address,
+      enabled,
+      minConfirmations,
+      qrCodeUrl
+    });
+  }
+
+  return rows;
+}
+
 function normalizeWalletConfigDoc(doc = {}) {
-  const coin = String(doc.coin || '').trim().toUpperCase();
+  const coin = normalizeCoinSymbol(doc.coin) || String(doc.coin || '').trim().toUpperCase();
   const isUsdt = coin === 'USDT';
-  const supportedNetworksRaw = normalizeSupportedNetworks(doc.supportedNetworks);
-  const supportedNetworks = isUsdt ? (supportedNetworksRaw.length > 0 ? supportedNetworksRaw : [...USDT_NETWORKS]) : [];
+  const supportedNetworksRaw = normalizeSupportedNetworks(doc.supportedNetworks, { usdtOnly: isUsdt });
+  const supportedNetworks = isUsdt ? (supportedNetworksRaw.length > 0 ? supportedNetworksRaw : [...USDT_NETWORKS]) : supportedNetworksRaw;
   const depositAddresses = isUsdt ? normalizeDepositAddresses(doc.depositAddresses || {}) : {};
+  const depositQrCodes = isUsdt ? normalizeDepositQrCodes(doc.depositQrCodes || {}) : {};
   const minDepositConfirmations = isUsdt ? normalizeMinDepositConfirmations(doc.minDepositConfirmations || {}) : {};
 
   const defaultNetwork = isUsdt ? normalizeNetwork(doc.defaultNetwork) || supportedNetworks[0] || 'TRC20' : '';
+  const legacyUsdtWallets = isUsdt
+    ? supportedNetworks.map((network) => ({
+        coin: 'USDT',
+        network,
+        address: sanitizeAddress(depositAddresses[network]),
+        enabled: Boolean(doc.depositsEnabled !== false) && Boolean(sanitizeAddress(depositAddresses[network])),
+        minConfirmations: Math.max(1, Number(minDepositConfirmations[network] || 1)),
+        qrCodeUrl: sanitizeQrCodeUrl(depositQrCodes[network])
+      }))
+    : [];
+  const depositWallets = normalizeDepositWalletEntries(
+    Array.isArray(doc.depositWallets) && doc.depositWallets.length > 0 ? doc.depositWallets : legacyUsdtWallets,
+    coin || 'USDT'
+  );
 
   return {
     coin,
@@ -241,7 +346,9 @@ function normalizeWalletConfigDoc(doc = {}) {
     supportedNetworks,
     defaultNetwork,
     depositAddresses,
+    depositQrCodes,
     minDepositConfirmations,
+    depositWallets,
     updatedAt: doc.updatedAt || null
   };
 }
@@ -260,6 +367,7 @@ function buildDefaultWalletConfig(coin) {
     supportedNetworks: isUsdt ? USDT_NETWORKS : [],
     defaultNetwork: isUsdt ? 'TRC20' : '',
     depositAddresses: isUsdt ? createEmptyNetworkMap() : {},
+    depositQrCodes: isUsdt ? createEmptyNetworkMap() : {},
     minDepositConfirmations: isUsdt ? createDefaultConfirmationsMap() : {}
   });
 }
@@ -451,7 +559,16 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
           supportedNetworks: [...USDT_NETWORKS],
           defaultNetwork: 'TRC20',
           depositAddresses: createEmptyNetworkMap(),
+          depositQrCodes: createEmptyNetworkMap(),
           minDepositConfirmations: createDefaultConfirmationsMap(),
+          depositWallets: USDT_NETWORKS.map((network) => ({
+            coin: 'USDT',
+            network,
+            address: '',
+            enabled: false,
+            minConfirmations: createDefaultConfirmationsMap()[network] || 1,
+            qrCodeUrl: ''
+          })),
           updatedAt: new Date()
         },
         { coin: 'BTC', withdrawalsEnabled: true, depositsEnabled: true, networkFee: 0.0003, minWithdrawal: 0.001, maxWithdrawal: 50, updatedAt: new Date() },
@@ -1480,7 +1597,7 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
   }
 
   async function setCoinWithdrawalConfig(coin, payload) {
-    const normalizedCoin = String(coin || '').trim().toUpperCase();
+    const normalizedCoin = normalizeCoinSymbol(coin);
     if (!normalizedCoin) {
       throw new Error('Coin is required');
     }
@@ -1507,10 +1624,18 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     if (payload.maxWithdrawal !== undefined) {
       patch.maxWithdrawal = toNumber(payload.maxWithdrawal, 0);
     }
+
+    if (payload.supportedNetworks !== undefined) {
+      patch.supportedNetworks = normalizeSupportedNetworks(payload.supportedNetworks, {
+        usdtOnly: normalizedCoin === 'USDT'
+      });
+    }
+
+    if (payload.depositWallets !== undefined) {
+      patch.depositWallets = normalizeDepositWalletEntries(payload.depositWallets, normalizedCoin);
+    }
+
     if (normalizedCoin === 'USDT') {
-      if (payload.supportedNetworks !== undefined) {
-        patch.supportedNetworks = normalizeSupportedNetworks(payload.supportedNetworks);
-      }
       if (payload.defaultNetwork !== undefined) {
         const candidate = normalizeNetwork(payload.defaultNetwork);
         if (!candidate) {
@@ -1529,12 +1654,50 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
           ...incomingAddresses
         };
       }
+      if (payload.depositQrCodes !== undefined) {
+        const incomingQrCodes = normalizeDepositQrCodes(payload.depositQrCodes);
+        patch.depositQrCodes = {
+          ...baseConfig.depositQrCodes,
+          ...incomingQrCodes
+        };
+      }
       if (payload.minDepositConfirmations !== undefined) {
         const incomingConfirmations = normalizeMinDepositConfirmations(payload.minDepositConfirmations);
         patch.minDepositConfirmations = {
           ...baseConfig.minDepositConfirmations,
           ...incomingConfirmations
         };
+      }
+
+      if (patch.depositWallets === undefined) {
+        const effectiveNetworks =
+          Array.isArray(patch.supportedNetworks) && patch.supportedNetworks.length > 0
+            ? patch.supportedNetworks
+            : baseConfig.supportedNetworks;
+        const effectiveAddresses = {
+          ...baseConfig.depositAddresses,
+          ...(patch.depositAddresses || {})
+        };
+        const effectiveQrCodes = {
+          ...baseConfig.depositQrCodes,
+          ...(patch.depositQrCodes || {})
+        };
+        const effectiveConfirmations = {
+          ...baseConfig.minDepositConfirmations,
+          ...(patch.minDepositConfirmations || {})
+        };
+        patch.depositWallets = normalizeDepositWalletEntries(
+          effectiveNetworks.map((network) => ({
+            coin: 'USDT',
+            network,
+            address: effectiveAddresses[network] || '',
+            qrCodeUrl: effectiveQrCodes[network] || '',
+            minConfirmations: effectiveConfirmations[network] || 1,
+            enabled: Boolean(payload.depositsEnabled !== undefined ? payload.depositsEnabled : baseConfig.depositsEnabled) &&
+              Boolean(sanitizeAddress(effectiveAddresses[network] || ''))
+          })),
+          'USDT'
+        );
       }
     }
 
@@ -1572,30 +1735,70 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       .trim()
       .toUpperCase();
     const config = await getCoinWalletConfig(normalizedCoin);
-
-    if (normalizedCoin !== 'USDT') {
-      return {
-        coin: normalizedCoin,
-        depositsEnabled: Boolean(config.depositsEnabled),
-        defaultNetwork: '',
-        networks: []
-      };
-    }
-
-    const networks = config.supportedNetworks.map((network) => ({
-      network,
-      address: sanitizeAddress(config.depositAddresses?.[network]),
-      minConfirmations: Math.max(1, Number(config.minDepositConfirmations?.[network] || 1)),
-      enabled: Boolean(config.depositsEnabled) && Boolean(sanitizeAddress(config.depositAddresses?.[network]))
-    }));
+    const depositWallets = Array.isArray(config.depositWallets) ? config.depositWallets : [];
+    const networks = depositWallets
+      .filter((wallet) => String(wallet.coin || '').trim().toUpperCase() === normalizedCoin)
+      .map((wallet) => ({
+        network: String(wallet.network || '').trim().toUpperCase(),
+        address: sanitizeAddress(wallet.address),
+        minConfirmations: Math.max(1, Number(wallet.minConfirmations || 1)),
+        enabled: Boolean(config.depositsEnabled) && Boolean(wallet.enabled !== false) && Boolean(sanitizeAddress(wallet.address)),
+        qrCodeUrl: sanitizeQrCodeUrl(wallet.qrCodeUrl)
+      }))
+      .filter((wallet, index, arr) => arr.findIndex((item) => item.network === wallet.network) === index);
 
     return {
       coin: normalizedCoin,
-      token: 'USDT',
+      token: normalizedCoin,
       depositsEnabled: Boolean(config.depositsEnabled),
-      defaultNetwork: config.defaultNetwork || 'TRC20',
+      defaultNetwork:
+        normalizedCoin === 'USDT'
+          ? config.defaultNetwork || (networks[0]?.network || 'TRC20')
+          : (networks[0]?.network || ''),
       networks
     };
+  }
+
+  async function listUserDepositWalletCatalog() {
+    const rows = await adminWalletConfig.find({ depositsEnabled: { $ne: false } }).sort({ coin: 1 }).toArray();
+    const coins = [];
+
+    for (const row of rows) {
+      const config = normalizeWalletConfigDoc(row || {});
+      const coin = String(config.coin || '').trim().toUpperCase();
+      if (!coin) {
+        continue;
+      }
+
+      const networks = (Array.isArray(config.depositWallets) ? config.depositWallets : [])
+        .filter((wallet) => String(wallet.coin || '').trim().toUpperCase() === coin)
+        .map((wallet) => ({
+          network: String(wallet.network || '').trim().toUpperCase(),
+          address: sanitizeAddress(wallet.address),
+          minConfirmations: Math.max(1, Number(wallet.minConfirmations || 1)),
+          enabled: Boolean(wallet.enabled !== false) && Boolean(sanitizeAddress(wallet.address)),
+          qrCodeUrl: sanitizeQrCodeUrl(wallet.qrCodeUrl)
+        }))
+        .filter((wallet) => wallet.enabled && Boolean(String(wallet.address || '').trim()))
+        .filter((wallet, index, arr) => arr.findIndex((item) => item.network === wallet.network) === index);
+
+      if (networks.length === 0) {
+        continue;
+      }
+
+      coins.push({
+        coin,
+        token: coin,
+        depositsEnabled: Boolean(config.depositsEnabled),
+        defaultNetwork:
+          coin === 'USDT'
+            ? config.defaultNetwork || (networks[0]?.network || 'TRC20')
+            : (networks[0]?.network || ''),
+        networks
+      });
+    }
+
+    return coins;
   }
 
   async function listHotWalletBalances() {
@@ -2305,6 +2508,7 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     reviewWithdrawal,
     getCoinWalletConfig,
     getUserDepositConfig,
+    listUserDepositWalletCatalog,
     setCoinWithdrawalConfig,
     listHotWalletBalances,
     listSpotPairs,

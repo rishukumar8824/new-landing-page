@@ -322,7 +322,8 @@ async function getUsdtDepositConfigForUser() {
       const address = String(item?.address || '').trim();
       const minConfirmations = Math.max(1, Number.parseInt(String(item?.minConfirmations || item?.confirmations || 1), 10) || 1);
       const enabled = item?.enabled !== undefined ? Boolean(item.enabled) : Boolean(address);
-      return { network, address, minConfirmations, enabled };
+      const qrCodeUrl = String(item?.qrCodeUrl || item?.qrUrl || item?.qr || '').trim();
+      return { network, address, minConfirmations, enabled, qrCodeUrl };
     })
     .filter((item, index, arr) => arr.findIndex((candidate) => candidate.network === item.network) === index);
 
@@ -346,6 +347,72 @@ async function getUsdtDepositConfigForUser() {
     activeNetwork,
     depositAddress: activeNetwork.address || ''
   };
+}
+
+async function getDepositWalletCatalogForUser() {
+  const fallbackUsdtConfig = await getUsdtDepositConfigForUser();
+
+  if (!adminStore || typeof adminStore.listUserDepositWalletCatalog !== 'function') {
+    return [fallbackUsdtConfig];
+  }
+
+  try {
+    const rows = await adminStore.listUserDepositWalletCatalog();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return [fallbackUsdtConfig];
+    }
+
+    const normalized = rows
+      .map((item) => {
+        const coin = String(item?.coin || '').trim().toUpperCase();
+        if (!coin) {
+          return null;
+        }
+        const networks = (Array.isArray(item?.networks) ? item.networks : [])
+          .map((networkItem) => ({
+            network: String(networkItem?.network || '').trim().toUpperCase(),
+            address: String(networkItem?.address || '').trim(),
+            minConfirmations: Math.max(1, Number.parseInt(String(networkItem?.minConfirmations || 1), 10) || 1),
+            enabled: networkItem?.enabled !== false,
+            qrCodeUrl: String(networkItem?.qrCodeUrl || '').trim()
+          }))
+          .filter((networkItem) => Boolean(networkItem.network))
+          .filter((networkItem) => networkItem.enabled && Boolean(networkItem.address));
+
+        if (networks.length === 0) {
+          return null;
+        }
+
+        const defaultNetwork = String(item?.defaultNetwork || '').trim().toUpperCase() || networks[0].network;
+        const activeNetwork =
+          networks.find((networkItem) => networkItem.network === defaultNetwork && networkItem.enabled && networkItem.address) ||
+          networks.find((networkItem) => networkItem.enabled && networkItem.address) ||
+          networks[0];
+
+        return {
+          coin,
+          token: coin,
+          depositsEnabled: item?.depositsEnabled !== false,
+          defaultNetwork,
+          networks,
+          activeNetwork,
+          depositAddress: String(activeNetwork?.address || '').trim()
+        };
+      })
+      .filter(Boolean);
+
+    if (normalized.length === 0) {
+      return [fallbackUsdtConfig];
+    }
+
+    if (!normalized.some((item) => item.coin === 'USDT')) {
+      normalized.unshift(fallbackUsdtConfig);
+    }
+
+    return normalized;
+  } catch (error) {
+    return [fallbackUsdtConfig];
+  }
 }
 
 function normalizeKycStatus(rawStatus) {
@@ -1535,16 +1602,8 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
       selfieWithDocumentImage
     });
 
-    let nextStatus = 'PENDING_REVIEW';
-    let rejectionReason = '';
-    if (faceMatch.available) {
-      if (faceMatch.passed) {
-        nextStatus = 'VERIFIED';
-      } else {
-        nextStatus = 'REJECTED';
-        rejectionReason = 'AI face match failed. Upload clear Aadhaar front and selfie with document.';
-      }
-    }
+    const nextStatus = 'PENDING_REVIEW';
+    const rejectionReason = '';
 
     await repos.upsertP2PKycRequest(userId, email, {
       requestId,
@@ -1597,12 +1656,10 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
     }
 
     const statusMessageByState = {
-      VERIFIED: 'KYC verified successfully. You can now place P2P buy orders.',
-      REJECTED: 'KYC rejected due to face mismatch. Re-upload clear Aadhaar and selfie with document.',
       PENDING_REVIEW: 'KYC submitted successfully. Verification is pending review.'
     };
 
-    return res.status(nextStatus === 'VERIFIED' ? 200 : 202).json({
+    return res.status(202).json({
       message: statusMessageByState[nextStatus] || 'KYC submitted successfully.',
       kyc: kycProfile,
       faceMatch: {
@@ -1650,14 +1707,23 @@ app.get('/api/p2p/wallet', requiresP2PUser, async (req, res) => {
       username: req.p2pUser.username
     });
     const depositConfig = await getUsdtDepositConfigForUser();
+    const depositWallets = await getDepositWalletCatalogForUser();
+    const assetBalances =
+      ensured && ensured.assets && typeof ensured.assets === 'object'
+        ? ensured.assets
+        : {
+            USDT: Number(ensured.availableBalance || ensured.balance || 0)
+          };
     return res.json({
       wallet: {
         ...ensured,
         depositAddress: depositConfig.depositAddress,
         depositNetwork: depositConfig.activeNetwork?.network || depositConfig.defaultNetwork,
-        depositNetworks: depositConfig.networks
+        depositNetworks: depositConfig.networks,
+        assetBalances
       },
-      depositConfig
+      depositConfig,
+      depositWallets
     });
   } catch (error) {
     return res.status(500).json({ message: 'Server error while loading wallet.' });
@@ -1670,6 +1736,13 @@ app.get('/api/wallet/summary', requiresP2PUser, async (req, res) => {
       username: req.p2pUser.username
     });
     const depositConfig = await getUsdtDepositConfigForUser();
+    const depositWallets = await getDepositWalletCatalogForUser();
+    const assetBalances =
+      wallet && wallet.assets && typeof wallet.assets === 'object'
+        ? wallet.assets
+        : {
+            USDT: Number(wallet.availableBalance || wallet.balance || 0)
+          };
 
     return res.json({
       summary: {
@@ -1678,6 +1751,7 @@ app.get('/api/wallet/summary', requiresP2PUser, async (req, res) => {
         locked_balance: Number(wallet.lockedBalance || wallet.p2pLocked || 0),
         spot_balance: Number(wallet.availableBalance || wallet.balance || 0),
         funding_balance: Number(wallet.availableBalance || wallet.balance || 0),
+        asset_balances: assetBalances,
         deposit_address: depositConfig.depositAddress,
         deposit_network: depositConfig.activeNetwork?.network || depositConfig.defaultNetwork,
         deposit_networks: depositConfig.networks
@@ -1686,9 +1760,11 @@ app.get('/api/wallet/summary', requiresP2PUser, async (req, res) => {
         ...wallet,
         depositAddress: depositConfig.depositAddress,
         depositNetwork: depositConfig.activeNetwork?.network || depositConfig.defaultNetwork,
-        depositNetworks: depositConfig.networks
+        depositNetworks: depositConfig.networks,
+        assetBalances
       },
-      depositConfig
+      depositConfig,
+      depositWallets
     });
   } catch (error) {
     return res.status(500).json({ message: 'Server error while loading wallet summary.' });
@@ -1708,6 +1784,18 @@ app.get('/api/deposits/active', requiresP2PUser, async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ message: 'Server error while loading active deposit session.' });
+  }
+});
+
+app.get('/api/deposits/wallets', requiresP2PUser, async (req, res) => {
+  try {
+    const coins = await getDepositWalletCatalogForUser();
+    return res.json({
+      total: coins.length,
+      coins
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while loading deposit wallets.' });
   }
 });
 
@@ -1748,7 +1836,9 @@ app.post(
     const amount = Number(req.body.amount);
     const address = String(req.body.address || '').trim();
     const txHash = String(req.body.txHash || req.body.txid || '').trim();
-    const proofUrl = String(req.body.proofUrl || req.body.depositProof || '').trim();
+    const proofUrl = String(
+      req.body.proofUrl || req.body.depositProof || req.body.proofFileUrl || req.body.screenshotUrl || ''
+    ).trim();
     const requestIp = getRequestIp(req);
 
     if (coin === 'USDT') {
@@ -2878,6 +2968,7 @@ async function boot() {
       auditLogService,
       authEmailService,
       otpTtlMs: SIGNUP_OTP_TTL_MS,
+      enableLegacyOtpEndpoints: false,
       onLoginSuccess: async ({ user, ipAddress, userAgent }) => {
         if (!userCenterService) {
           return;
@@ -3030,7 +3121,13 @@ async function boot() {
     await repos.ensureSeedOffers([]);
 
     await adminStore.ensureDefaults();
-    await adminStore.ensureDemoSupportTicket();
+    const enableDemoSeedData =
+      String(process.env.ENABLE_DEMO_SEED_DATA || '')
+        .trim()
+        .toLowerCase() === 'true';
+    if (enableDemoSeedData) {
+      await adminStore.ensureDemoSupportTicket();
+    }
     const seededAdmin = await adminStore.seedAdminUser({
       username: ADMIN_SEED_USERNAME,
       email: ADMIN_SEED_EMAIL,

@@ -72,7 +72,8 @@ function registerAuthRoutes(app, deps) {
     auditLogService,
     authEmailService,
     otpTtlMs = 10 * 60 * 1000,
-    onLoginSuccess = null
+    onLoginSuccess = null,
+    enableLegacyOtpEndpoints = true
   } = deps;
 
   const loginLimiter = createIpRateLimiter({
@@ -450,9 +451,10 @@ function registerAuthRoutes(app, deps) {
     return tokenPair;
   }
 
-  app.post('/auth/send-otp', signupOtpLimiter, async (req, res) => {
-    const email = createEmailFromInput(req.body?.email);
-    const ipAddress = normalizeIp(req);
+  if (enableLegacyOtpEndpoints) {
+    app.post('/auth/send-otp', signupOtpLimiter, async (req, res) => {
+      const email = createEmailFromInput(req.body?.email);
+      const ipAddress = normalizeIp(req);
 
     if (!isValidEmail(email)) {
       return res.status(400).json({ message: 'Enter a valid email address.' });
@@ -485,12 +487,12 @@ function registerAuthRoutes(app, deps) {
     } catch (error) {
       return res.status(500).json({ message: 'Server error while sending verification code.' });
     }
-  });
+    });
 
-  app.post('/auth/verify-otp', registerLimiter, async (req, res) => {
-    const email = createEmailFromInput(req.body?.email);
-    const otpCode = String(req.body?.otp || req.body?.otpCode || '').trim();
-    const ipAddress = normalizeIp(req);
+    app.post('/auth/verify-otp', registerLimiter, async (req, res) => {
+      const email = createEmailFromInput(req.body?.email);
+      const otpCode = String(req.body?.otp || req.body?.otpCode || '').trim();
+      const ipAddress = normalizeIp(req);
     const userAgent = String(req.headers['user-agent'] || '').trim().slice(0, 1024);
 
     if (!isValidEmail(email)) {
@@ -566,7 +568,8 @@ function registerAuthRoutes(app, deps) {
       }
       return res.status(500).json({ message: 'Server error while verifying OTP.' });
     }
-  });
+    });
+  }
 
   app.post('/auth/login', loginLimiter, async (req, res) => {
     const email = createEmailFromInput(req.body?.email);

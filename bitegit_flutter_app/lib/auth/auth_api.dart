@@ -396,7 +396,7 @@ class AuthApiService {
     return const GeetestRuntimeConfig(
       captchaId: '',
       isConfigured: false,
-      sliderFallbackEnabled: false,
+      sliderFallbackEnabled: true,
     );
   }
 
