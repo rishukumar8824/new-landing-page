@@ -3187,6 +3187,8 @@ class HomePage extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           children: [
             _TopHeader(onOpenProfile: onOpenProfile),
+            const SizedBox(height: 8),
+            const _HomeBrandProgress(),
             const SizedBox(height: 10),
             if (settings.showDepositBanner) ...[
               _HomeDepositBanner(
@@ -3203,9 +3205,7 @@ class HomePage extends StatelessWidget {
                   MaterialPageRoute<void>(builder: (_) => const DepositPage()),
                 ),
                 onOpenP2POrders: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const P2PPage(startInAds: true),
-                  ),
+                  MaterialPageRoute<void>(builder: (_) => const P2PPage()),
                 ),
                 onWithdraw: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const WithdrawPage()),
@@ -3753,6 +3753,96 @@ class _TopHeader extends StatelessWidget {
   }
 }
 
+class _HomeBrandProgress extends StatelessWidget {
+  const _HomeBrandProgress();
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final bg = isLight ? const Color(0xFFE7EBF3) : const Color(0xFF111621);
+    final border = isLight ? const Color(0xFFD5DCEA) : const Color(0xFF232D40);
+    final primary = isLight ? const Color(0xFF151A24) : Colors.white;
+    final muted = isLight ? const Color(0xFF6B7484) : Colors.white60;
+    final accent = const Color(0xFFFFA726);
+
+    Widget stepNode(String label, {required bool active, required bool done}) {
+      final dotColor = done
+          ? accent
+          : (active
+                ? (isLight ? const Color(0xFF151A24) : Colors.white)
+                : (isLight
+                      ? const Color(0xFFB6BECE)
+                      : const Color(0xFF44506A)));
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          ),
+          const SizedBox(height: 6),
+          Text(label, style: TextStyle(fontSize: 10.8, color: muted)),
+        ],
+      );
+    }
+
+    Widget line(bool active) {
+      return Expanded(
+        child: Container(
+          height: 1.4,
+          margin: const EdgeInsets.only(bottom: 20),
+          color: active
+              ? (isLight ? const Color(0xFF515C73) : const Color(0xFF6D7A94))
+              : (isLight ? const Color(0xFFC2CAD9) : const Color(0xFF2C364B)),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        children: [
+          RichText(
+            text: TextSpan(
+              style: TextStyle(
+                color: primary,
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
+              ),
+              children: [
+                const TextSpan(text: 'BITE'),
+                TextSpan(
+                  text: 'G',
+                  style: TextStyle(color: accent),
+                ),
+                const TextSpan(text: 'IT'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              stepNode('Sign Up', done: true, active: false),
+              line(true),
+              stepNode('Identification', done: false, active: true),
+              line(false),
+              stepNode('Deposit', done: false, active: false),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HomeP2PTemplateScroller extends StatefulWidget {
   const _HomeP2PTemplateScroller();
 
@@ -3940,7 +4030,7 @@ class _HomeP2PTemplateScrollerState extends State<_HomeP2PTemplateScroller> {
         border: Border.all(color: cardBorder),
       ),
       child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 2200),
+        duration: const Duration(milliseconds: 650),
         switchInCurve: Curves.easeInOutSine,
         switchOutCurve: Curves.easeInOutSine,
         transitionBuilder: (child, animation) {
@@ -4027,7 +4117,7 @@ class _HomeP2PTemplateScrollerState extends State<_HomeP2PTemplateScroller> {
         border: Border.all(color: cardBorder),
       ),
       child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 2200),
+        duration: const Duration(milliseconds: 650),
         switchInCurve: Curves.easeInOutSine,
         switchOutCurve: Curves.easeInOutSine,
         transitionBuilder: (child, animation) {
@@ -12696,7 +12786,7 @@ class _SupportBotPageState extends State<SupportBotPage> {
   @override
   void initState() {
     super.initState();
-    _appendBot("Hello there! I'm Bybot, how can I assist you today?");
+    _appendBot("Hello there! I'm Bitebot, how can I assist you today?");
     _loadAnalytics();
     _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       _pollRemoteSupportUpdates();
@@ -15326,7 +15416,7 @@ class _SupportHomePageState extends State<SupportHomePage> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        "Hello there! I'm Bybot, how can I assist you today?",
+                        "Hello there! I'm Bitebot, how can I assist you today?",
                         style: TextStyle(
                           fontSize: 13.5,
                           color: secondary,
@@ -16520,6 +16610,9 @@ class _P2PPageState extends State<P2PPage> {
         .toList();
     _offerTicker = Timer.periodic(const Duration(seconds: 3), (_) {
       if (!mounted || _marketPaused) return;
+      if (_activeTab != _P2PTab.p2p && _activeTab != _P2PTab.ads) {
+        return;
+      }
       setState(() {
         _ads = _ads.map((ad) {
           if (!ad.autoPriceEnabled) return ad;
@@ -16920,10 +17013,10 @@ class _P2PPageState extends State<P2PPage> {
             : '--';
 
         return Container(
-          padding: const EdgeInsets.all(10.5),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: const Color(0xFF0F1A2B),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFF22304D)),
           ),
           child: Column(
@@ -16931,8 +17024,8 @@ class _P2PPageState extends State<P2PPage> {
             children: [
               Row(
                 children: [
-                  const UserAvatar(radius: 16),
-                  const SizedBox(width: 7),
+                  const UserAvatar(radius: 22),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -16943,17 +17036,17 @@ class _P2PPageState extends State<P2PPage> {
                             return Text(
                               nickname,
                               style: const TextStyle(
-                                fontSize: 12.2,
+                                fontSize: 16.8,
                                 fontWeight: FontWeight.w700,
                               ),
                             );
                           },
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 2,
+                            horizontal: 9,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
                             color: identityColor.withValues(alpha: 0.14),
@@ -16965,7 +17058,7 @@ class _P2PPageState extends State<P2PPage> {
                           child: Text(
                             identityLabel,
                             style: TextStyle(
-                              fontSize: 9,
+                              fontSize: 11.2,
                               fontWeight: FontWeight.w600,
                               color: identityColor,
                             ),
@@ -16981,22 +17074,22 @@ class _P2PPageState extends State<P2PPage> {
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(66, 28),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      minimumSize: const Size(90, 36),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
                     ),
                     child: const Text(
                       'Deposit',
-                      style: TextStyle(fontSize: 10.2),
+                      style: TextStyle(fontSize: 12.6),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               const Text(
                 'Deposit: 0.00 USDT',
-                style: TextStyle(color: Colors.white70, fontSize: 10.4),
+                style: TextStyle(color: Colors.white70, fontSize: 12.8),
               ),
-              const SizedBox(height: 7),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
@@ -17014,7 +17107,7 @@ class _P2PPageState extends State<P2PPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
@@ -17032,12 +17125,12 @@ class _P2PPageState extends State<P2PPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
                 verified
                     ? 'You can place P2P buy/sell orders now.'
                     : 'KYC required to trade in P2P',
-                style: const TextStyle(color: Colors.white70, fontSize: 10.2),
+                style: const TextStyle(color: Colors.white70, fontSize: 12.4),
               ),
             ],
           ),
@@ -17529,12 +17622,12 @@ class _P2PPageState extends State<P2PPage> {
   Widget _buildProfileTab(BuildContext context) {
     return ListView(
       key: const ValueKey<String>('p2p-profile'),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       children: [
         _buildProfileSummaryCard(context),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.all(9),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: const Color(0xFF0D172A),
             borderRadius: BorderRadius.circular(10),
@@ -17544,20 +17637,20 @@ class _P2PPageState extends State<P2PPage> {
             children: [
               const Icon(
                 Icons.shield_outlined,
-                size: 16,
+                size: 20,
                 color: Colors.white70,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Security: KYC ${kycVerifiedNotifier.value ? 'Verified' : 'Pending'} • IP Monitoring Active ($_sessionIp)',
-                  style: const TextStyle(fontSize: 10.2, color: Colors.white70),
+                  style: const TextStyle(fontSize: 12.4, color: Colors.white70),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         _P2PProfileNavTile(
           icon: Icons.verified_user_outlined,
           title: 'Identity Verification',
@@ -17725,7 +17818,7 @@ class _P2PMetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(7),
+      padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
         color: const Color(0xFF0B1323),
         borderRadius: BorderRadius.circular(10),
@@ -17736,12 +17829,12 @@ class _P2PMetricTile extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(color: Colors.white54, fontSize: 8.8),
+            style: const TextStyle(color: Colors.white54, fontSize: 11),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 5),
           Text(
             value,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            style: const TextStyle(fontSize: 14.8, fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -20013,19 +20106,19 @@ class _P2PProfileNavTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(10),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: const Color(0xFF0C1324),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xFF1D2A44)),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: Colors.white70),
-            const SizedBox(width: 10),
+            Icon(icon, size: 22, color: Colors.white70),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -20033,21 +20126,22 @@ class _P2PProfileNavTile extends StatelessWidget {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 11.8,
+                      fontSize: 15.6,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     subtitle,
                     style: const TextStyle(
-                      fontSize: 10.1,
+                      fontSize: 12.5,
                       color: Colors.white54,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, size: 18, color: Colors.white54),
+            const Icon(Icons.chevron_right, size: 22, color: Colors.white54),
           ],
         ),
       ),
