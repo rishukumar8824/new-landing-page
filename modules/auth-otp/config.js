@@ -37,7 +37,14 @@ function readAuthOtpConfig() {
       captchaId: String(process.env.GEETEST_CAPTCHA_ID || process.env.GEETEST_ID || '').trim(),
       captchaKey: String(process.env.GEETEST_CAPTCHA_KEY || process.env.GEETEST_KEY || '').trim(),
       validateEndpoint: String(process.env.GEETEST_VALIDATE_URL || 'https://gcaptcha4.geetest.com/validate').trim(),
-      timeoutMs: Math.max(2000, toInt(process.env.GEETEST_TIMEOUT_MS, 10000))
+      timeoutMs: Math.max(2000, toInt(process.env.GEETEST_TIMEOUT_MS, 10000)),
+      sliderFallbackEnabled:
+        process.env.GEETEST_SLIDER_FALLBACK_ENABLED === undefined
+          ? true
+          : normalizeBool(process.env.GEETEST_SLIDER_FALLBACK_ENABLED),
+      sliderFallbackSecret: String(process.env.GEETEST_SLIDER_FALLBACK_SECRET || process.env.JWT_SECRET || '').trim(),
+      sliderFallbackTtlMs: Math.max(30 * 1000, toInt(process.env.GEETEST_SLIDER_FALLBACK_TTL_MS, 2 * 60 * 1000)),
+      sliderFallbackTolerance: Math.max(1, toInt(process.env.GEETEST_SLIDER_FALLBACK_TOLERANCE, 4))
     },
     smtp: {
       host: String(process.env.SMTP_HOST || '').trim(),

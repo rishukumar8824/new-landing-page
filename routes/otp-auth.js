@@ -40,6 +40,15 @@ function registerOtpAuthRoutes(app, {
     });
   }
 
+  function getRequestContext(req) {
+    const ipAddress = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || String(req.ip || '');
+    const userAgent = String(req.headers['user-agent'] || '').trim().slice(0, 1024);
+    return {
+      ipAddress,
+      userAgent
+    };
+  }
+
   async function safeOnLoginSuccess(payload) {
     if (typeof onLoginSuccess !== 'function') {
       return;
@@ -69,6 +78,37 @@ function registerOtpAuthRoutes(app, {
     }
   });
 
+  app.post('/auth/captcha/slider/start', sendOtpLimiter, async (req, res) => {
+    try {
+      if (!otpAuthService) {
+        return res.status(503).json({
+          success: false,
+          message: 'Auth OTP service is not configured.'
+        });
+      }
+      if (typeof otpAuthService.createSliderCaptcha !== 'function') {
+        return res.status(503).json({
+          success: false,
+          message: 'Slider captcha is unavailable right now.'
+        });
+      }
+
+      const context = getRequestContext(req);
+      const email = String(req.body?.email || '').trim().toLowerCase();
+      const captcha = await otpAuthService.createSliderCaptcha({
+        ...context,
+        email
+      });
+
+      return res.json({
+        success: true,
+        captcha
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  });
+
   app.post('/auth/send-otp', sendOtpLimiter, async (req, res) => {
     try {
       if (!otpAuthService) {
@@ -85,10 +125,20 @@ function registerOtpAuthRoutes(app, {
             lot_number: req.body?.lot_number,
             captcha_output: req.body?.captcha_output,
             pass_token: req.body?.pass_token,
-            gen_time: req.body?.gen_time
+            gen_time: req.body?.gen_time,
+            fallback_type: req.body?.fallback_type,
+            challenge_id: req.body?.challenge_id,
+            position: req.body?.position,
+            token: req.body?.token
           };
 
-      const result = await otpAuthService.sendOtp({ email, geetest });
+      const context = getRequestContext(req);
+      const result = await otpAuthService.sendOtp({
+        email,
+        geetest,
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent
+      });
       return res.json(result);
     } catch (error) {
       return sendError(res, error);
@@ -107,8 +157,7 @@ function registerOtpAuthRoutes(app, {
       const email = String(req.body?.email || '').trim().toLowerCase();
       const otp = String(req.body?.otp || '').trim();
       const result = await otpAuthService.verifyOtp({ email, otp });
-      const ipAddress = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || String(req.ip || '');
-      const userAgent = String(req.headers['user-agent'] || '').trim().slice(0, 1024);
+      const context = getRequestContext(req);
 
       if (setCookie && cookieNames && tokenService) {
         setCookie(res, cookieNames.accessToken, result.tokenPair.accessToken, tokenService.ACCESS_TOKEN_TTL_SECONDS, {
@@ -130,8 +179,8 @@ function registerOtpAuthRoutes(app, {
           role: 'USER',
           username: String(result.user.email || '').split('@')[0]
         },
-        ipAddress,
-        userAgent
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent
       });
 
       return res.json({

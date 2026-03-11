@@ -39,13 +39,17 @@ function createOtpAuthService({
     maxRequestsPerHour: Number(otpConfig?.maxRequestsPerHour) || 5
   };
 
-  async function sendOtp({ email, geetest }) {
+  async function sendOtp({ email, geetest, ipAddress, userAgent }) {
     const normalizedEmail = normalizeEmail(email);
     if (!isValidEmail(normalizedEmail)) {
       throw createHttpError(400, 'Enter a valid email address.', 'EMAIL_INVALID');
     }
 
-    await geetestService.verifyChallenge(geetest || {});
+    await geetestService.verifyChallenge(geetest || {}, {
+      ipAddress,
+      userAgent,
+      email: normalizedEmail
+    });
 
     const requestsInWindow = await store.countOtpRequestsInLastHour(normalizedEmail);
     if (requestsInWindow >= config.maxRequestsPerHour) {
@@ -143,17 +147,29 @@ function createOtpAuthService({
     };
   }
 
+  function createSliderCaptcha(context = {}) {
+    if (!geetestService || typeof geetestService.createSliderChallenge !== 'function') {
+      throw createHttpError(503, 'Slider captcha is unavailable right now.', 'SLIDER_NOT_AVAILABLE');
+    }
+    return geetestService.createSliderChallenge(context);
+  }
+
+  function getGeetestConfig() {
+    if (geetestService && typeof geetestService.getPublicConfig === 'function') {
+      return geetestService.getPublicConfig();
+    }
+    return {
+      captchaId: String(geetestService?.captchaId || ''),
+      isConfigured: Boolean(geetestService?.isConfigured),
+      sliderFallbackEnabled: false
+    };
+  }
+
   return {
     sendOtp,
     verifyOtp,
-    getGeetestConfig() {
-      if (!geetestService.isConfigured) {
-        throw createHttpError(503, 'Geetest captcha is not configured.', 'GEETEST_NOT_CONFIGURED');
-      }
-      return {
-        captchaId: geetestService.captchaId
-      };
-    }
+    createSliderCaptcha,
+    getGeetestConfig
   };
 }
 

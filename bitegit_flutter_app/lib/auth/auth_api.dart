@@ -2,19 +2,46 @@ import 'dart:convert';
 import 'dart:io';
 
 class GeetestValidatePayload {
-  const GeetestValidatePayload({
+  const GeetestValidatePayload.geetest({
     required this.lotNumber,
     required this.captchaOutput,
     required this.passToken,
     required this.genTime,
-  });
+  }) : fallbackType = '',
+       challengeId = '',
+       position = 0,
+       token = '';
+
+  const GeetestValidatePayload.slider({
+    required this.challengeId,
+    required this.position,
+    required this.token,
+  }) : fallbackType = 'slider',
+       lotNumber = '',
+       captchaOutput = '',
+       passToken = '',
+       genTime = '';
 
   final String lotNumber;
   final String captchaOutput;
   final String passToken;
   final String genTime;
 
-  Map<String, String> toJson() {
+  final String fallbackType;
+  final String challengeId;
+  final int position;
+  final String token;
+
+  Map<String, dynamic> toJson() {
+    if (fallbackType == 'slider') {
+      return {
+        'fallback_type': 'slider',
+        'challenge_id': challengeId,
+        'position': position,
+        'token': token,
+      };
+    }
+
     return {
       'lot_number': lotNumber,
       'captcha_output': captchaOutput,
@@ -22,6 +49,36 @@ class GeetestValidatePayload {
       'gen_time': genTime,
     };
   }
+}
+
+class GeetestRuntimeConfig {
+  const GeetestRuntimeConfig({
+    required this.captchaId,
+    required this.isConfigured,
+    required this.sliderFallbackEnabled,
+  });
+
+  final String captchaId;
+  final bool isConfigured;
+  final bool sliderFallbackEnabled;
+}
+
+class SliderCaptchaChallenge {
+  const SliderCaptchaChallenge({
+    required this.challengeId,
+    required this.token,
+    required this.minPosition,
+    required this.maxPosition,
+    required this.targetPosition,
+    required this.tolerance,
+  });
+
+  final String challengeId;
+  final String token;
+  final int minPosition;
+  final int maxPosition;
+  final int targetPosition;
+  final int tolerance;
 }
 
 class OtpSendResult {
@@ -108,6 +165,28 @@ class AuthApiService {
     return fallback;
   }
 
+  static int _toInt(dynamic value, int fallback) {
+    if (value is int) {
+      return value;
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    return parsed ?? fallback;
+  }
+
+  static bool _toBool(dynamic value, bool fallback) {
+    if (value is bool) {
+      return value;
+    }
+    final normalized = (value ?? '').toString().trim().toLowerCase();
+    if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+      return true;
+    }
+    if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+      return false;
+    }
+    return fallback;
+  }
+
   static Future<OtpSendResult> sendOtp({
     required String email,
     required GeetestValidatePayload geetest,
@@ -165,7 +244,9 @@ class AuthApiService {
       );
       if (_looksSuccessful(response)) {
         final user = response.bodyMap?['user'];
-        final userMap = user is Map<String, dynamic> ? user : const <String, dynamic>{};
+        final userMap = user is Map<String, dynamic>
+            ? user
+            : const <String, dynamic>{};
         final accessToken =
             (response.bodyMap?['accessToken'] ??
                     response.bodyMap?['token'] ??
@@ -179,8 +260,14 @@ class AuthApiService {
           accessToken: accessToken,
           refreshToken: refreshToken,
           userId: (userMap['id'] ?? userMap['userId'] ?? '').toString().trim(),
-          email: (userMap['email'] ?? normalizedEmail).toString().trim().toLowerCase(),
-          kycStatus: (userMap['kycStatus'] ?? '').toString().trim().toLowerCase(),
+          email: (userMap['email'] ?? normalizedEmail)
+              .toString()
+              .trim()
+              .toLowerCase(),
+          kycStatus: (userMap['kycStatus'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase(),
         );
       }
       if (firstFailureMessage.isEmpty) {
@@ -196,7 +283,7 @@ class AuthApiService {
     );
   }
 
-  static Future<String> resolveGeetestCaptchaId() async {
+  static Future<GeetestRuntimeConfig> resolveCaptchaRuntimeConfig() async {
     for (final base in _baseUrls()) {
       final response = await _getJson(_uri(base, '/auth/geetest/config'));
       if (!_looksSuccessful(response)) {
@@ -209,18 +296,71 @@ class AuthApiService {
       }
 
       final captchaId = (geetest['captchaId'] ?? '').toString().trim();
-      if (captchaId.isEmpty) {
+      final isConfigured = _toBool(geetest['isConfigured'], false);
+      final sliderFallbackEnabled = _toBool(
+        geetest['sliderFallbackEnabled'],
+        true,
+      );
+
+      return GeetestRuntimeConfig(
+        captchaId: captchaId,
+        isConfigured: isConfigured,
+        sliderFallbackEnabled: sliderFallbackEnabled,
+      );
+    }
+
+    return const GeetestRuntimeConfig(
+      captchaId: '',
+      isConfigured: false,
+      sliderFallbackEnabled: false,
+    );
+  }
+
+  static Future<String> resolveGeetestCaptchaId() async {
+    final runtime = await resolveCaptchaRuntimeConfig();
+    if (!runtime.isConfigured) {
+      return '';
+    }
+    return runtime.captchaId;
+  }
+
+  static Future<SliderCaptchaChallenge?> startSliderCaptcha({
+    String? email,
+  }) async {
+    final normalizedEmail = (email ?? '').trim().toLowerCase();
+
+    for (final base in _baseUrls()) {
+      final response = await _postJson(
+        _uri(base, '/auth/captcha/slider/start'),
+        <String, dynamic>{'email': normalizedEmail},
+      );
+      if (!_looksSuccessful(response)) {
         continue;
       }
 
-      final configuredFlag = geetest['isConfigured'];
-      final isConfigured = configuredFlag == null || configuredFlag == true;
-      if (isConfigured) {
-        return captchaId;
+      final captcha = response.bodyMap?['captcha'];
+      if (captcha is! Map<String, dynamic>) {
+        continue;
       }
+
+      final challengeId = (captcha['challengeId'] ?? '').toString().trim();
+      final token = (captcha['token'] ?? '').toString().trim();
+
+      if (challengeId.isEmpty || token.isEmpty) {
+        continue;
+      }
+
+      return SliderCaptchaChallenge(
+        challengeId: challengeId,
+        token: token,
+        minPosition: _toInt(captcha['minPosition'], 0),
+        maxPosition: _toInt(captcha['maxPosition'], 100),
+        targetPosition: _toInt(captcha['targetPosition'], 50),
+        tolerance: _toInt(captcha['tolerance'], 4),
+      );
     }
 
-    return '';
+    return null;
   }
 
   static Future<_HttpJsonResponse> _getJson(Uri uri) async {

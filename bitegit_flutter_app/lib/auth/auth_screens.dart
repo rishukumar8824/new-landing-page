@@ -46,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final geetest = await showDialog<GeetestValidatePayload>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const GeetestCaptchaDialog(),
+      builder: (_) => GeetestCaptchaDialog(email: email),
     );
     if (geetest == null) {
       messenger.showSnackBar(
@@ -145,7 +145,7 @@ class _SignupScreenState extends State<SignupScreen> {
     final geetest = await showDialog<GeetestValidatePayload>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const GeetestCaptchaDialog(),
+      builder: (_) => GeetestCaptchaDialog(email: email),
     );
     if (geetest == null) {
       messenger.showSnackBar(
@@ -552,7 +552,9 @@ class AuthScaffold extends StatelessWidget {
 }
 
 class GeetestCaptchaDialog extends StatefulWidget {
-  const GeetestCaptchaDialog({super.key});
+  const GeetestCaptchaDialog({super.key, required this.email});
+
+  final String email;
 
   @override
   State<GeetestCaptchaDialog> createState() => _GeetestCaptchaDialogState();
@@ -563,8 +565,14 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
     'BITEGIT_GEETEST_CAPTCHA_ID',
     defaultValue: '',
   );
+
   bool _loading = true;
+  bool _useSliderFallback = false;
   String? _error;
+  String? _sliderHint;
+  SliderCaptchaChallenge? _sliderChallenge;
+  double _sliderValue = 0;
+  bool _sliderAligned = false;
 
   late final WebViewController _controller;
 
@@ -575,14 +583,25 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
         'CaptchaChannel',
-        onMessageReceived: (message) {
+        onMessageReceived: (message) async {
           try {
             final decoded = jsonDecode(message.message);
             if (decoded is! Map<String, dynamic>) {
               throw const FormatException('Invalid captcha payload');
             }
 
-            final payload = GeetestValidatePayload(
+            final providerError = (decoded['error'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            if (providerError.isNotEmpty) {
+              await _enableSliderFallback(
+                'Captcha provider unavailable. Switching to slider verification.',
+              );
+              return;
+            }
+
+            final payload = GeetestValidatePayload.geetest(
               lotNumber: (decoded['lot_number'] ?? '').toString().trim(),
               captchaOutput: (decoded['captcha_output'] ?? '')
                   .toString()
@@ -594,9 +613,9 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
             if (!mounted) return;
             Navigator.of(context).pop(payload);
           } catch (_) {
-            setState(() {
-              _error = 'Captcha failed. Please try again.';
-            });
+            await _enableSliderFallback(
+              'Captcha failed. Use slider verification to continue.',
+            );
           }
         },
       )
@@ -606,6 +625,11 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
             if (mounted) {
               setState(() => _loading = false);
             }
+          },
+          onWebResourceError: (_) async {
+            await _enableSliderFallback(
+              'Captcha service temporarily unavailable. Using slider verification.',
+            );
           },
         ),
       );
@@ -618,24 +642,251 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
       setState(() {
         _loading = true;
         _error = null;
+        _sliderHint = null;
+        _useSliderFallback = false;
+        _sliderChallenge = null;
+        _sliderAligned = false;
+        _sliderValue = 0;
       });
     }
 
-    var captchaId = _captchaIdFromBuild.trim();
-    if (captchaId.isEmpty) {
-      captchaId = await AuthApiService.resolveGeetestCaptchaId();
-    }
+    final runtimeConfig = await AuthApiService.resolveCaptchaRuntimeConfig();
+    final resolvedCaptchaId = runtimeConfig.captchaId.trim();
+    final captchaId = _captchaIdFromBuild.trim().isNotEmpty
+        ? _captchaIdFromBuild.trim()
+        : resolvedCaptchaId;
 
     if (!mounted) return;
-    if (captchaId.isEmpty) {
+
+    if (runtimeConfig.isConfigured && captchaId.isNotEmpty) {
+      _controller.loadHtmlString(_captchaHtml(captchaId));
+      return;
+    }
+
+    if (runtimeConfig.sliderFallbackEnabled) {
+      await _enableSliderFallback(
+        'Captcha service is unavailable. Please complete slider verification.',
+      );
+      return;
+    }
+
+    setState(() {
+      _loading = false;
+      _error =
+          'Captcha service is temporarily unavailable. Please try again in a few moments.';
+    });
+  }
+
+  Future<void> _enableSliderFallback(String hint) async {
+    if (!mounted) return;
+
+    setState(() {
+      _loading = true;
+      _useSliderFallback = true;
+      _error = null;
+      _sliderHint = hint;
+      _sliderChallenge = null;
+      _sliderAligned = false;
+      _sliderValue = 0;
+    });
+
+    await _startSliderFallback();
+  }
+
+  Future<void> _startSliderFallback() async {
+    final challenge = await AuthApiService.startSliderCaptcha(
+      email: widget.email,
+    );
+
+    if (!mounted) return;
+
+    if (challenge == null) {
       setState(() {
         _loading = false;
         _error =
-            'Captcha service is temporarily unavailable. Please try again in a few moments.';
+            'Captcha is temporarily unavailable. Please try again in a few moments.';
       });
       return;
     }
-    _controller.loadHtmlString(_captchaHtml(captchaId));
+
+    final initial = challenge.minPosition.toDouble();
+    setState(() {
+      _loading = false;
+      _useSliderFallback = true;
+      _sliderChallenge = challenge;
+      _sliderValue = initial;
+      _sliderAligned =
+          (challenge.targetPosition - initial).abs() <= challenge.tolerance;
+    });
+  }
+
+  void _onSliderChanged(double value) {
+    final challenge = _sliderChallenge;
+    if (challenge == null) {
+      return;
+    }
+
+    final rounded = value.round();
+    final aligned =
+        (rounded - challenge.targetPosition).abs() <= challenge.tolerance;
+
+    setState(() {
+      _sliderValue = value;
+      _sliderAligned = aligned;
+    });
+  }
+
+  void _submitSliderCaptcha() {
+    final challenge = _sliderChallenge;
+    if (challenge == null) {
+      return;
+    }
+
+    final payload = GeetestValidatePayload.slider(
+      challengeId: challenge.challengeId,
+      position: _sliderValue.round(),
+      token: challenge.token,
+    );
+
+    Navigator.of(context).pop(payload);
+  }
+
+  Widget _buildErrorPane() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.redAccent),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: _loadCaptcha,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Color(0xFF3A4050)),
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSliderPane() {
+    final challenge = _sliderChallenge;
+    if (challenge == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final min = challenge.minPosition.toDouble();
+    final max = challenge.maxPosition.toDouble();
+    final clampedValue = _sliderValue.clamp(min, max).toDouble();
+    final targetRatio =
+        ((challenge.targetPosition - challenge.minPosition) /
+                (challenge.maxPosition - challenge.minPosition))
+            .clamp(0, 1);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _sliderHint ?? 'Slide to match the target and continue.',
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'Align the slider with the marker',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final markerLeft = (constraints.maxWidth * targetRatio).clamp(
+                0.0,
+                constraints.maxWidth,
+              );
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1F2A),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  Positioned(
+                    left: markerLeft - 1,
+                    top: -4,
+                    child: Container(width: 2, height: 24, color: Colors.white),
+                  ),
+                ],
+              );
+            },
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: Colors.white,
+              inactiveTrackColor: const Color(0xFF2A2D36),
+              thumbColor: Colors.white,
+              overlayColor: Colors.white24,
+            ),
+            child: Slider(
+              min: min,
+              max: max,
+              value: clampedValue,
+              onChanged: _onSliderChanged,
+            ),
+          ),
+          Text(
+            _sliderAligned
+                ? 'Position matched. Tap continue.'
+                : 'Move closer to marker.',
+            style: TextStyle(
+              color: _sliderAligned ? Colors.greenAccent : Colors.white60,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _sliderAligned ? _submitSliderCaptcha : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                disabledBackgroundColor: const Color(0xFF232323),
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+              child: const Text(
+                'Continue',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _startSliderFallback,
+              child: const Text('Refresh challenge'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -670,32 +921,9 @@ class _GeetestCaptchaDialogState extends State<GeetestCaptchaDialog> {
             const Divider(height: 1, color: Color(0xFF242833)),
             Expanded(
               child: _error != null
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _error!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.redAccent),
-                            ),
-                            const SizedBox(height: 12),
-                            OutlinedButton(
-                              onPressed: _loadCaptcha,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                side: const BorderSide(
-                                  color: Color(0xFF3A4050),
-                                ),
-                              ),
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
+                  ? _buildErrorPane()
+                  : _useSliderFallback
+                  ? _buildSliderPane()
                   : Stack(
                       children: [
                         WebViewWidget(controller: _controller),
