@@ -854,6 +854,83 @@ async function requiresAdminSession(req, res, next) {
   }
 }
 
+function isLegacyAdminIdentifier(identifier) {
+  const normalized = String(identifier || '').trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (normalized === ADMIN_SEED_EMAIL) {
+    return true;
+  }
+  if (normalized === ADMIN_SEED_USERNAME) {
+    return true;
+  }
+  return normalized === `${ADMIN_SEED_USERNAME}@admin.local`;
+}
+
+async function handleLegacyAdminLogin(req, res) {
+  const ipAddress = getRequestIp(req);
+  const limiter = loginAttemptLimiter(`admin_legacy_login:${ipAddress}`);
+  if (!limiter.allowed) {
+    res.setHeader('Retry-After', String(limiter.retryAfterSeconds));
+    return res.status(429).json({
+      message: 'Too many login attempts. Please try again later.',
+      retryAfterSeconds: limiter.retryAfterSeconds
+    });
+  }
+
+  const identifier = String(req.body?.email || req.body?.username || req.body?.identifier || '')
+    .trim()
+    .toLowerCase();
+  const password = String(req.body?.password || '').trim();
+
+  if (!identifier || !password) {
+    return res.status(400).json({ message: 'Admin email/username and password are required.' });
+  }
+
+  if (!repos) {
+    return res.status(503).json({ message: 'Admin service is initializing. Please try again.' });
+  }
+
+  if (!isLegacyAdminIdentifier(identifier) || password !== ADMIN_PASSWORD) {
+    return res.status(401).json({ message: 'Invalid login credentials.' });
+  }
+
+  const sessionToken = await createSession();
+  setCookie(res, SESSION_COOKIE_NAME, sessionToken, Math.floor(SESSION_TTL_MS / 1000), {
+    sameSite: 'Lax',
+    secure: IS_PRODUCTION,
+    httpOnly: true
+  });
+
+  return res.json({
+    message: 'Admin login successful.',
+    admin: {
+      id: 'admin_legacy',
+      username: ADMIN_SEED_USERNAME,
+      email: ADMIN_SEED_EMAIL,
+      role: ADMIN_SEED_ROLE,
+      status: 'ACTIVE'
+    },
+    legacySession: true
+  });
+}
+
+// Keep admin login available even if modular admin routes are delayed (e.g. external DB module timeouts).
+app.post('/api/admin/auth/login', async (req, res, next) => {
+  if (adminControllers && adminAuthMiddleware) {
+    return next();
+  }
+  return handleLegacyAdminLogin(req, res);
+});
+
+app.post('/api/admin/login', async (req, res, next) => {
+  if (adminControllers && adminAuthMiddleware) {
+    return next();
+  }
+  return handleLegacyAdminLogin(req, res);
+});
+
 function buildP2PUserFromEmail(email, role = 'USER') {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   const baseName = normalizedEmail.split('@')[0] || 'trader';
