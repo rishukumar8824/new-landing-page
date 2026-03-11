@@ -3166,7 +3166,7 @@ class _ExchangeShellState extends State<ExchangeShell> {
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
     required this.onOpenProfile,
@@ -3179,55 +3179,116 @@ class HomePage extends StatelessWidget {
   final ValueChanged<MarketPair> onOpenTradePair;
 
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey<_HomeSocialDiscoveryFeedState> _socialFeedKey =
+      GlobalKey<_HomeSocialDiscoveryFeedState>();
+  bool _composerOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.extentAfter < 900) {
+      _socialFeedKey.currentState?.loadMoreIfNeeded();
+    }
+  }
+
+  void _handleComposerAction(String action) {
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$action publishing will open here.')));
+    }
+    setState(() => _composerOpen = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<HomeWidgetSettings>(
       valueListenable: homeWidgetSettingsNotifier,
       builder: (context, settings, _) {
-        return ListView(
-          padding: const EdgeInsets.all(14),
+        return Stack(
           children: [
-            _TopHeader(onOpenProfile: onOpenProfile),
-            const SizedBox(height: 8),
-            const _HomeBrandProgress(),
-            const SizedBox(height: 10),
-            if (settings.showDepositBanner) ...[
-              _HomeDepositBanner(
-                onDeposit: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const DepositPage()),
-                ),
-                onOpenAssets: () => onNavigateTab(4),
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (settings.showQuickActions) ...[
-              _HomeQuickActions(
-                onDeposit: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const DepositPage()),
-                ),
-                onOpenP2POrders: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const P2PPage()),
-                ),
-                onWithdraw: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const WithdrawPage()),
-                ),
-                onReward: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const RewardsContestOverviewPage(),
+            ListView(
+              controller: _scrollController,
+              cacheExtent: 1800,
+              padding: const EdgeInsets.all(14),
+              children: [
+                _TopHeader(onOpenProfile: widget.onOpenProfile),
+                const SizedBox(height: 8),
+                const _HomeBrandProgress(),
+                const SizedBox(height: 10),
+                if (settings.showDepositBanner) ...[
+                  _HomeDepositBanner(
+                    onDeposit: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const DepositPage()),
+                    ),
+                    onOpenAssets: () => widget.onNavigateTab(4),
                   ),
+                  const SizedBox(height: 12),
+                ],
+                if (settings.showQuickActions) ...[
+                  _HomeQuickActions(
+                    onDeposit: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const DepositPage()),
+                    ),
+                    onOpenP2POrders: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const P2PPage()),
+                    ),
+                    onWithdraw: () => Navigator.of(
+                      context,
+                    ).push(MaterialPageRoute<void>(builder: (_) => const WithdrawPage())),
+                    onReward: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const RewardsContestOverviewPage(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (settings.showPromoScroller) ...[
+                  const _HomeP2PTemplateScroller(),
+                  const SizedBox(height: 10),
+                ],
+                if (settings.showTicker) ...[
+                  const _AnnouncementTicker(items: kMarketNotices),
+                  const SizedBox(height: 10),
+                ],
+                if (settings.showPairs) ...[
+                  _HomePopularPairsSection(onOpenTradePair: widget.onOpenTradePair),
+                  const SizedBox(height: 12),
+                ],
+                _HomeSocialDiscoveryFeed(
+                  key: _socialFeedKey,
+                  accessTokenListenable: authAccessTokenNotifier,
                 ),
+                const SizedBox(height: 104),
+              ],
+            ),
+            Positioned(
+              right: 18,
+              bottom: 102,
+              child: _HomeFeedComposerFab(
+                open: _composerOpen,
+                onToggle: () => setState(() => _composerOpen = !_composerOpen),
+                onSelect: _handleComposerAction,
               ),
-              const SizedBox(height: 10),
-            ],
-            if (settings.showPromoScroller) ...[
-              const _HomeP2PTemplateScroller(),
-              const SizedBox(height: 10),
-            ],
-            if (settings.showTicker) ...[
-              const _AnnouncementTicker(items: kMarketNotices),
-              const SizedBox(height: 10),
-            ],
-            if (settings.showPairs)
-              _HomePopularPairsSection(onOpenTradePair: onOpenTradePair),
+            ),
           ],
         );
       },
@@ -4523,6 +4584,1232 @@ class _HomePopularPairsSectionState extends State<_HomePopularPairsSection> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SocialFeedPost {
+  const _SocialFeedPost({
+    required this.id,
+    required this.username,
+    required this.createdAt,
+    required this.contentText,
+    required this.mediaType,
+    required this.mediaUrl,
+    required this.isLive,
+    required this.commentCount,
+    required this.repostCount,
+    required this.likeCount,
+    required this.viewCount,
+    this.avatarUrl = '',
+  });
+
+  final String id;
+  final String username;
+  final String avatarUrl;
+  final DateTime createdAt;
+  final String contentText;
+  final String mediaType;
+  final String mediaUrl;
+  final bool isLive;
+  final int commentCount;
+  final int repostCount;
+  final int likeCount;
+  final int viewCount;
+
+  factory _SocialFeedPost.fromMap(Map<String, dynamic> map) {
+    DateTime parsedDate = DateTime.now();
+    final rawDate = map['createdAt'] ?? map['created_at'] ?? map['time'];
+    if (rawDate != null) {
+      parsedDate = DateTime.tryParse(rawDate.toString()) ?? DateTime.now();
+    }
+    return _SocialFeedPost(
+      id: (map['id'] ?? '').toString().trim(),
+      username: (map['username'] ?? map['name'] ?? 'Bitegit User').toString().trim(),
+      avatarUrl: (map['avatarUrl'] ?? map['avatar_url'] ?? '').toString().trim(),
+      createdAt: parsedDate,
+      contentText: (map['contentText'] ?? map['content_text'] ?? map['text'] ?? '').toString().trim(),
+      mediaType: (map['mediaType'] ?? map['media_type'] ?? 'text').toString().trim().toLowerCase(),
+      mediaUrl: (map['mediaUrl'] ?? map['media_url'] ?? '').toString().trim(),
+      isLive: map['isLive'] == true || map['is_live'] == true || map['is_live'] == 1,
+      commentCount: _parseCounter(map['commentCount'] ?? map['comment_count']),
+      repostCount: _parseCounter(map['repostCount'] ?? map['repost_count']),
+      likeCount: _parseCounter(map['likeCount'] ?? map['like_count']),
+      viewCount: _parseCounter(map['viewCount'] ?? map['view_count']),
+    );
+  }
+}
+
+class _SuggestedCreator {
+  const _SuggestedCreator({
+    required this.id,
+    required this.name,
+    required this.followersCount,
+    required this.verified,
+    this.avatarUrl = '',
+  });
+
+  final String id;
+  final String name;
+  final int followersCount;
+  final bool verified;
+  final String avatarUrl;
+
+  factory _SuggestedCreator.fromMap(Map<String, dynamic> map) {
+    return _SuggestedCreator(
+      id: (map['id'] ?? '').toString().trim(),
+      name: (map['name'] ?? 'Creator').toString().trim(),
+      followersCount: _parseCounter(map['followersCount'] ?? map['followers_count']),
+      verified: map['verified'] == true || map['verified'] == 1,
+      avatarUrl: (map['avatarUrl'] ?? map['avatar_url'] ?? '').toString().trim(),
+    );
+  }
+}
+
+class _CopyTrader {
+  const _CopyTrader({
+    required this.id,
+    required this.username,
+    required this.minCopyAmount,
+    required this.pnl7d,
+    required this.roiPercent,
+    required this.aumValue,
+    required this.winRate,
+    this.avatarUrl = '',
+  });
+
+  final String id;
+  final String username;
+  final String avatarUrl;
+  final double minCopyAmount;
+  final double pnl7d;
+  final double roiPercent;
+  final double aumValue;
+  final double winRate;
+
+  factory _CopyTrader.fromMap(Map<String, dynamic> map) {
+    return _CopyTrader(
+      id: (map['id'] ?? '').toString().trim(),
+      username: (map['username'] ?? 'Trader').toString().trim(),
+      avatarUrl: (map['avatarUrl'] ?? map['avatar_url'] ?? '').toString().trim(),
+      minCopyAmount: _toDouble(map['minCopyAmount'] ?? map['min_copy_amount']),
+      pnl7d: _toDouble(map['pnl7d'] ?? map['pnl_7d']),
+      roiPercent: _toDouble(map['roiPercent'] ?? map['roi_percent']),
+      aumValue: _toDouble(map['aumValue'] ?? map['aum_value']),
+      winRate: _toDouble(map['winRate'] ?? map['win_rate']),
+    );
+  }
+}
+
+int _parseCounter(dynamic value) {
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+String _initialsOf(String input) {
+  final cleaned = input.trim();
+  if (cleaned.isEmpty) return 'B';
+  final parts = cleaned.split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+  if (parts.length >= 2) {
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+  if (parts.first.length >= 2) {
+    return parts.first.substring(0, 2).toUpperCase();
+  }
+  return parts.first.substring(0, 1).toUpperCase();
+}
+
+String _formatCountCompact(int value) {
+  if (value >= 1000000) {
+    return '${(value / 1000000).toStringAsFixed(1)}M';
+  }
+  if (value >= 1000) {
+    return '${(value / 1000).toStringAsFixed(1)}K';
+  }
+  return '$value';
+}
+
+String _timeAgo(DateTime value) {
+  final now = DateTime.now();
+  final diff = now.difference(value);
+  if (diff.inMinutes < 1) return 'Just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+  if (diff.inHours < 24) return '${diff.inHours}h';
+  if (diff.inDays < 7) return '${diff.inDays}d';
+  return '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}';
+}
+
+class _HomeSocialDiscoveryFeed extends StatefulWidget {
+  const _HomeSocialDiscoveryFeed({super.key, required this.accessTokenListenable});
+
+  final ValueNotifier<String> accessTokenListenable;
+
+  @override
+  State<_HomeSocialDiscoveryFeed> createState() => _HomeSocialDiscoveryFeedState();
+}
+
+class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
+  static const List<String> _tabs = ['Discover', 'Following', 'Campaign', 'Announcement'];
+  int _tabIndex = 0;
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _page = 1;
+  String? _errorText;
+
+  List<_SocialFeedPost> _posts = const <_SocialFeedPost>[];
+  List<_SuggestedCreator> _creators = const <_SuggestedCreator>[];
+  List<_CopyTrader> _copyTraders = const <_CopyTrader>[];
+  final Set<String> _followingCreators = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.accessTokenListenable.addListener(_handleAuthChanged);
+    _reloadAll();
+  }
+
+  @override
+  void dispose() {
+    widget.accessTokenListenable.removeListener(_handleAuthChanged);
+    super.dispose();
+  }
+
+  void _handleAuthChanged() {
+    if (!mounted) return;
+    if (_tabKey == 'following') {
+      _reloadAll();
+    }
+  }
+
+  String get _tabKey => _tabs[_tabIndex].toLowerCase();
+
+  Future<_ApiHttpResponse> _fetchGet(
+    String path, {
+    Map<String, String>? query,
+    bool includeAuth = true,
+  }) async {
+    final token = includeAuth ? widget.accessTokenListenable.value.trim() : '';
+    _ApiHttpResponse last = const _ApiHttpResponse(statusCode: 0, bodyMap: null);
+    for (final base in _apiBaseUrls()) {
+      final uri = _apiUri(base, path).replace(queryParameters: query);
+      final response = await _getJsonFromApi(uri, accessToken: token.isEmpty ? null : token);
+      last = response;
+      if (response.statusCode > 0 && response.statusCode < 500) {
+        return response;
+      }
+    }
+    return last;
+  }
+
+  Future<_ApiHttpResponse> _fetchPost(String path, Map<String, dynamic> payload) async {
+    final token = widget.accessTokenListenable.value.trim();
+    _ApiHttpResponse last = const _ApiHttpResponse(statusCode: 0, bodyMap: null);
+    for (final base in _apiBaseUrls()) {
+      final response = await _postJsonToApi(
+        _apiUri(base, path),
+        payload,
+        accessToken: token.isEmpty ? null : token,
+      );
+      last = response;
+      if (response.statusCode > 0 && response.statusCode < 500) {
+        return response;
+      }
+    }
+    return last;
+  }
+
+  Future<void> _reloadAll() async {
+    setState(() {
+      _loading = true;
+      _errorText = null;
+      _page = 1;
+      _hasMore = true;
+    });
+    await Future.wait<void>([
+      _loadFeedPage(append: false),
+      _loadCreators(),
+      _loadCopyTraders(),
+    ]);
+    if (!mounted) return;
+    setState(() => _loading = false);
+  }
+
+  Future<void> _loadFeedPage({required bool append}) async {
+    final targetPage = append ? _page + 1 : 1;
+    final response = await _fetchGet('/api/social/feed', query: <String, String>{
+      'tab': _tabKey,
+      'page': '$targetPage',
+      'pageSize': '10',
+    });
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final body = response.bodyMap ?? const <String, dynamic>{};
+      final rawItems = (body['items'] is List)
+          ? body['items'] as List<dynamic>
+          : (body['data'] is Map<String, dynamic> && (body['data'] as Map<String, dynamic>)['items'] is List)
+          ? ((body['data'] as Map<String, dynamic>)['items'] as List<dynamic>)
+          : const <dynamic>[];
+
+      final parsed = rawItems
+          .whereType<Map<String, dynamic>>()
+          .map(_SocialFeedPost.fromMap)
+          .where((post) => post.id.isNotEmpty)
+          .toList(growable: false);
+
+      if (!mounted) return;
+      setState(() {
+        _posts = append ? <_SocialFeedPost>[..._posts, ...parsed] : parsed;
+        _page = targetPage;
+        _hasMore = body['hasMore'] == true || parsed.length >= 10;
+        _errorText = null;
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    if (!append) {
+      setState(() {
+        _posts = _fallbackPostsForTab(_tabKey);
+        _hasMore = false;
+        _errorText = response.statusCode == 401 && _tabKey == 'following'
+            ? 'Login required to load Following feed.'
+            : 'Feed temporarily unavailable. Showing cached cards.';
+      });
+    }
+  }
+
+  Future<void> _loadCreators() async {
+    final response = await _fetchGet('/api/social/suggested-creators', query: const <String, String>{'limit': '6'});
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final body = response.bodyMap ?? const <String, dynamic>{};
+      final rawItems = body['items'] is List ? body['items'] as List<dynamic> : const <dynamic>[];
+      final parsed = rawItems
+          .whereType<Map<String, dynamic>>()
+          .map(_SuggestedCreator.fromMap)
+          .where((item) => item.id.isNotEmpty)
+          .toList(growable: false);
+      if (!mounted) return;
+      setState(() {
+        _creators = parsed.isEmpty ? _fallbackCreators : parsed;
+      });
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _creators = _fallbackCreators);
+  }
+
+  Future<void> _loadCopyTraders() async {
+    final response = await _fetchGet('/api/social/copy-traders', query: const <String, String>{'limit': '8'});
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final body = response.bodyMap ?? const <String, dynamic>{};
+      final rawItems = body['items'] is List ? body['items'] as List<dynamic> : const <dynamic>[];
+      final parsed = rawItems
+          .whereType<Map<String, dynamic>>()
+          .map(_CopyTrader.fromMap)
+          .where((item) => item.id.isNotEmpty)
+          .toList(growable: false);
+      if (!mounted) return;
+      setState(() {
+        _copyTraders = parsed.isEmpty ? _fallbackCopyTraders : parsed;
+      });
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _copyTraders = _fallbackCopyTraders);
+  }
+
+  Future<void> _followCreator(_SuggestedCreator creator) async {
+    if (_followingCreators.contains(creator.id)) {
+      return;
+    }
+    setState(() => _followingCreators.add(creator.id));
+    final response = await _fetchPost('/api/social/creators/${creator.id}/follow', const <String, dynamic>{});
+    if (!mounted) return;
+    if (!_apiSuccess(response)) {
+      setState(() => _followingCreators.remove(creator.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_apiErrorMessage(response, fallback: 'Unable to follow creator.'))),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Following ${creator.name}')),
+    );
+  }
+
+  void _dismissPost(String id) {
+    setState(() {
+      _posts = _posts.where((post) => post.id != id).toList(growable: false);
+    });
+  }
+
+  Future<void> _changeTab(int index) async {
+    if (_tabIndex == index) return;
+    setState(() {
+      _tabIndex = index;
+      _loading = true;
+      _loadingMore = false;
+      _hasMore = true;
+      _page = 1;
+      _errorText = null;
+    });
+    await _loadFeedPage(append: false);
+    if (!mounted) return;
+    setState(() => _loading = false);
+  }
+
+  Future<void> loadMoreIfNeeded() async {
+    if (_loading || _loadingMore || !_hasMore) {
+      return;
+    }
+    _loadingMore = true;
+    await _loadFeedPage(append: true);
+    if (!mounted) return;
+    setState(() => _loadingMore = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final shell = isLight ? Colors.white : const Color(0xFF0C111A);
+    final border = isLight ? const Color(0xFFD8E0EE) : const Color(0xFF1E2638);
+    final primary = isLight ? const Color(0xFF121722) : Colors.white;
+    final secondary = isLight ? const Color(0xFF6D768A) : Colors.white60;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: shell,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Community Feed',
+            style: TextStyle(
+              color: primary,
+              fontSize: 17.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Discover trader updates and community intelligence.',
+            style: TextStyle(
+              color: secondary,
+              fontSize: 12.2,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: List.generate(_tabs.length, (index) {
+                final selected = _tabIndex == index;
+                return Padding(
+                  padding: EdgeInsets.only(right: index == _tabs.length - 1 ? 0 : 8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: () => _changeTab(index),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? (isLight ? const Color(0xFF111827) : const Color(0xFFF4F6FA))
+                            : (isLight ? const Color(0xFFECEFF7) : const Color(0xFF151D2A)),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        _tabs[index],
+                        style: TextStyle(
+                          color: selected
+                              ? (isLight ? Colors.white : const Color(0xFF111827))
+                              : secondary,
+                          fontSize: 12.4,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.1,
+                  color: Color(0xFFF1CB3E),
+                ),
+              ),
+            ),
+          if (!_loading && _errorText != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isLight ? const Color(0xFFF7EBEB) : const Color(0xFF2A1720),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                _errorText!,
+                style: TextStyle(
+                  color: isLight ? const Color(0xFF912E39) : const Color(0xFFFFB9C1),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (!_loading)
+            ..._posts.map((post) => RepaintBoundary(
+                  child: _SocialPostCard(
+                    post: post,
+                    onClose: () => _dismissPost(post.id),
+                  ),
+                )),
+          if (!_loading && _posts.isEmpty)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+              decoration: BoxDecoration(
+                color: isLight ? const Color(0xFFF6F8FC) : const Color(0xFF101522),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                _tabKey == 'following'
+                    ? 'No following posts yet. Follow creators to personalize your feed.'
+                    : 'No posts available right now.',
+                style: TextStyle(
+                  color: secondary,
+                  fontSize: 12.4,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          if (!_loadingMore && !_loading && _hasMore)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: loadMoreIfNeeded,
+                icon: const Icon(Icons.expand_more_rounded),
+                label: const Text('Load more'),
+              ),
+            ),
+          if (_loadingMore)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFFF1CB3E),
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          _SuggestedCreatorsSection(
+            creators: _creators,
+            following: _followingCreators,
+            onFollow: _followCreator,
+          ),
+          const SizedBox(height: 12),
+          _CopyTradingForYouSection(traders: _copyTraders),
+        ],
+      ),
+    );
+  }
+
+  List<_SocialFeedPost> _fallbackPostsForTab(String tab) {
+    final now = DateTime.now();
+    if (tab == 'campaign') {
+      return <_SocialFeedPost>[
+        _SocialFeedPost(
+          id: 'fallback-campaign-1',
+          username: 'Bitegit Campaign',
+          createdAt: now.subtract(const Duration(minutes: 20)),
+          contentText: 'Campaign: Trade Futures and unlock up to 20% fee rebate this week.',
+          mediaType: 'image',
+          mediaUrl: '',
+          isLive: false,
+          commentCount: 0,
+          repostCount: 0,
+          likeCount: 0,
+          viewCount: 0,
+        ),
+      ];
+    }
+    if (tab == 'announcement') {
+      return <_SocialFeedPost>[
+        _SocialFeedPost(
+          id: 'fallback-announcement-1',
+          username: 'Bitegit Official',
+          createdAt: now.subtract(const Duration(minutes: 15)),
+          contentText: 'Announcement: Wallet maintenance scheduled at 02:00 UTC.',
+          mediaType: 'text',
+          mediaUrl: '',
+          isLive: false,
+          commentCount: 0,
+          repostCount: 0,
+          likeCount: 0,
+          viewCount: 0,
+        ),
+      ];
+    }
+    return <_SocialFeedPost>[
+      _SocialFeedPost(
+        id: 'fallback-discover-1',
+        username: 'Alpha Whale',
+        createdAt: now.subtract(const Duration(minutes: 4)),
+        contentText: 'BTC liquidity zones updated for NY session. Watching 67.8k-68.2k.',
+        mediaType: 'image',
+        mediaUrl: '',
+        isLive: false,
+        commentCount: 19,
+        repostCount: 8,
+        likeCount: 142,
+        viewCount: 3580,
+      ),
+      _SocialFeedPost(
+        id: 'fallback-discover-2',
+        username: 'Chain Pulse',
+        createdAt: now.subtract(const Duration(minutes: 11)),
+        contentText: 'ETH perp basis stable. No aggressive long until confirmation close.',
+        mediaType: 'video',
+        mediaUrl: '',
+        isLive: false,
+        commentCount: 7,
+        repostCount: 3,
+        likeCount: 68,
+        viewCount: 1910,
+      ),
+    ];
+  }
+
+  List<_SuggestedCreator> get _fallbackCreators => const <_SuggestedCreator>[
+        _SuggestedCreator(id: 'c1', name: 'Alpha Whale', followersCount: 21873, verified: true),
+        _SuggestedCreator(id: 'c2', name: 'Chain Pulse', followersCount: 14704, verified: true),
+        _SuggestedCreator(id: 'c3', name: 'Macro Desk', followersCount: 9931, verified: false),
+      ];
+
+  List<_CopyTrader> get _fallbackCopyTraders => const <_CopyTrader>[
+        _CopyTrader(
+          id: 't1',
+          username: 'Alpha Whale',
+          minCopyAmount: 10,
+          pnl7d: 2142.33,
+          roiPercent: 38.1,
+          aumValue: 930241.24,
+          winRate: 82.6,
+        ),
+        _CopyTrader(
+          id: 't2',
+          username: 'Chain Pulse',
+          minCopyAmount: 25,
+          pnl7d: 1497.2,
+          roiPercent: 31.7,
+          aumValue: 512630.11,
+          winRate: 77.5,
+        ),
+      ];
+}
+
+class _SocialPostCard extends StatelessWidget {
+  const _SocialPostCard({required this.post, required this.onClose});
+
+  final _SocialFeedPost post;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final cardBg = isLight ? const Color(0xFFF7F9FD) : const Color(0xFF0F1522);
+    final border = isLight ? const Color(0xFFD8E0EE) : const Color(0xFF212A3E);
+    final primary = isLight ? const Color(0xFF121722) : Colors.white;
+    final secondary = isLight ? const Color(0xFF6D768A) : Colors.white60;
+
+    final showMedia = post.mediaType != 'text' || post.mediaUrl.isNotEmpty || post.isLive;
+    final mediaType = post.mediaType.toLowerCase();
+    final mediaLabel = mediaType == 'video' ? 'Video preview' : 'Image preview';
+    final mediaIcon = mediaType == 'video' ? Icons.play_circle_fill_rounded : Icons.photo_library_rounded;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: 0.22),
+                child: Text(
+                  _initialsOf(post.username),
+                  style: TextStyle(
+                    color: primary,
+                    fontSize: 12.8,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      post.username,
+                      style: TextStyle(
+                        color: primary,
+                        fontSize: 13.4,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      _timeAgo(post.createdAt),
+                      style: TextStyle(
+                        color: secondary,
+                        fontSize: 11.4,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: onClose,
+                icon: Icon(
+                  Icons.close_rounded,
+                  color: secondary,
+                  size: 18,
+                ),
+                tooltip: 'Hide',
+              ),
+            ],
+          ),
+          if (post.contentText.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              post.contentText,
+              style: TextStyle(
+                color: primary,
+                fontSize: 13.1,
+                height: 1.36,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+          if (showMedia) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    height: 166,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF1A2234), Color(0xFF263454)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: post.mediaUrl.isNotEmpty
+                        ? Image.network(
+                            post.mediaUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(mediaIcon, color: Colors.white70, size: 32),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    mediaLabel,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12.4,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(mediaIcon, color: Colors.white70, size: 32),
+                                const SizedBox(height: 6),
+                                Text(
+                                  mediaLabel,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12.4,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                  ),
+                  if (post.isLive)
+                    Positioned(
+                      left: 10,
+                      top: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE93E59),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'LIVE',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.2,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: .4,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _StatPill(icon: Icons.chat_bubble_outline_rounded, text: _formatCountCompact(post.commentCount)),
+              const SizedBox(width: 8),
+              _StatPill(icon: Icons.repeat_rounded, text: _formatCountCompact(post.repostCount)),
+              const SizedBox(width: 8),
+              _StatPill(icon: Icons.favorite_border_rounded, text: _formatCountCompact(post.likeCount)),
+              const Spacer(),
+              _StatPill(icon: Icons.remove_red_eye_outlined, text: _formatCountCompact(post.viewCount)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatPill extends StatelessWidget {
+  const _StatPill({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: isLight ? const Color(0xFFE8EDF8) : const Color(0xFF1A2233),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13.8, color: isLight ? const Color(0xFF313A4E) : Colors.white70),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              color: isLight ? const Color(0xFF313A4E) : Colors.white70,
+              fontSize: 11.2,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SuggestedCreatorsSection extends StatelessWidget {
+  const _SuggestedCreatorsSection({
+    required this.creators,
+    required this.following,
+    required this.onFollow,
+  });
+
+  final List<_SuggestedCreator> creators;
+  final Set<String> following;
+  final ValueChanged<_SuggestedCreator> onFollow;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final primary = isLight ? const Color(0xFF121722) : Colors.white;
+    final secondary = isLight ? const Color(0xFF6D768A) : Colors.white60;
+    final cardBg = isLight ? const Color(0xFFF7F9FD) : const Color(0xFF0F1522);
+    final border = isLight ? const Color(0xFFD8E0EE) : const Color(0xFF212A3E);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Suggested Creators',
+          style: TextStyle(
+            color: primary,
+            fontSize: 15.8,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 142,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: creators.length,
+            itemBuilder: (context, index) {
+              final creator = creators[index];
+              final isFollowing = following.contains(creator.id);
+              return Container(
+                width: 174,
+                margin: EdgeInsets.only(right: index == creators.length - 1 ? 0 : 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: .24),
+                          child: Text(
+                            _initialsOf(creator.name),
+                            style: const TextStyle(
+                              color: Color(0xFF1A1F2B),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            creator.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: primary,
+                              fontSize: 12.6,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        if (creator.verified)
+                          const Icon(
+                            Icons.verified_rounded,
+                            color: Color(0xFF22C17A),
+                            size: 15,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${_formatCountCompact(creator.followersCount)} followers',
+                      style: TextStyle(
+                        color: secondary,
+                        fontSize: 11.6,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: isFollowing ? null : () => onFollow(creator),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: isFollowing ? const Color(0xFF2ABF74) : const Color(0xFFF1CB3E),
+                          foregroundColor: const Color(0xFF121722),
+                          disabledBackgroundColor: const Color(0xFF2ABF74),
+                          disabledForegroundColor: const Color(0xFF0B1F12),
+                          minimumSize: const Size.fromHeight(34),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: Text(
+                          isFollowing ? 'Following' : 'Follow',
+                          style: const TextStyle(
+                            fontSize: 12.2,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CopyTradingForYouSection extends StatelessWidget {
+  const _CopyTradingForYouSection({required this.traders});
+
+  final List<_CopyTrader> traders;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final primary = isLight ? const Color(0xFF121722) : Colors.white;
+    final secondary = isLight ? const Color(0xFF6D768A) : Colors.white60;
+    final cardBg = isLight ? const Color(0xFFF7F9FD) : const Color(0xFF0F1522);
+    final border = isLight ? const Color(0xFFD8E0EE) : const Color(0xFF212A3E);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Copy Trading For You',
+          style: TextStyle(
+            color: primary,
+            fontSize: 15.8,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...traders.map((trader) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: border),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 17,
+                  backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: .24),
+                  child: Text(
+                    _initialsOf(trader.username),
+                    style: const TextStyle(
+                      color: Color(0xFF1A1F2B),
+                      fontSize: 11.8,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        trader.username,
+                        style: TextStyle(
+                          color: primary,
+                          fontSize: 12.8,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Min copy ${_formatWithCommas(trader.minCopyAmount, decimals: 0)} USDT',
+                        style: TextStyle(
+                          color: secondary,
+                          fontSize: 11.4,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '7D PNL ${trader.pnl7d >= 0 ? '+' : ''}${_formatWithCommas(trader.pnl7d, decimals: 2)} • ROI ${trader.roiPercent.toStringAsFixed(2)}% • Win ${trader.winRate.toStringAsFixed(1)}%',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: secondary,
+                          fontSize: 11.1,
+                          height: 1.28,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'AUM',
+                      style: TextStyle(
+                        color: secondary,
+                        fontSize: 10.6,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      '\$${_formatWithCommas(trader.aumValue, decimals: 0)}',
+                      style: TextStyle(
+                        color: primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    FilledButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Copying ${trader.username} will open next.')),
+                        );
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1CB3E),
+                        foregroundColor: const Color(0xFF111827),
+                        minimumSize: const Size(64, 30),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                      ),
+                      child: const Text(
+                        'Copy',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _HomeFeedComposerFab extends StatelessWidget {
+  const _HomeFeedComposerFab({
+    required this.open,
+    required this.onToggle,
+    required this.onSelect,
+  });
+
+  final bool open;
+  final VoidCallback onToggle;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    const options = <String>[
+      'Create Post',
+      'Share Trade',
+      'Upload Chart',
+      'Start Live Stream',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: !open
+              ? const SizedBox.shrink()
+              : Container(
+                  key: const ValueKey<String>('composer-menu'),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xE6151D2A),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF303A50)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: options.map((item) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: OutlinedButton(
+                          onPressed: () => onSelect(item),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF3B4560)),
+                            backgroundColor: const Color(0xFF1D2739),
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(168, 34),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(
+                            item,
+                            style: const TextStyle(
+                              fontSize: 11.8,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(growable: false),
+                  ),
+                ),
+        ),
+        Material(
+          color: const Color(0xFFF1CB3E),
+          borderRadius: BorderRadius.circular(999),
+          child: InkWell(
+            onTap: onToggle,
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              width: 54,
+              height: 54,
+              child: Center(
+                child: AnimatedRotation(
+                  turns: open ? 0.125 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: const Icon(
+                    Icons.add_rounded,
+                    size: 31,
+                    color: Color(0xFF1A1F2B),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

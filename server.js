@@ -27,6 +27,10 @@ const { readUserCenterConfig } = require('./modules/user-center/config');
 const { createUserCenterStore } = require('./modules/user-center/mysql-store');
 const { createUserCenterService } = require('./modules/user-center/service');
 const { registerUserCenterRoutes } = require('./routes/user-center');
+const { readSocialFeedConfig } = require('./modules/social-feed/config');
+const { createSocialFeedStore } = require('./modules/social-feed/mysql-store');
+const { createSocialFeedService } = require('./modules/social-feed/service');
+const { registerSocialFeedRoutes } = require('./routes/social-feed');
 const { createP2POrderController } = require('./controllers/p2p-order-controller');
 const { createAdminStore } = require('./admin/services/admin-store');
 const { createAdminAuthMiddleware } = require('./admin/middleware/admin-auth');
@@ -156,6 +160,8 @@ let otpAuthStore = null;
 let otpAuthService = null;
 let userCenterStore = null;
 let userCenterService = null;
+let socialFeedStore = null;
+let socialFeedService = null;
 let persistenceReady = false;
 let httpServer = null;
 let shuttingDown = false;
@@ -2855,6 +2861,16 @@ function registerShutdownHandlers() {
               console.error('[user-center] Failed to close MySQL store:', closeError.message);
             });
         }
+        if (socialFeedStore) {
+          socialFeedStore
+            .close()
+            .then(() => {
+              console.log('[social-feed] MySQL store closed.');
+            })
+            .catch((closeError) => {
+              console.error('[social-feed] Failed to close MySQL store:', closeError.message);
+            });
+        }
         if (otpAuthStore) {
           otpAuthStore
             .close()
@@ -3060,6 +3076,35 @@ async function boot() {
     registerUserCenterRoutes(app, {
       requiresP2PUser,
       userCenterService
+    });
+
+    const socialFeedConfig = readSocialFeedConfig();
+    if (socialFeedConfig.mysql.enabled) {
+      try {
+        socialFeedStore = createSocialFeedStore(socialFeedConfig.mysql);
+        await socialFeedStore.initialize();
+        socialFeedService = createSocialFeedService({
+          store: socialFeedStore,
+          config: socialFeedConfig.app
+        });
+        console.log('[social-feed] Social feed module enabled');
+      } catch (error) {
+        socialFeedStore = null;
+        socialFeedService = null;
+        console.error(
+          '[social-feed] MySQL initialization failed. Social feed APIs will return 503:',
+          error?.message || error
+        );
+      }
+    } else {
+      console.log('[social-feed] MySQL config missing; Social feed APIs will return 503.');
+    }
+
+    registerSocialFeedRoutes(app, {
+      socialFeedService,
+      requiresP2PUser,
+      getP2PUserFromRequest,
+      requiresAdminSession
     });
 
     p2pOrderController = createP2POrderController({
