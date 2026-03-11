@@ -2814,20 +2814,8 @@ async function boot() {
 
     const otpAuthConfig = readAuthOtpConfig();
     const geetestService = createGeetestService(otpAuthConfig.geetest);
-    if (otpAuthConfig.mysql.enabled) {
-      otpAuthStore = createMySqlAuthStore(otpAuthConfig.mysql);
-      await otpAuthStore.initialize();
-      const otpEmailService = createOtpEmailService(otpAuthConfig.smtp);
-      otpAuthService = createOtpAuthService({
-        store: otpAuthStore,
-        geetestService,
-        emailService: otpEmailService,
-        tokenService,
-        otpConfig: otpAuthConfig.otp
-      });
-      console.log('[auth-otp] Modular OTP auth enabled with MySQL + Geetest + SMTP');
-    } else {
-      otpAuthService = createRepoFallbackOtpAuthService({
+    const buildFallbackOtpAuthService = () =>
+      createRepoFallbackOtpAuthService({
         repos,
         tokenService,
         geetestService,
@@ -2835,6 +2823,30 @@ async function boot() {
         buildP2PUserFromEmail,
         otpConfig: otpAuthConfig.otp
       });
+
+    if (otpAuthConfig.mysql.enabled) {
+      try {
+        otpAuthStore = createMySqlAuthStore(otpAuthConfig.mysql);
+        await otpAuthStore.initialize();
+        const otpEmailService = createOtpEmailService(otpAuthConfig.smtp);
+        otpAuthService = createOtpAuthService({
+          store: otpAuthStore,
+          geetestService,
+          emailService: otpEmailService,
+          tokenService,
+          otpConfig: otpAuthConfig.otp
+        });
+        console.log('[auth-otp] Modular OTP auth enabled with MySQL + Geetest + SMTP');
+      } catch (error) {
+        otpAuthStore = null;
+        otpAuthService = buildFallbackOtpAuthService();
+        console.error(
+          '[auth-otp] MySQL initialization failed. Falling back to repository OTP auth:',
+          error?.message || error
+        );
+      }
+    } else {
+      otpAuthService = buildFallbackOtpAuthService();
       console.log('[auth-otp] MySQL config missing; fallback OTP auth enabled with repository store + Geetest + SMTP.');
     }
 
@@ -2857,13 +2869,22 @@ async function boot() {
 
     const userCenterConfig = readUserCenterConfig();
     if (userCenterConfig.mysql.enabled) {
-      userCenterStore = createUserCenterStore(userCenterConfig.mysql);
-      await userCenterStore.initialize();
-      userCenterService = createUserCenterService({
-        store: userCenterStore,
-        config: userCenterConfig.app
-      });
-      console.log('[user-center] Modular User Center enabled');
+      try {
+        userCenterStore = createUserCenterStore(userCenterConfig.mysql);
+        await userCenterStore.initialize();
+        userCenterService = createUserCenterService({
+          store: userCenterStore,
+          config: userCenterConfig.app
+        });
+        console.log('[user-center] Modular User Center enabled');
+      } catch (error) {
+        userCenterStore = null;
+        userCenterService = null;
+        console.error(
+          '[user-center] MySQL initialization failed. User Center APIs will run in degraded mode (503):',
+          error?.message || error
+        );
+      }
     } else {
       console.log('[user-center] MySQL config missing; User Center APIs will return 503.');
     }
