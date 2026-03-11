@@ -49,7 +49,8 @@ function createAdminControllers({
   repos,
   setCookie,
   clearCookie,
-  cookieNames
+  cookieNames,
+  userCookieNames = {}
 }) {
   const loginLimiter = createInMemoryRateLimiter({
     windowMs: 10 * 60 * 1000,
@@ -85,6 +86,22 @@ function createAdminControllers({
   function clearAdminCookies(res) {
     clearCookie(res, cookieNames.accessToken);
     clearCookie(res, cookieNames.refreshToken);
+  }
+
+  function setP2PImpersonationCookies(res, session = {}) {
+    if (!session || typeof session !== 'object') {
+      return;
+    }
+
+    if (userCookieNames.accessToken && session.tokenPair?.accessToken) {
+      setCookie(res, userCookieNames.accessToken, session.tokenPair.accessToken, 15 * 60);
+    }
+    if (userCookieNames.refreshToken && session.tokenPair?.refreshToken) {
+      setCookie(res, userCookieNames.refreshToken, session.tokenPair.refreshToken, 7 * 24 * 60 * 60);
+    }
+    if (userCookieNames.legacyP2PSession && session.legacyToken) {
+      setCookie(res, userCookieNames.legacyP2PSession, session.legacyToken, 7 * 24 * 60 * 60);
+    }
   }
 
   async function authLogin(req, res) {
@@ -266,6 +283,11 @@ function createAdminControllers({
     return res.json({ admin: adminStore.sanitizeAdmin(admin) });
   }
 
+  async function dashboardKpis(req, res) {
+    const kpis = await adminStore.getDashboardKpis();
+    return res.json({ kpis });
+  }
+
   async function listUsers(req, res) {
     const data = await adminStore.listUsers(req.query);
     return res.json(data);
@@ -278,6 +300,59 @@ function createAdminControllers({
     }
 
     return res.json({ user });
+  }
+
+  async function getUserDetail(req, res) {
+    const user = await adminStore.getUserAdminDetail(req.params.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    return res.json({ user });
+  }
+
+  async function loginAsUser(req, res) {
+    const session = await adminStore.createUserImpersonationSession(req.params.userId);
+    setP2PImpersonationCookies(res, session);
+
+    await logAudit(req, {
+      module: 'users',
+      action: 'login_as_user',
+      entityType: 'user',
+      entityId: req.params.userId,
+      meta: {
+        impersonatedUserId: session.user?.id || ''
+      }
+    });
+
+    return res.json({
+      message: 'User impersonation session created.',
+      user: session.user,
+      legacyExpiresAt: session.legacyExpiresAt
+    });
+  }
+
+  async function setUserTwoFactor(req, res) {
+    const rawEnabled = req.body?.enabled;
+    if (rawEnabled === undefined) {
+      return res.status(400).json({ message: 'enabled is required.' });
+    }
+
+    const enabled = rawEnabled === true || rawEnabled === 'true' || rawEnabled === 1 || rawEnabled === '1';
+    const result = await adminStore.setUserTwoFactor(req.params.userId, enabled);
+
+    await logAudit(req, {
+      module: 'users',
+      action: 'set_user_2fa',
+      entityType: 'user',
+      entityId: req.params.userId,
+      meta: { enabled }
+    });
+
+    return res.json({
+      message: enabled ? 'User 2FA enabled.' : 'User 2FA disabled.',
+      user: result
+    });
   }
 
   async function setUserStatus(req, res) {
@@ -629,6 +704,11 @@ function createAdminControllers({
     return res.json(data);
   }
 
+  async function referralOverview(req, res) {
+    const data = await adminStore.getReferralOverview();
+    return res.json(data);
+  }
+
   async function getPlatformSettings(req, res) {
     const settings = await adminStore.getPlatformSettings();
     return res.json({ settings });
@@ -685,6 +765,35 @@ function createAdminControllers({
   async function listSupportTickets(req, res) {
     const data = await adminStore.listSupportTickets(req.query);
     return res.json(data);
+  }
+
+  async function listNotifications(req, res) {
+    const data = await adminStore.listNotifications(req.query || {});
+    return res.json(data);
+  }
+
+  async function createNotification(req, res) {
+    const notification = await adminStore.createNotification(req.body || {}, {
+      id: req.adminAuth.adminId,
+      email: req.adminAuth.adminEmail
+    });
+
+    await logAudit(req, {
+      module: 'support',
+      action: 'create_notification',
+      entityType: 'notification',
+      entityId: notification.id,
+      meta: {
+        type: notification.type,
+        target: notification.target,
+        priority: notification.priority
+      }
+    });
+
+    return res.status(201).json({
+      message: 'Notification published.',
+      notification
+    });
   }
 
   async function replySupportTicket(req, res) {
@@ -752,6 +861,11 @@ function createAdminControllers({
     return res.json(data);
   }
 
+  async function adminLoginHistory(req, res) {
+    const data = await adminStore.listAdminLoginHistory(req.query || {});
+    return res.json(data);
+  }
+
   async function monitoringHealth(req, res) {
     const dbHealth = await adminStore.getMonitoringOverview();
     return res.json({
@@ -771,8 +885,12 @@ function createAdminControllers({
     authRefresh,
     authLogout,
     authMe,
+    dashboardKpis,
     listUsers,
     getUser,
+    getUserDetail,
+    loginAsUser,
+    setUserTwoFactor,
     setUserStatus,
     resetUserPassword,
     adjustUserBalance,
@@ -802,17 +920,21 @@ function createAdminControllers({
     updateP2PSettings,
     cleanupDemoP2PAds,
     revenueSummary,
+    referralOverview,
     getPlatformSettings,
     updatePlatformSettings,
     listComplianceFlags,
     createComplianceFlag,
     exportComplianceTransactions,
     listSupportTickets,
+    listNotifications,
+    createNotification,
     replySupportTicket,
     updateSupportTicketStatus,
     assignSupportTicket,
     monitoringOverview,
     monitoringApiLogs,
+    adminLoginHistory,
     monitoringHealth,
     listAuditLogs,
     logAudit,

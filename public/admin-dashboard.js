@@ -9,6 +9,7 @@ const state = {
   },
   users: [],
   spotPairs: [],
+  selectedUserDetail: null,
   walletFilters: {
     depositStatus: '',
     withdrawalStatus: 'PENDING'
@@ -26,7 +27,12 @@ const dom = {
   adminIdentity: document.getElementById('adminIdentity'),
   globalMessage: document.getElementById('globalMessage'),
   refreshCurrentBtn: document.getElementById('refreshCurrentBtn'),
-  logoutBtn: document.getElementById('logoutBtn')
+  logoutBtn: document.getElementById('logoutBtn'),
+  userDetailModal: document.getElementById('userDetailModal'),
+  userDetailBackdrop: document.getElementById('userDetailBackdrop'),
+  userDetailCloseBtn: document.getElementById('userDetailCloseBtn'),
+  userDetailContent: document.getElementById('userDetailContent'),
+  userDetailSubtitle: document.getElementById('userDetailSubtitle')
 };
 
 const viewLoaders = {
@@ -69,6 +75,15 @@ function formatDate(value) {
     hour: '2-digit',
     minute: '2-digit'
   });
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function statusBadge(status) {
@@ -146,6 +161,14 @@ async function apiRequest(path, options = {}) {
   return payload;
 }
 
+async function apiRequestOptional(path, fallback, options = {}) {
+  try {
+    return await apiRequest(path, options);
+  } catch (error) {
+    return fallback;
+  }
+}
+
 function setSidebarOpen(open) {
   if (window.innerWidth >= 1024) {
     return;
@@ -208,7 +231,7 @@ function renderCards(containerId, cards) {
   container.innerHTML = cards
     .map(
       (card) => `
-      <article class="card-item">
+      <article class="${card.className || 'card-item'}">
         <p class="text-xs uppercase tracking-wide text-slate-400">${card.label}</p>
         <p class="mt-2 stat-value">${card.value}</p>
         ${card.meta ? `<p class="mt-1 text-xs text-slate-500">${card.meta}</p>` : ''}
@@ -280,6 +303,168 @@ function drawChart(instanceKey, canvasId, labels, values, color = '#22c55e') {
   });
 }
 
+function renderExecutiveKpis(kpis = {}) {
+  renderCards('executiveKpiCards', [
+    { label: 'Total Users', value: formatNumber(kpis.totalUsers || 0, 0), className: 'kpi-card-3d' },
+    { label: 'Active Users', value: formatNumber(kpis.activeUsers || 0, 0), className: 'kpi-card-3d' },
+    { label: 'Email Unverified', value: formatNumber(kpis.emailUnverifiedUsers || 0, 0), className: 'kpi-card-3d' },
+    { label: 'Mobile Unverified', value: formatNumber(kpis.mobileUnverifiedUsers || 0, 0), className: 'kpi-card-3d' },
+    { label: 'Total Trades', value: formatNumber(kpis.totalTrades || 0, 0), className: 'kpi-card-3d' },
+    { label: 'Total Currencies', value: formatNumber(kpis.totalCurrencies || 0, 0), className: 'kpi-card-3d' }
+  ]);
+}
+
+function renderNotificationsFeed(data = {}) {
+  const feed = document.getElementById('notificationsFeed');
+  if (!feed) {
+    return;
+  }
+  const rows = Array.isArray(data.notifications) ? data.notifications : [];
+  feed.innerHTML = rows
+    .map(
+      (row) => `
+      <article class="list-item">
+        <div class="flex items-start justify-between gap-2">
+          <p class="text-sm font-semibold">${escapeHtml(row.title || 'Notification')}</p>
+          ${statusBadge(row.priority || 'NORMAL')}
+        </div>
+        <p class="mt-1 text-xs text-slate-300">${escapeHtml(row.message || '-')}</p>
+        <p class="mt-1 text-[11px] text-slate-500">${escapeHtml(row.type || 'ANNOUNCEMENT')} • ${formatDate(row.createdAt)}</p>
+      </article>
+    `
+    )
+    .join('');
+
+  if (!rows.length) {
+    feed.innerHTML = '<p class="text-sm text-slate-500">No notifications yet.</p>';
+  }
+}
+
+function renderReferralSummary(data = {}) {
+  const summary = document.getElementById('referralSummary');
+  const topReferrers = document.getElementById('topReferrersList');
+  if (!summary || !topReferrers) {
+    return;
+  }
+
+  summary.innerHTML = `
+    <div class="metric-item">
+      <p class="text-xs uppercase tracking-wide text-slate-400">Commission %</p>
+      <p class="mt-1 text-lg font-semibold">${formatNumber(data.commissionPercent || 0, 2)}%</p>
+    </div>
+    <div class="metric-item">
+      <p class="text-xs uppercase tracking-wide text-slate-400">Referral Users</p>
+      <p class="mt-1 text-lg font-semibold">${formatNumber(data.totalReferralUsers || 0, 0)}</p>
+    </div>
+    <div class="metric-item">
+      <p class="text-xs uppercase tracking-wide text-slate-400">Referral Earnings</p>
+      <p class="mt-1 text-lg font-semibold">₹${formatNumber(data.totalReferralEarnings || 0, 2)}</p>
+    </div>
+  `;
+
+  const rows = Array.isArray(data.topReferrers) ? data.topReferrers : [];
+  topReferrers.innerHTML = rows
+    .map(
+      (row) => `
+      <article class="list-item">
+        <p class="text-sm font-semibold">${escapeHtml(row.referrer || '-')}</p>
+        <p class="text-xs text-slate-400">Invites: ${formatNumber(row.referredUsers || 0, 0)}</p>
+      </article>
+    `
+    )
+    .join('');
+
+  if (!rows.length) {
+    topReferrers.innerHTML = '<p class="text-sm text-slate-500">No referral activity found.</p>';
+  }
+}
+
+function renderAdminLoginHistory(data = {}) {
+  const container = document.getElementById('adminLoginHistoryList');
+  if (!container) {
+    return;
+  }
+  const rows = Array.isArray(data.items) ? data.items : [];
+  container.innerHTML = rows
+    .map(
+      (row) => `
+      <article class="list-item">
+        <div class="flex items-start justify-between gap-2">
+          <p class="text-sm font-semibold">${escapeHtml(row.email || row.adminEmail || row.adminId || '-')}</p>
+          ${statusBadge(row.success ? 'SUCCESS' : row.reason || 'FAILURE')}
+        </div>
+        <p class="mt-1 text-xs text-slate-400">${formatDate(row.createdAt || row.loginAt)}</p>
+        <p class="mt-1 text-[11px] text-slate-500">IP: ${escapeHtml(row.ip || '-')}</p>
+      </article>
+    `
+    )
+    .join('');
+
+  if (!rows.length) {
+    container.innerHTML = '<p class="text-sm text-slate-500">No login history available.</p>';
+  }
+}
+
+function setUserDetailModalOpen(open) {
+  if (!dom.userDetailModal) {
+    return;
+  }
+  dom.userDetailModal.classList.toggle('hidden', !open);
+  document.body.classList.toggle('overflow-hidden', Boolean(open));
+}
+
+function renderUserDetailModal(user = {}) {
+  if (!dom.userDetailContent) {
+    return;
+  }
+
+  const totals = user.totals || {};
+  const walletBalances = user.walletBalances || {};
+  const kyc = user.kyc || {};
+  const recentDeposits = Array.isArray(user.recentDeposits) ? user.recentDeposits : [];
+  const recentWithdrawals = Array.isArray(user.recentWithdrawals) ? user.recentWithdrawals : [];
+
+  if (dom.userDetailSubtitle) {
+    dom.userDetailSubtitle.textContent = `${user.email || '-'} • UID ${user.userId || '-'}`;
+  }
+
+  dom.userDetailContent.innerHTML = `
+    <div class="metric-grid">
+      <article class="metric-item"><p class="text-xs text-slate-400">Total Orders</p><p class="mt-1 text-lg font-semibold">${formatNumber(totals.totalOrders || 0, 0)}</p></article>
+      <article class="metric-item"><p class="text-xs text-slate-400">Total Trades</p><p class="mt-1 text-lg font-semibold">${formatNumber(totals.totalTrades || 0, 0)}</p></article>
+      <article class="metric-item"><p class="text-xs text-slate-400">Total Deposit</p><p class="mt-1 text-lg font-semibold">${formatNumber(totals.totalDeposit || 0, 4)}</p></article>
+      <article class="metric-item"><p class="text-xs text-slate-400">Total Withdrawals</p><p class="mt-1 text-lg font-semibold">${formatNumber(totals.totalWithdrawals || 0, 4)}</p></article>
+      <article class="metric-item"><p class="text-xs text-slate-400">Available Balance</p><p class="mt-1 text-lg font-semibold">${formatNumber(walletBalances.available || 0, 4)}</p></article>
+      <article class="metric-item"><p class="text-xs text-slate-400">Locked Balance</p><p class="mt-1 text-lg font-semibold">${formatNumber(walletBalances.locked || 0, 4)}</p></article>
+    </div>
+    <div class="mt-3 grid gap-3 lg:grid-cols-2">
+      <article class="list-item">
+        <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Identity</h4>
+        <p class="text-sm">KYC: ${statusBadge(kyc.status || 'PENDING')}</p>
+        <p class="mt-1 text-xs text-slate-300">Name: ${escapeHtml(kyc.fullName || '-')}</p>
+        <p class="mt-1 text-xs text-slate-400">Aadhaar: ${escapeHtml(kyc.aadhaarNumber || '-')}</p>
+        <p class="mt-1 text-xs text-slate-400">PAN: ${escapeHtml(kyc.panNumber || '-')}</p>
+      </article>
+      <article class="list-item">
+        <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Access</h4>
+        <p class="text-xs text-slate-300">2FA: ${statusBadge(user.twoFactorEnabled ? 'ENABLED' : 'DISABLED')}</p>
+        <p class="mt-1 text-xs text-slate-400">Status: ${statusBadge(user.status || 'ACTIVE')}</p>
+        <p class="mt-1 text-xs text-slate-400">Role: ${statusBadge(user.role || 'USER')}</p>
+      </article>
+    </div>
+    <div class="mt-3 grid gap-3 lg:grid-cols-2">
+      <article class="list-item">
+        <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Recent Deposits</h4>
+        ${(recentDeposits.slice(0, 5).map((row) => `<p class="text-xs text-slate-300">${escapeHtml(row.id || '-')} • ${formatNumber(row.amount || 0, 4)} • ${escapeHtml(row.status || '-')}</p>`).join('')) || '<p class="text-xs text-slate-500">No deposits.</p>'}
+      </article>
+      <article class="list-item">
+        <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Recent Withdrawals</h4>
+        ${(recentWithdrawals.slice(0, 5).map((row) => `<p class="text-xs text-slate-300">${escapeHtml(row.id || '-')} • ${formatNumber(row.amount || 0, 4)} • ${escapeHtml(row.status || '-')}</p>`).join('')) || '<p class="text-xs text-slate-500">No withdrawals.</p>'}
+      </article>
+    </div>
+  `;
+}
+
 async function ensureAdminSession() {
   const payload = await apiRequest('/auth/me');
   state.admin = payload.admin;
@@ -287,7 +472,13 @@ async function ensureAdminSession() {
 }
 
 async function loadOverview() {
-  const payload = await apiRequest('/dashboard/overview');
+  const [payload, kpiPayload, notificationsPayload, referralPayload, loginHistoryPayload] = await Promise.all([
+    apiRequest('/dashboard/overview'),
+    apiRequestOptional('/dashboard/kpis', { kpis: {} }),
+    apiRequestOptional('/notifications?limit=8', { notifications: [] }),
+    apiRequestOptional('/referrals/overview', {}),
+    apiRequestOptional('/security/login-history?limit=10', { items: [] })
+  ]);
 
   const revenue = payload.revenue || {};
   const wallet = payload.wallet || {};
@@ -342,12 +533,25 @@ async function loadOverview() {
     `
     )
     .join('');
+
+  renderExecutiveKpis(kpiPayload.kpis || {});
+  renderNotificationsFeed(notificationsPayload);
+  renderReferralSummary(referralPayload);
+  renderAdminLoginHistory(loginHistoryPayload);
 }
 
 async function loadUsers(options = {}) {
-  const search = options?.search ?? document.getElementById('userSearchInput').value.trim();
-  const query = search ? `?email=${encodeURIComponent(search)}` : '';
-  const payload = await apiRequest(`/users${query}`);
+  const rawSearch = options?.search ?? document.getElementById('userSearchInput').value ?? '';
+  const search = String(rawSearch).trim();
+  const searchByEmail = search.includes('@');
+  const query = new URLSearchParams();
+  if (searchByEmail) {
+    query.set('email', search);
+  } else if (search) {
+    query.set('uid', search);
+  }
+  const queryString = query.toString();
+  const payload = await apiRequest(`/users${queryString ? `?${queryString}` : ''}`);
 
   state.users = Array.isArray(payload.users) ? payload.users : [];
   const body = document.getElementById('usersTableBody');
@@ -364,6 +568,9 @@ async function loadUsers(options = {}) {
         <td class="admin-td text-right">${formatNumber(user.lockedBalance, 4)}</td>
         <td class="admin-td">
           <div class="flex flex-wrap gap-1">
+            <button class="btn-primary" data-user-action="detail" data-user-id="${user.userId}">Detail</button>
+            <button class="btn-secondary" data-user-action="loginAs" data-user-id="${user.userId}">Login As</button>
+            <button class="btn-secondary" data-user-action="toggle2fa" data-user-id="${user.userId}">Toggle 2FA</button>
             <button class="btn-secondary" data-user-action="freeze" data-user-id="${user.userId}">Freeze</button>
             <button class="btn-secondary" data-user-action="unfreeze" data-user-id="${user.userId}">Unfreeze</button>
             <button class="btn-danger" data-user-action="ban" data-user-id="${user.userId}">Ban</button>
@@ -815,6 +1022,44 @@ async function handleUsersAction(event) {
   const action = button.getAttribute('data-user-action');
 
   try {
+    if (action === 'detail') {
+      const payload = await apiRequest(`/users/${encodeURIComponent(userId)}/detail`);
+      state.selectedUserDetail = payload.user || null;
+      renderUserDetailModal(payload.user || {});
+      setUserDetailModalOpen(true);
+      return;
+    }
+
+    if (action === 'loginAs') {
+      const confirmed = window.confirm('Create user impersonation session and open user area in this browser?');
+      if (!confirmed) {
+        return;
+      }
+      await apiRequest(`/users/${encodeURIComponent(userId)}/login-as`, {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      showMessage('Impersonation session created. Open /p2p to continue as user.', 'success');
+      return;
+    }
+
+    if (action === 'toggle2fa') {
+      const detailPayload = await apiRequest(`/users/${encodeURIComponent(userId)}/detail`);
+      const current = Boolean(detailPayload?.user?.twoFactorEnabled);
+      const nextEnabled = !current;
+      const confirmed = window.confirm(`${nextEnabled ? 'Enable' : 'Disable'} 2FA for user ${userId}?`);
+      if (!confirmed) {
+        return;
+      }
+
+      await apiRequest(`/users/${encodeURIComponent(userId)}/2fa`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled: nextEnabled })
+      });
+      showMessage(`2FA ${nextEnabled ? 'enabled' : 'disabled'} for ${userId}.`, 'success');
+      return;
+    }
+
     if (action === 'freeze' || action === 'unfreeze' || action === 'ban') {
       const status = action === 'freeze' ? 'FROZEN' : action === 'ban' ? 'BANNED' : 'ACTIVE';
       const reason = window.prompt(`Reason for ${status} (optional):`, '') || '';
@@ -1058,6 +1303,18 @@ function wireEventListeners() {
     }
   });
 
+  if (dom.userDetailCloseBtn) {
+    dom.userDetailCloseBtn.addEventListener('click', () => setUserDetailModalOpen(false));
+  }
+  if (dom.userDetailBackdrop) {
+    dom.userDetailBackdrop.addEventListener('click', () => setUserDetailModalOpen(false));
+  }
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      setUserDetailModalOpen(false);
+    }
+  });
+
   document.getElementById('usersTableBody').addEventListener('click', handleUsersAction);
   document.getElementById('depositsList').addEventListener('click', handleDepositAction);
   document.getElementById('withdrawalsList').addEventListener('click', handleWithdrawalAction);
@@ -1067,6 +1324,12 @@ function wireEventListeners() {
 
   document.getElementById('userSearchBtn').addEventListener('click', async () => {
     await loadUsers();
+  });
+  document.getElementById('userSearchInput').addEventListener('keydown', async (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      await loadUsers();
+    }
   });
   document.getElementById('userSearchResetBtn').addEventListener('click', async () => {
     document.getElementById('userSearchInput').value = '';
@@ -1290,6 +1553,37 @@ function wireEventListeners() {
       showMessage(error.message || 'Failed to assign ticket.', 'error');
     }
   });
+
+  const notificationForm = document.getElementById('notificationForm');
+  if (notificationForm) {
+    notificationForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const submitButton = form.querySelector('button[type="submit"]');
+
+      try {
+        setActionButtonLoading(submitButton, true, 'Publishing...');
+        await apiRequest('/notifications', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: String(form.title.value || '').trim(),
+            message: String(form.message.value || '').trim(),
+            type: String(form.type.value || 'ANNOUNCEMENT').trim().toUpperCase(),
+            target: String(form.target.value || 'ALL_USERS').trim().toUpperCase(),
+            priority: String(form.priority.value || 'NORMAL').trim().toUpperCase()
+          })
+        });
+        showMessage('Notification published successfully.', 'success');
+        form.reset();
+        const notifications = await apiRequestOptional('/notifications?limit=8', { notifications: [] });
+        renderNotificationsFeed(notifications);
+      } catch (error) {
+        showMessage(error.message || 'Failed to publish notification.', 'error');
+      } finally {
+        setActionButtonLoading(submitButton, false);
+      }
+    });
+  }
 }
 
 async function init() {

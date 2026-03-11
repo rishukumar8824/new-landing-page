@@ -3142,6 +3142,11 @@ async function boot() {
       cookieNames: {
         accessToken: ADMIN_ACCESS_COOKIE_NAME,
         refreshToken: ADMIN_REFRESH_COOKIE_NAME
+      },
+      userCookieNames: {
+        accessToken: P2P_ACCESS_COOKIE_NAME,
+        refreshToken: P2P_REFRESH_COOKIE_NAME,
+        legacyP2PSession: P2P_USER_COOKIE_NAME
       }
     });
 

@@ -80,6 +80,7 @@
 
           <section class="admin-panel" data-panel="overview">
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" id="overviewCards"></div>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6" id="executiveKpiCards"></div>
             <div class="mt-4 grid gap-4 xl:grid-cols-[2fr_1fr]">
               <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
                 <div class="mb-3 flex items-center justify-between">
@@ -93,12 +94,51 @@
                 <dl class="space-y-2 text-sm" id="overviewHealth"></dl>
               </article>
             </div>
+            <div class="mt-4 grid gap-4 xl:grid-cols-3">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Send Notification</h3>
+                <form id="notificationForm" class="space-y-3">
+                  <input id="notificationTitleInput" class="input-dark" name="title" placeholder="Title" required />
+                  <textarea id="notificationMessageInput" class="input-dark min-h-[100px]" name="message" placeholder="Message" required></textarea>
+                  <div class="grid gap-3 sm:grid-cols-3">
+                    <select id="notificationTypeInput" class="input-dark" name="type">
+                      <option value="ANNOUNCEMENT">Announcement</option>
+                      <option value="SYSTEM">System</option>
+                      <option value="PROMOTION">Promotion</option>
+                    </select>
+                    <select id="notificationTargetInput" class="input-dark" name="target">
+                      <option value="ALL_USERS">All Users</option>
+                      <option value="VERIFIED_USERS">Verified Users</option>
+                      <option value="ADMIN">Admin</option>
+                    </select>
+                    <select id="notificationPriorityInput" class="input-dark" name="priority">
+                      <option value="NORMAL">Normal</option>
+                      <option value="HIGH">High</option>
+                    </select>
+                  </div>
+                  <button type="submit" class="btn-primary w-full">Publish Notification</button>
+                </form>
+                <div class="mt-4 max-h-[220px] overflow-auto space-y-2" id="notificationsFeed"></div>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Referral Overview</h3>
+                <div class="space-y-2 text-sm" id="referralSummary"></div>
+                <h4 class="mt-4 mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Top Referrers</h4>
+                <div class="max-h-[220px] overflow-auto space-y-2" id="topReferrersList"></div>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Admin Login History</h3>
+                <div class="max-h-[320px] overflow-auto space-y-2" id="adminLoginHistoryList"></div>
+              </article>
+            </div>
           </section>
 
           <section class="admin-panel hidden" data-panel="users">
             <div class="mb-4 grid gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel sm:grid-cols-[1fr_auto]">
               <div class="flex flex-wrap gap-2">
-                <input id="userSearchInput" class="input-dark min-w-[220px] flex-1" type="text" placeholder="Search by email" />
+                <input id="userSearchInput" class="input-dark min-w-[220px] flex-1" type="text" placeholder="Search by email or UID" />
                 <button id="userSearchBtn" class="btn-secondary">Search</button>
                 <button id="userSearchResetBtn" class="btn-secondary">Reset</button>
               </div>
@@ -396,6 +436,20 @@
           </section>
         </div>
       </main>
+    </div>
+
+    <div id="userDetailModal" class="admin-modal hidden" role="dialog" aria-modal="true" aria-labelledby="userDetailTitle">
+      <div id="userDetailBackdrop" class="admin-modal-backdrop"></div>
+      <article class="admin-modal-card">
+        <header class="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 id="userDetailTitle" class="text-base font-semibold text-slate-100">User Details</h3>
+            <p id="userDetailSubtitle" class="text-xs text-slate-400">Live profile summary</p>
+          </div>
+          <button id="userDetailCloseBtn" class="btn-secondary" type="button">Close</button>
+        </header>
+        <div class="max-h-[72vh] overflow-auto pr-1" id="userDetailContent"></div>
+      </article>
     </div>
 
     <script src="/admin-dashboard.js"></script>

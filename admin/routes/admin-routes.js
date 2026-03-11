@@ -153,13 +153,21 @@ function registerAdminRoutes(app, deps) {
       });
     })
   );
+  router.get(
+    '/dashboard/kpis',
+    protect(ROLE_GROUPS.ALL),
+    withLogging({ module: 'dashboard', action: 'kpis', entityType: 'dashboard' }, adminControllers.dashboardKpis)
+  );
 
   // -------------------------
   // User Management
   // -------------------------
   router.get('/users', protect(ROLE_GROUPS.ALL), withLogging({ module: 'users', action: 'list_users' }, adminControllers.listUsers));
   router.get('/users/:userId', protect(ROLE_GROUPS.ALL), withLogging({ module: 'users', action: 'get_user' }, adminControllers.getUser));
+  router.get('/users/:userId/detail', protect(ROLE_GROUPS.ALL), withLogging({ module: 'users', action: 'get_user_detail' }, adminControllers.getUserDetail));
   router.patch('/users/:userId/status', protect(ROLE_GROUPS.OPS), withLogging({ module: 'users', action: 'set_user_status' }, adminControllers.setUserStatus));
+  router.post('/users/:userId/login-as', protect(ROLE_GROUPS.SUPER), withLogging({ module: 'users', action: 'login_as_user' }, adminControllers.loginAsUser));
+  router.post('/users/:userId/2fa', protect(ROLE_GROUPS.SUPER), withLogging({ module: 'users', action: 'set_user_2fa' }, adminControllers.setUserTwoFactor));
   router.post('/users/:userId/reset-password', protect(ROLE_GROUPS.SUPER), withLogging({ module: 'users', action: 'reset_user_password' }, adminControllers.resetUserPassword));
   router.post('/users/:userId/adjust-balance', protect(ROLE_GROUPS.FINANCE), withLogging({ module: 'users', action: 'adjust_user_balance' }, adminControllers.adjustUserBalance));
   router.get('/users/:userId/kyc', protect(ROLE_GROUPS.ALL), withLogging({ module: 'users', action: 'get_user_kyc' }, adminControllers.getUserKyc));
@@ -204,6 +212,7 @@ function registerAdminRoutes(app, deps) {
   // Revenue
   // -------------------------
   router.get('/revenue/summary', protect(ROLE_GROUPS.FINANCE), withLogging({ module: 'revenue', action: 'summary' }, adminControllers.revenueSummary));
+  router.get('/referrals/overview', protect(ROLE_GROUPS.ALL), withLogging({ module: 'revenue', action: 'referrals_overview' }, adminControllers.referralOverview));
 
   // -------------------------
   // Platform Settings
@@ -222,6 +231,8 @@ function registerAdminRoutes(app, deps) {
   // Support System
   // -------------------------
   router.get('/support/tickets', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'list_tickets' }, adminControllers.listSupportTickets));
+  router.get('/notifications', protect(ROLE_GROUPS.ALL), withLogging({ module: 'support', action: 'list_notifications' }, adminControllers.listNotifications));
+  router.post('/notifications', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'create_notification' }, adminControllers.createNotification));
   router.post('/support/tickets/:ticketId/reply', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'reply_ticket' }, adminControllers.replySupportTicket));
   router.patch('/support/tickets/:ticketId/status', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'update_ticket_status' }, adminControllers.updateSupportTicketStatus));
   router.patch('/support/tickets/:ticketId/assign', protect(ROLE_GROUPS.SUPER), withLogging({ module: 'support', action: 'assign_ticket' }, adminControllers.assignSupportTicket));
@@ -233,6 +244,7 @@ function registerAdminRoutes(app, deps) {
   router.get('/monitoring/api-logs', protect(ROLE_GROUPS.SUPER), withLogging({ module: 'monitoring', action: 'api_logs' }, adminControllers.monitoringApiLogs));
   router.get('/monitoring/health', protect(ROLE_GROUPS.ALL), withLogging({ module: 'monitoring', action: 'health', audit: false }, adminControllers.monitoringHealth));
   router.get('/audit/logs', protect(ROLE_GROUPS.SUPER), withLogging({ module: 'audit', action: 'list_logs' }, adminControllers.listAuditLogs));
+  router.get('/security/login-history', protect(ROLE_GROUPS.SUPER), withLogging({ module: 'monitoring', action: 'admin_login_history' }, adminControllers.adminLoginHistory));
 
   app.use('/api/admin', router);
 
