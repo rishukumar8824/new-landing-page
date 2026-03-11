@@ -200,6 +200,38 @@ class AuthApiService {
     return fallback;
   }
 
+  static String _buildOtpFallbackPassword(String email) {
+    final compact = email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+    final seed = '${compact}bitegitotp'.padRight(10, '0');
+    return 'Btg@${seed.substring(0, 10)}#26';
+  }
+
+  static OtpVerifyResult _buildVerifySuccess(
+    _HttpJsonResponse response,
+    String normalizedEmail,
+  ) {
+    final user = response.bodyMap?['user'];
+    final userMap = user is Map<String, dynamic>
+        ? user
+        : const <String, dynamic>{};
+    final accessToken =
+        (response.bodyMap?['accessToken'] ?? response.bodyMap?['token'] ?? '')
+            .toString();
+    final refreshToken = (response.bodyMap?['refreshToken'] ?? '').toString();
+    return OtpVerifyResult(
+      success: true,
+      message: _messageFrom(response, 'Authentication successful.'),
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      userId: (userMap['id'] ?? userMap['userId'] ?? '').toString().trim(),
+      email: (userMap['email'] ?? normalizedEmail)
+          .toString()
+          .trim()
+          .toLowerCase(),
+      kycStatus: (userMap['kycStatus'] ?? '').toString().trim().toLowerCase(),
+    );
+  }
+
   static Future<OtpSendResult> sendOtp({
     required String email,
     required GeetestValidatePayload geetest,
@@ -209,26 +241,52 @@ class AuthApiService {
     final referral = (referralCode ?? '').toString().trim();
     final baseUrls = _baseUrls();
 
-    final payload = <String, dynamic>{
-      'email': normalizedEmail,
-      'referralCode': referral,
-      'geetest': geetest.toJson(),
-    };
+    final requests = <Map<String, dynamic>>[
+      {
+        'path': '/auth/send-otp',
+        'payload': <String, dynamic>{
+          'email': normalizedEmail,
+          'referralCode': referral,
+          'geetest': geetest.toJson(),
+        },
+      },
+      {
+        'path': '/auth/signup/send-otp',
+        'payload': <String, dynamic>{'email': normalizedEmail},
+      },
+      {
+        'path': '/api/signup/send-code',
+        'payload': <String, dynamic>{'contact': normalizedEmail},
+      },
+    ];
 
     String firstFailureMessage = '';
+
     for (final base in baseUrls) {
-      final response = await _postJson(_uri(base, '/auth/send-otp'), payload);
-      if (_looksSuccessful(response)) {
-        return OtpSendResult(
-          success: true,
-          message: _messageFrom(
-            response,
-            'Verification code sent to your email.',
-          ),
+      for (final request in requests) {
+        final response = await _postJson(
+          _uri(base, request['path'].toString()),
+          request['payload'] as Map<String, dynamic>,
         );
-      }
-      if (firstFailureMessage.isEmpty) {
-        firstFailureMessage = _messageFrom(response, '');
+
+        if (_looksSuccessful(response)) {
+          return OtpSendResult(
+            success: true,
+            message: _messageFrom(
+              response,
+              'Verification code sent to your email.',
+            ),
+          );
+        }
+
+        final status = response.statusCode;
+        if (status == 404 || status == 405) {
+          continue;
+        }
+
+        if (firstFailureMessage.isEmpty) {
+          firstFailureMessage = _messageFrom(response, '');
+        }
       }
     }
 
@@ -247,44 +305,57 @@ class AuthApiService {
     final normalizedEmail = email.trim().toLowerCase();
     final trimmedOtp = otp.trim();
     final baseUrls = _baseUrls();
+    final fallbackPassword = _buildOtpFallbackPassword(normalizedEmail);
 
     String firstFailureMessage = '';
 
     for (final base in baseUrls) {
-      final response = await _postJson(
+      final primaryResponse = await _postJson(
         _uri(base, '/auth/verify-otp'),
         <String, dynamic>{'email': normalizedEmail, 'otp': trimmedOtp},
       );
-      if (_looksSuccessful(response)) {
-        final user = response.bodyMap?['user'];
-        final userMap = user is Map<String, dynamic>
-            ? user
-            : const <String, dynamic>{};
-        final accessToken =
-            (response.bodyMap?['accessToken'] ??
-                    response.bodyMap?['token'] ??
-                    '')
-                .toString();
-        final refreshToken = (response.bodyMap?['refreshToken'] ?? '')
-            .toString();
-        return OtpVerifyResult(
-          success: true,
-          message: _messageFrom(response, 'Authentication successful.'),
-          accessToken: accessToken,
-          refreshToken: refreshToken,
-          userId: (userMap['id'] ?? userMap['userId'] ?? '').toString().trim(),
-          email: (userMap['email'] ?? normalizedEmail)
-              .toString()
-              .trim()
-              .toLowerCase(),
-          kycStatus: (userMap['kycStatus'] ?? '')
-              .toString()
-              .trim()
-              .toLowerCase(),
-        );
+      if (_looksSuccessful(primaryResponse)) {
+        return _buildVerifySuccess(primaryResponse, normalizedEmail);
       }
-      if (firstFailureMessage.isEmpty) {
-        firstFailureMessage = _messageFrom(response, '');
+      if (primaryResponse.statusCode != 404 && firstFailureMessage.isEmpty) {
+        firstFailureMessage = _messageFrom(primaryResponse, '');
+      }
+
+      final registerResponse = await _postJson(
+        _uri(base, '/auth/register'),
+        <String, dynamic>{
+          'email': normalizedEmail,
+          'password': fallbackPassword,
+          'otpCode': trimmedOtp,
+        },
+      );
+      if (_looksSuccessful(registerResponse)) {
+        return _buildVerifySuccess(registerResponse, normalizedEmail);
+      }
+
+      final registerMessage = _messageFrom(registerResponse, '');
+      final shouldTryLogin =
+          registerResponse.statusCode == 409 ||
+          registerMessage.toLowerCase().contains('already exists');
+
+      if (shouldTryLogin) {
+        final loginResponse = await _postJson(
+          _uri(base, '/auth/login'),
+          <String, dynamic>{
+            'email': normalizedEmail,
+            'password': fallbackPassword,
+          },
+        );
+
+        if (_looksSuccessful(loginResponse)) {
+          return _buildVerifySuccess(loginResponse, normalizedEmail);
+        }
+
+        if (firstFailureMessage.isEmpty) {
+          firstFailureMessage = _messageFrom(loginResponse, '');
+        }
+      } else if (firstFailureMessage.isEmpty) {
+        firstFailureMessage = registerMessage;
       }
     }
 
