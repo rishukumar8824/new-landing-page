@@ -96,6 +96,7 @@ function registerAuthRoutes(app, deps) {
   });
 
   const SIGNUP_OTP_PURPOSE = 'signup';
+  const SIGNIN_OTP_PURPOSE = 'signin';
   const PASSWORD_RESET_OTP_PURPOSE = 'password_reset';
   const REGISTER_EMAIL_VERIFY_PURPOSE = 'register_email_verify';
   const REGISTER_EMAIL_VERIFY_TTL_MS = 5 * 60 * 1000;
@@ -164,8 +165,12 @@ function registerAuthRoutes(app, deps) {
 
     if (authEmailService && typeof authEmailService === 'object') {
       try {
-        if (purpose === SIGNUP_OTP_PURPOSE && typeof authEmailService.sendSignupOtpEmail === 'function') {
-          sendResult = await authEmailService.sendSignupOtpEmail(contact, code, { expiresInMinutes });
+        if (purpose === SIGNUP_OTP_PURPOSE || purpose === SIGNIN_OTP_PURPOSE) {
+          if (typeof authEmailService.sendLoginOtpEmail === 'function') {
+            sendResult = await authEmailService.sendLoginOtpEmail(contact, code, { expiresInMinutes });
+          } else if (typeof authEmailService.sendSignupOtpEmail === 'function') {
+            sendResult = await authEmailService.sendSignupOtpEmail(contact, code, { expiresInMinutes });
+          }
         } else if (
           purpose === PASSWORD_RESET_OTP_PURPOSE &&
           typeof authEmailService.sendForgotPasswordOtpEmail === 'function'
@@ -444,6 +449,124 @@ function registerAuthRoutes(app, deps) {
     setAuthCookies(res, tokenPair);
     return tokenPair;
   }
+
+  app.post('/auth/send-otp', signupOtpLimiter, async (req, res) => {
+    const email = createEmailFromInput(req.body?.email);
+    const ipAddress = normalizeIp(req);
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: 'Enter a valid email address.' });
+    }
+
+    try {
+      const result = await sendOtpEmail(email, SIGNIN_OTP_PURPOSE);
+      if (result.error) {
+        return res.status(result.status || 500).json({
+          message: result.message,
+          reason: result.reason
+        });
+      }
+
+      await safeAuditLog({
+        userId: '',
+        action: 'signin_otp_sent',
+        ipAddress,
+        metadata: {
+          email,
+          delivery: result.delivery
+        }
+      });
+
+      return res.json({
+        success: true,
+        message: result.message,
+        expiresInSeconds: result.expiresInSeconds
+      });
+    } catch (error) {
+      return res.status(500).json({ message: 'Server error while sending verification code.' });
+    }
+  });
+
+  app.post('/auth/verify-otp', registerLimiter, async (req, res) => {
+    const email = createEmailFromInput(req.body?.email);
+    const otpCode = String(req.body?.otp || req.body?.otpCode || '').trim();
+    const ipAddress = normalizeIp(req);
+    const userAgent = String(req.headers['user-agent'] || '').trim().slice(0, 1024);
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: 'Enter a valid email address.' });
+    }
+    if (!isValidOtpCode(otpCode)) {
+      return res.status(400).json({ message: 'Enter a valid 6-digit verification code.' });
+    }
+
+    try {
+      const otpResult = await verifyOtp(email, otpCode, SIGNIN_OTP_PURPOSE);
+      if (!otpResult.ok) {
+        return res.status(400).json({ message: otpResult.message });
+      }
+
+      let credential = await repos.getP2PCredential(email);
+      if (!credential) {
+        const randomPassword = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        await repos.setP2PCredential(email, repos.hashPassword(randomPassword), {
+          role: 'USER',
+          emailVerified: true
+        });
+        credential = await repos.getP2PCredential(email);
+      }
+
+      const role = tokenService.normalizeRole(credential?.role || 'USER');
+      const user = buildP2PUserFromEmail(email, role);
+      await walletService.ensureWallet(user.id, { username: user.username });
+      const tokenPair = await createAndReturnTokens(res, user);
+
+      if (typeof createLegacyP2PUserSession === 'function') {
+        const legacySession = await createLegacyP2PUserSession(email, role);
+        setCookie(res, cookieNames.legacyP2PSession, legacySession.token, Math.floor(p2pUserTtlMs / 1000));
+      }
+
+      await repos.touchP2PCredentialLogin(email, {
+        ipAddress,
+        userAgent,
+        deviceLabel: userAgent
+      });
+
+      await safeAuditLog({
+        userId: user.id,
+        action: 'signin_otp_success',
+        ipAddress,
+        metadata: { email, role }
+      });
+
+      await safeOnLoginSuccess({
+        user,
+        ipAddress,
+        userAgent
+      });
+
+      return res.json({
+        success: true,
+        message: 'Authentication successful.',
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          kycStatus: credential?.kycStatus || 'pending'
+        },
+        accessToken: tokenPair.accessToken,
+        refreshToken: tokenPair.refreshToken,
+        accessTokenExpiresAt: tokenPair.accessTokenExpiresAt,
+        refreshTokenExpiresAt: tokenPair.refreshTokenExpiresAt
+      });
+    } catch (error) {
+      if (String(error.message || '').includes('JWT_SECRET')) {
+        return res.status(503).json({ message: 'JWT auth is not configured.' });
+      }
+      return res.status(500).json({ message: 'Server error while verifying OTP.' });
+    }
+  });
 
   app.post('/auth/login', loginLimiter, async (req, res) => {
     const email = createEmailFromInput(req.body?.email);
