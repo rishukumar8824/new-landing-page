@@ -652,23 +652,50 @@ function createSocialFeedStore(config, { logger = console } = {}) {
     };
   }
 
-  async function listSuggestedCreators({ limit = 6 }) {
+  async function listSuggestedCreators({ limit = 6, userId = null }) {
     assertReady();
     const safeLimit = Math.max(1, Math.min(20, toInt(limit, 6)));
-    const [rows] = await pool.query(
-      `SELECT id, name, avatar_url, followers_count, verified
-       FROM creators
-       WHERE status = 'active'
-       ORDER BY verified DESC, followers_count DESC, id DESC
-       LIMIT ?`,
-      [safeLimit]
-    );
+    const safeUserId = toInt(userId, 0);
+    const [rows] = safeUserId > 0
+      ? await pool.query(
+          `SELECT
+             c.id,
+             c.name,
+             c.avatar_url,
+             c.followers_count,
+             c.verified,
+             EXISTS(
+               SELECT 1
+               FROM followers f
+               WHERE f.user_id = ? AND f.follows_user_id = c.user_id
+             ) AS is_following
+           FROM creators c
+           WHERE c.status = 'active'
+           ORDER BY c.verified DESC, c.followers_count DESC, c.id DESC
+           LIMIT ?`,
+          [safeUserId, safeLimit]
+        )
+      : await pool.query(
+          `SELECT
+             c.id,
+             c.name,
+             c.avatar_url,
+             c.followers_count,
+             c.verified,
+             0 AS is_following
+           FROM creators c
+           WHERE c.status = 'active'
+           ORDER BY c.verified DESC, c.followers_count DESC, c.id DESC
+           LIMIT ?`,
+          [safeLimit]
+        );
     return rows.map((row) => ({
       id: String(row.id),
       name: String(row.name || 'Creator').trim(),
       avatarUrl: String(row.avatar_url || '').trim(),
       followersCount: toInt(row.followers_count),
-      verified: Boolean(row.verified)
+      verified: Boolean(row.verified),
+      isFollowing: toInt(row.is_following, 0) > 0
     }));
   }
 

@@ -4989,6 +4989,7 @@ class _SuggestedCreator {
     required this.followersCount,
     required this.verified,
     this.avatarUrl = '',
+    this.isFollowing = false,
   });
 
   final String id;
@@ -4996,6 +4997,7 @@ class _SuggestedCreator {
   final int followersCount;
   final bool verified;
   final String avatarUrl;
+  final bool isFollowing;
 
   factory _SuggestedCreator.fromMap(Map<String, dynamic> map) {
     return _SuggestedCreator(
@@ -5008,6 +5010,10 @@ class _SuggestedCreator {
       avatarUrl: (map['avatarUrl'] ?? map['avatar_url'] ?? '')
           .toString()
           .trim(),
+      isFollowing:
+          map['isFollowing'] == true ||
+          map['is_following'] == true ||
+          map['is_following'] == 1,
     );
   }
 }
@@ -5271,8 +5277,16 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
           .where((item) => item.id.isNotEmpty)
           .toList(growable: false);
       if (!mounted) return;
+      final resolvedCreators = parsed.isEmpty ? _fallbackCreators : parsed;
+      final latestFollowing = resolvedCreators
+          .where((item) => item.isFollowing)
+          .map((item) => item.id)
+          .toSet();
       setState(() {
-        _creators = parsed.isEmpty ? _fallbackCreators : parsed;
+        _creators = resolvedCreators;
+        _followingCreators
+          ..removeWhere((id) => !resolvedCreators.any((item) => item.id == id))
+          ..addAll(latestFollowing);
       });
       return;
     }
@@ -5329,6 +5343,9 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('Following ${creator.name}')));
+    if (_tabKey == 'following') {
+      await _loadFeedPage(append: false);
+    }
   }
 
   void _dismissPost(String id) {
@@ -5621,19 +5638,19 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
 
   List<_SuggestedCreator> get _fallbackCreators => const <_SuggestedCreator>[
     _SuggestedCreator(
-      id: 'c1',
+      id: '1',
       name: 'Alpha Whale',
       followersCount: 21873,
       verified: true,
     ),
     _SuggestedCreator(
-      id: 'c2',
+      id: '2',
       name: 'Chain Pulse',
       followersCount: 14704,
       verified: true,
     ),
     _SuggestedCreator(
-      id: 'c3',
+      id: '3',
       name: 'Macro Desk',
       followersCount: 9931,
       verified: false,

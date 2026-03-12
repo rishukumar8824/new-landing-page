@@ -29,6 +29,7 @@ const { createUserCenterService } = require('./modules/user-center/service');
 const { registerUserCenterRoutes } = require('./routes/user-center');
 const { readSocialFeedConfig } = require('./modules/social-feed/config');
 const { createSocialFeedStore } = require('./modules/social-feed/mysql-store');
+const { createSocialFeedFallbackStore } = require('./modules/social-feed/fallback-store');
 const { createSocialFeedService } = require('./modules/social-feed/service');
 const { registerSocialFeedRoutes } = require('./routes/social-feed');
 const { createP2POrderController } = require('./controllers/p2p-order-controller');
@@ -3079,6 +3080,16 @@ async function boot() {
     });
 
     const socialFeedConfig = readSocialFeedConfig();
+    async function enableSocialFeedFallback(reason) {
+      socialFeedStore = createSocialFeedFallbackStore();
+      await socialFeedStore.initialize();
+      socialFeedService = createSocialFeedService({
+        store: socialFeedStore,
+        config: socialFeedConfig.app
+      });
+      console.warn(`[social-feed] ${reason}. Using in-memory fallback store for live feed APIs.`);
+    }
+
     if (socialFeedConfig.mysql.enabled) {
       try {
         socialFeedStore = createSocialFeedStore(socialFeedConfig.mysql);
@@ -3089,15 +3100,14 @@ async function boot() {
         });
         console.log('[social-feed] Social feed module enabled');
       } catch (error) {
-        socialFeedStore = null;
-        socialFeedService = null;
         console.error(
-          '[social-feed] MySQL initialization failed. Social feed APIs will return 503:',
+          '[social-feed] MySQL initialization failed:',
           error?.message || error
         );
+        await enableSocialFeedFallback('MySQL store unavailable');
       }
     } else {
-      console.log('[social-feed] MySQL config missing; Social feed APIs will return 503.');
+      await enableSocialFeedFallback('MySQL config missing');
     }
 
     registerSocialFeedRoutes(app, {

@@ -88,8 +88,10 @@ function registerSocialFeedRoutes(app, {
 
   app.get('/api/social/suggested-creators', feedLimiter, async (req, res) => {
     try {
+      const user = await resolveOptionalUser(req);
       const items = await socialFeedService.getSuggestedCreators({
-        limit: req.query?.limit
+        limit: req.query?.limit,
+        authUser: user
       });
       return res.json({ success: true, items });
     } catch (error) {

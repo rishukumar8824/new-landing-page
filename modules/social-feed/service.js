@@ -40,9 +40,10 @@ function createSocialFeedService({ store, config = {} }) {
     return data;
   }
 
-  async function getSuggestedCreators({ limit }) {
+  async function getSuggestedCreators({ limit, authUser }) {
     const safeLimit = Math.max(1, Math.min(20, toInt(limit, 6)));
-    return store.listSuggestedCreators({ limit: safeLimit });
+    const userId = await store.resolveUserId(authUser).catch(() => null);
+    return store.listSuggestedCreators({ limit: safeLimit, userId });
   }
 
   async function followCreator({ authUser, creatorId }) {
