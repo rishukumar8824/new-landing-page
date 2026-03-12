@@ -9,7 +9,7 @@ class UserCenterApiService {
   static String _baseUrl() {
     final fromEnv = const String.fromEnvironment(
       'BITEGIT_API_BASE',
-      defaultValue: 'https://bitegit.com',
+      defaultValue: 'https://new-landing-page-rlv6.onrender.com',
     ).trim();
     return fromEnv.endsWith('/')
         ? fromEnv.substring(0, fromEnv.length - 1)

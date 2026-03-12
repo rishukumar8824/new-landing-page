@@ -126,7 +126,7 @@ class AuthApiService {
     final fromEnv = _normalizeBase(
       const String.fromEnvironment('BITEGIT_API_BASE', defaultValue: ''),
     );
-    const defaults = <String>['https://www.bitegit.com', 'https://bitegit.com'];
+    const defaults = <String>['https://new-landing-page-rlv6.onrender.com'];
 
     final ordered = <String>[if (fromEnv.isNotEmpty) fromEnv, ...defaults];
 

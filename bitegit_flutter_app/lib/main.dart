@@ -79,10 +79,7 @@ List<String> _apiBaseUrls() {
   final fromEnv = _normalizeApiBase(
     const String.fromEnvironment('BITEGIT_API_BASE', defaultValue: ''),
   );
-  const defaults = <String>[
-    'https://new-landing-page-rlv6.onrender.com',
-    'https://new-landing-page-wz8p.onrender.com',
-  ];
+  const defaults = <String>['https://new-landing-page-rlv6.onrender.com'];
   final ordered = <String>[if (fromEnv.isNotEmpty) fromEnv, ...defaults];
   final unique = <String>[];
   for (final base in ordered) {
@@ -144,6 +141,8 @@ Future<_ApiHttpResponse> _getJsonFromApi(Uri uri, {String? accessToken}) async {
     final req = await client.getUrl(uri);
     req.followRedirects = false;
     req.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    req.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
+    req.headers.set(HttpHeaders.pragmaHeader, 'no-cache');
     final token = (accessToken ?? '').trim();
     if (token.isNotEmpty) {
       req.headers.set('Authorization', 'Bearer $token');
@@ -177,6 +176,8 @@ Future<_ApiHttpResponse> _postJsonToApi(
     final req = await client.postUrl(uri);
     req.followRedirects = false;
     req.headers.contentType = ContentType.json;
+    req.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
+    req.headers.set(HttpHeaders.pragmaHeader, 'no-cache');
     final token = (accessToken ?? '').trim();
     if (token.isNotEmpty) {
       req.headers.set('Authorization', 'Bearer $token');
@@ -1066,8 +1067,15 @@ String _generateUserUid() {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _clearTransientAppCacheOnLaunch();
   await _restoreSessionState();
   runApp(const BitegitApp());
+}
+
+Future<void> _clearTransientAppCacheOnLaunch() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove('social_feed_cache');
+  await prefs.remove('social_feed_last_fetch');
 }
 
 class BitegitApp extends StatelessWidget {
@@ -1886,36 +1894,39 @@ String _maskIdentity(String value) {
 }
 
 class AuthOtpService {
-  static final List<Uri> _requestUris = <Uri>[
-    Uri.parse('https://bitegit.com/api/signup/send-code'),
-    Uri.parse('https://bitegit.com/auth/signup/send-otp'),
-    Uri.parse('https://bitegit.com/api/auth/otp/request'),
+  static const List<String> _requestPaths = <String>[
+    '/auth/send-otp',
+    '/api/auth/send-otp',
+    '/api/auth/otp/request',
   ];
-  static final List<Uri> _verifyUris = <Uri>[
-    Uri.parse('https://bitegit.com/api/signup/verify-code'),
-    Uri.parse('https://bitegit.com/api/auth/otp/verify'),
+  static const List<String> _verifyPaths = <String>[
+    '/auth/verify-otp',
+    '/api/auth/verify-otp',
+    '/api/auth/otp/verify',
   ];
 
   static Future<OtpRequestResult> requestOtp(String identity) async {
-    for (final uri in _requestUris) {
-      final response = await _postJson(
-        uri: uri,
-        payload: <String, dynamic>{
-          'contact': identity,
-          'identity': identity,
-          'email': identity,
-          'channel': identity.contains('@') ? 'email' : 'sms',
-        },
-      );
-      if (!response.ok || response.bodyMap == null) continue;
-      final decoded = response.bodyMap!;
-      final message = (decoded['message'] ?? 'OTP sent successfully')
-          .toString();
-      return OtpRequestResult(
-        success: true,
-        backendSent: true,
-        message: message,
-      );
+    for (final base in _apiBaseUrls()) {
+      for (final path in _requestPaths) {
+        final response = await _postJson(
+          uri: _apiUri(base, path),
+          payload: <String, dynamic>{
+            'contact': identity,
+            'identity': identity,
+            'email': identity,
+            'channel': identity.contains('@') ? 'email' : 'sms',
+          },
+        );
+        if (!response.ok || response.bodyMap == null) continue;
+        final decoded = response.bodyMap!;
+        final message = (decoded['message'] ?? 'OTP sent successfully')
+            .toString();
+        return OtpRequestResult(
+          success: true,
+          backendSent: true,
+          message: message,
+        );
+      }
     }
 
     await Future<void>.delayed(const Duration(milliseconds: 450));
@@ -1933,26 +1944,28 @@ class AuthOtpService {
   }) async {
     final trimmed = otp.trim();
     final displayName = _displayNameFromIdentity(identity);
-    for (final uri in _verifyUris) {
-      final response = await _postJson(
-        uri: uri,
-        payload: <String, dynamic>{
-          'contact': identity,
-          'identity': identity,
-          'otp': trimmed,
-          'code': trimmed,
-          'name': displayName,
-        },
-      );
-      if (!response.ok || response.bodyMap == null) continue;
-      final decoded = response.bodyMap!;
-      final ok =
-          decoded['success'] == true ||
-          decoded['verified'] == true ||
-          decoded['status']?.toString().toLowerCase() == 'verified' ||
-          decoded['status']?.toString().toLowerCase() == 'success' ||
-          response.statusCode == 201;
-      if (ok) return true;
+    for (final base in _apiBaseUrls()) {
+      for (final path in _verifyPaths) {
+        final response = await _postJson(
+          uri: _apiUri(base, path),
+          payload: <String, dynamic>{
+            'contact': identity,
+            'identity': identity,
+            'otp': trimmed,
+            'code': trimmed,
+            'name': displayName,
+          },
+        );
+        if (!response.ok || response.bodyMap == null) continue;
+        final decoded = response.bodyMap!;
+        final ok =
+            decoded['success'] == true ||
+            decoded['verified'] == true ||
+            decoded['status']?.toString().toLowerCase() == 'verified' ||
+            decoded['status']?.toString().toLowerCase() == 'success' ||
+            response.statusCode == 201;
+        if (ok) return true;
+      }
     }
     return false;
   }
@@ -5236,6 +5249,7 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
         'tab': _tabKey,
         'page': '$targetPage',
         'pageSize': '10',
+        'ts': DateTime.now().millisecondsSinceEpoch.toString(),
       },
     );
 
@@ -14587,7 +14601,7 @@ class SupportBotPage extends StatefulWidget {
 class _SupportBotPageState extends State<SupportBotPage> {
   static const String _supportApiBase = String.fromEnvironment(
     'SUPPORT_API_BASE',
-    defaultValue: 'https://www.bitegit.com',
+    defaultValue: 'https://new-landing-page-rlv6.onrender.com',
   );
   static const String _supportApiBearer = String.fromEnvironment(
     'SUPPORT_API_BEARER',
