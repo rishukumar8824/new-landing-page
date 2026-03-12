@@ -3460,8 +3460,17 @@ class _HomePageState extends State<HomePage> {
       GlobalKey<_HomeSocialDiscoveryFeedState>();
   final GlobalKey<_HomePopularPairsSectionState> _pairsSectionKey =
       GlobalKey<_HomePopularPairsSectionState>();
+  static const Duration _scrollLogoVisibleDuration = Duration(
+    milliseconds: 1350,
+  );
+  static const Duration _scrollLogoCooldown = Duration(milliseconds: 1700);
+  static const double _scrollLogoTriggerDelta = 56;
   bool _composerOpen = false;
   bool _refreshingHome = false;
+  bool _showScrollLogo = false;
+  double _lastScrollOffset = 0;
+  DateTime _nextScrollLogoAt = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _scrollLogoTimer;
 
   @override
   void initState() {
@@ -3472,15 +3481,40 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _scrollController.removeListener(_handleScroll);
+    _scrollLogoTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _handleScroll() {
     if (!_scrollController.hasClients) return;
+    final currentOffset = _scrollController.offset;
+    final delta = currentOffset - _lastScrollOffset;
+    if (delta >= _scrollLogoTriggerDelta && currentOffset > 20) {
+      _showScrollLogoPopup();
+    }
+    _lastScrollOffset = currentOffset;
     if (_scrollController.position.extentAfter < 900) {
       _socialFeedKey.currentState?.loadMoreIfNeeded();
     }
+  }
+
+  void _showScrollLogoPopup() {
+    final now = DateTime.now();
+    if (now.isBefore(_nextScrollLogoAt)) {
+      return;
+    }
+    _nextScrollLogoAt = now.add(_scrollLogoCooldown);
+    _scrollLogoTimer?.cancel();
+    if (!_showScrollLogo && mounted) {
+      setState(() => _showScrollLogo = true);
+    }
+    _scrollLogoTimer = Timer(_scrollLogoVisibleDuration, () {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _showScrollLogo = false);
+    });
   }
 
   Future<void> _refreshHomeContent() async {
@@ -3519,6 +3553,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return ValueListenableBuilder<HomeWidgetSettings>(
       valueListenable: homeWidgetSettingsNotifier,
       builder: (context, settings, _) {
@@ -3540,8 +3575,6 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   _TopHeader(onOpenProfile: widget.onOpenProfile),
                   const SizedBox(height: 8),
-                  const _HomeBrandProgress(),
-                  const SizedBox(height: 10),
                   if (settings.showDepositBanner) ...[
                     _HomeDepositBanner(
                       onDeposit: () => Navigator.of(context).push(
@@ -3599,6 +3632,53 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 104),
                 ],
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    opacity: _showScrollLogo ? 1 : 0,
+                    child: AnimatedScale(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutBack,
+                      scale: _showScrollLogo ? 1 : 0.84,
+                      child: Container(
+                        width: 106,
+                        height: 106,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: isLight
+                              ? const Color(0xEAF4F7FC)
+                              : const Color(0xCC101722),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
+                            color: isLight
+                                ? const Color(0xFFCCD6E8)
+                                : const Color(0xFF2C3545),
+                            width: 1.1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: isLight
+                                  ? const Color(0x33121A29)
+                                  : const Color(0x73000000),
+                              blurRadius: 22,
+                              spreadRadius: 1,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: const _ExchangeLogoGlyph(
+                          size: 56,
+                          glowStrength: 0.8,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
             Positioned(
@@ -4147,94 +4227,6 @@ class _TopHeader extends StatelessWidget {
           },
         ),
       ],
-    );
-  }
-}
-
-class _HomeBrandProgress extends StatelessWidget {
-  const _HomeBrandProgress();
-
-  @override
-  Widget build(BuildContext context) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
-    final bg = isLight ? const Color(0xFFE7EBF3) : const Color(0xFF111621);
-    final border = isLight ? const Color(0xFFD5DCEA) : const Color(0xFF232D40);
-    final primary = isLight ? const Color(0xFF151A24) : Colors.white;
-    final muted = isLight ? const Color(0xFF6B7484) : Colors.white60;
-    final accent = const Color(0xFFFFA726);
-
-    Widget stepNode(String label, {required bool active, required bool done}) {
-      final dotColor = done
-          ? accent
-          : (active
-                ? (isLight ? const Color(0xFF151A24) : Colors.white)
-                : (isLight
-                      ? const Color(0xFFB6BECE)
-                      : const Color(0xFF44506A)));
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-          ),
-          const SizedBox(height: 6),
-          Text(label, style: TextStyle(fontSize: 10.8, color: muted)),
-        ],
-      );
-    }
-
-    Widget line(bool active) {
-      return Expanded(
-        child: Container(
-          height: 1.4,
-          margin: const EdgeInsets.only(bottom: 20),
-          color: active
-              ? (isLight ? const Color(0xFF515C73) : const Color(0xFF6D7A94))
-              : (isLight ? const Color(0xFFC2CAD9) : const Color(0xFF2C364B)),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: border),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const _ExchangeLogoGlyph(size: 34, glowStrength: 0.45),
-              const SizedBox(width: 10),
-              Text(
-                'Get Started',
-                style: TextStyle(
-                  color: primary,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              stepNode('Sign Up', done: true, active: false),
-              line(true),
-              stepNode('Identification', done: false, active: true),
-              line(false),
-              stepNode('Deposit', done: false, active: false),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }
