@@ -167,6 +167,20 @@ let persistenceReady = false;
 let httpServer = null;
 let shuttingDown = false;
 let bootRetryTimer = null;
+const socialFeedBootstrapConfig = readSocialFeedConfig();
+const socialFeedBootstrapStore = createSocialFeedFallbackStore();
+const socialFeedBootstrapInitPromise = socialFeedBootstrapStore
+  .initialize()
+  .catch((error) => {
+    console.error(
+      '[social-feed] Failed to initialize bootstrap fallback store:',
+      error?.message || error
+    );
+  });
+const socialFeedBootstrapService = createSocialFeedService({
+  store: socialFeedBootstrapStore,
+  config: socialFeedBootstrapConfig.app
+});
 
 const validation = validationRules();
 app.use(express.json({ limit: '1mb' }));
@@ -2812,6 +2826,114 @@ app.get('/healthz', (req, res) => {
 
 app.get('/api/health', (req, res) => {
   return res.status(200).json({ status: 'OK', service: 'bitegit-backend' });
+});
+
+// Keep social feed live even before full boot/module registration completes.
+app.get('/api/social/feed', async (req, res, next) => {
+  if (socialFeedService) {
+    return next();
+  }
+  try {
+    await socialFeedBootstrapInitPromise;
+    const authUser = await getP2PUserFromRequest(req).catch(() => null);
+    const feed = await socialFeedBootstrapService.getFeed({
+      tab: req.query?.tab,
+      page: req.query?.page,
+      pageSize: req.query?.pageSize,
+      authUser
+    });
+    return res.json({
+      success: true,
+      source: 'bootstrap-fallback',
+      ...feed
+    });
+  } catch (error) {
+    return res.status(503).json({
+      success: false,
+      message: String(error?.message || 'Social feed temporarily unavailable.'),
+      code: 'SOCIAL_FEED_BOOTSTRAP_ERROR'
+    });
+  }
+});
+
+app.get('/api/social/suggested-creators', async (req, res, next) => {
+  if (socialFeedService) {
+    return next();
+  }
+  try {
+    await socialFeedBootstrapInitPromise;
+    const authUser = await getP2PUserFromRequest(req).catch(() => null);
+    const items = await socialFeedBootstrapService.getSuggestedCreators({
+      limit: req.query?.limit,
+      authUser
+    });
+    return res.json({
+      success: true,
+      source: 'bootstrap-fallback',
+      items
+    });
+  } catch (error) {
+    return res.status(503).json({
+      success: false,
+      message: String(error?.message || 'Suggested creators temporarily unavailable.'),
+      code: 'SOCIAL_CREATOR_BOOTSTRAP_ERROR'
+    });
+  }
+});
+
+app.get('/api/social/copy-traders', async (req, res, next) => {
+  if (socialFeedService) {
+    return next();
+  }
+  try {
+    await socialFeedBootstrapInitPromise;
+    const items = await socialFeedBootstrapService.getCopyTraders({
+      limit: req.query?.limit
+    });
+    return res.json({
+      success: true,
+      source: 'bootstrap-fallback',
+      items
+    });
+  } catch (error) {
+    return res.status(503).json({
+      success: false,
+      message: String(error?.message || 'Copy traders temporarily unavailable.'),
+      code: 'SOCIAL_TRADER_BOOTSTRAP_ERROR'
+    });
+  }
+});
+
+app.post('/api/social/creators/:creatorId/follow', async (req, res, next) => {
+  if (socialFeedService) {
+    return next();
+  }
+  try {
+    await socialFeedBootstrapInitPromise;
+    const authUser = await getP2PUserFromRequest(req).catch(() => null);
+    if (!authUser) {
+      return res.status(401).json({
+        success: false,
+        message: 'Login required to follow creators.',
+        code: 'AUTH_REQUIRED'
+      });
+    }
+    const result = await socialFeedBootstrapService.followCreator({
+      authUser,
+      creatorId: req.params.creatorId
+    });
+    return res.json({
+      success: true,
+      source: 'bootstrap-fallback',
+      ...result
+    });
+  } catch (error) {
+    return res.status(503).json({
+      success: false,
+      message: String(error?.message || 'Unable to follow creator right now.'),
+      code: 'SOCIAL_FOLLOW_BOOTSTRAP_ERROR'
+    });
+  }
 });
 
 if (ENABLE_DEV_TEST_ROUTES) {
