@@ -14,16 +14,22 @@ class ScrollLogoOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Positioned.fill(
       child: IgnorePointer(
-        child: Center(
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            opacity: visible ? 1 : 0,
-            child: AnimatedScale(
-              duration: const Duration(milliseconds: 240),
-              curve: Curves.easeOutBack,
-              scale: visible ? 1 : 0.86,
-              child: child,
+        child: SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 18),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                opacity: visible ? 1 : 0,
+                child: AnimatedScale(
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutBack,
+                  scale: visible ? 1 : 0.86,
+                  child: child,
+                ),
+              ),
             ),
           ),
         ),

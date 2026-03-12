@@ -3522,6 +3522,10 @@ class _HomePageState extends State<HomePage> {
       GlobalKey<GateEventSliderState>();
   final GlobalKey<GateMarketTickerSectionState> _tickerKey =
       GlobalKey<GateMarketTickerSectionState>();
+  final GlobalKey<_HomePopularPairsSectionState> _popularPairsKey =
+      GlobalKey<_HomePopularPairsSectionState>();
+  final GlobalKey<_HomeSocialDiscoveryFeedState> _socialFeedKey =
+      GlobalKey<_HomeSocialDiscoveryFeedState>();
   bool _refreshingHome = false;
   bool _showScrollLogo = false;
   DateTime _logoCooldownUntil = DateTime.fromMillisecondsSinceEpoch(0);
@@ -3581,6 +3585,10 @@ class _HomePageState extends State<HomePage> {
         _syncHomeNotificationsFromBackend(accessToken: token),
         _eventsKey.currentState?.refreshFromParent() ?? Future<void>.value(),
         _tickerKey.currentState?.refreshFromParent() ?? Future<void>.value(),
+        _popularPairsKey.currentState?.refreshFromParent() ??
+            Future<void>.value(),
+        _socialFeedKey.currentState?.refreshFromParent() ??
+            Future<void>.value(),
       ]);
     } finally {
       if (mounted) {
@@ -3726,6 +3734,16 @@ class _HomePageState extends State<HomePage> {
                         onTapSymbol: _openPairBySymbol,
                       ),
                       const SizedBox(height: 12),
+                      _HomePopularPairsSection(
+                        key: _popularPairsKey,
+                        onOpenTradePair: widget.onOpenTradePair,
+                      ),
+                      const SizedBox(height: 12),
+                      _HomeSocialDiscoveryFeed(
+                        key: _socialFeedKey,
+                        accessTokenListenable: authAccessTokenNotifier,
+                      ),
+                      const SizedBox(height: 12),
                       _GatePairsStrip(onOpenTradePair: widget.onOpenTradePair),
                       const SizedBox(height: 104),
                     ],
@@ -3733,7 +3751,9 @@ class _HomePageState extends State<HomePage> {
                 ),
                 ScrollLogoOverlay(
                   visible: _showScrollLogo || _refreshingHome,
-                  child: const _ExchangeLogoGlyph(size: 52, glowStrength: 0.85),
+                  child: _RefreshWordmarkBadge(
+                    showLoadingDot: _refreshingHome,
+                  ),
                 ),
               ],
             );
@@ -3787,6 +3807,64 @@ class _GatePairSearchBar extends StatelessWidget {
             IconButton(
               onPressed: onTapScan,
               icon: Icon(Icons.qr_code_scanner_rounded, color: text, size: 28),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RefreshWordmarkBadge extends StatelessWidget {
+  const _RefreshWordmarkBadge({required this.showLoadingDot});
+
+  final bool showLoadingDot;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: isLight
+            ? const Color(0xE6FFFFFF)
+            : const Color(0xE60C1018),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isLight ? const Color(0xFFD6DEEC) : const Color(0xFF263044),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x55000000),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'BITEGIT',
+              style: TextStyle(
+                color: isLight ? const Color(0xFF0D1320) : Colors.white,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.9,
+              ),
+            ),
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 180),
+              opacity: showLoadingDot ? 1 : 0.35,
+              child: const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(
+                  Icons.circle_rounded,
+                  size: 8.5,
+                  color: Color(0xFF3B82F6),
+                ),
+              ),
             ),
           ],
         ),

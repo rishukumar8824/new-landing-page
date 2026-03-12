@@ -19,6 +19,7 @@ class GateHomeHeader extends StatelessWidget {
     final isLight = Theme.of(context).brightness == Brightness.light;
     final chipBg = isLight ? const Color(0xFFE7EBF3) : const Color(0xFF171C27);
     final fg = isLight ? const Color(0xFF131722) : Colors.white;
+    final muted = isLight ? const Color(0xFF5D677A) : const Color(0xFF8F9BB2);
 
     return Row(
       children: [
@@ -41,27 +42,40 @@ class GateHomeHeader extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Container(
-            height: 52,
+            height: 44,
             decoration: BoxDecoration(
               color: chipBg,
-              borderRadius: BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(24),
             ),
             child: InkWell(
-              borderRadius: BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(24),
               onTap: () {},
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  const SizedBox(width: 12),
+                  Icon(Icons.search_rounded, color: muted, size: 19),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      'Search',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: muted,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                   Text(
-                    'Exchange',
+                    'GT/USDT',
                     style: TextStyle(
                       color: fg,
-                      fontSize: 17,
+                      fontSize: 13.4,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Icon(Icons.keyboard_arrow_down_rounded, color: fg),
+                  const SizedBox(width: 10),
                 ],
               ),
             ),
