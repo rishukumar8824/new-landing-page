@@ -18,6 +18,60 @@ function normalizeTab(raw) {
   return 'discover';
 }
 
+function makeSeed(value, fallback = 'social') {
+  const raw = String(value || '').trim().toLowerCase();
+  return raw.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || fallback;
+}
+
+function fallbackAvatarUrl(record, fallbackSeed) {
+  const raw = String(record?.avatarUrl || record?.avatar_url || '').trim();
+  if (raw) {
+    return raw;
+  }
+  const seed = makeSeed(record?.username || record?.name || record?.id, fallbackSeed);
+  return `https://i.pravatar.cc/120?u=${encodeURIComponent(seed)}`;
+}
+
+function fallbackMediaUrl(record, tab) {
+  const raw = String(record?.mediaUrl || record?.media_url || '').trim();
+  if (raw) {
+    return raw;
+  }
+  const mediaType = String(record?.mediaType || record?.media_type || 'text')
+    .trim()
+    .toLowerCase();
+  if (mediaType === 'text') {
+    return '';
+  }
+  const seed = makeSeed(record?.id || record?.username || record?.name, `${tab}-media`);
+  return `https://picsum.photos/seed/${encodeURIComponent(seed)}/900/520`;
+}
+
+function hydrateFeedItems(items, tab) {
+  return (Array.isArray(items) ? items : []).map((item, index) => {
+    const normalized = { ...(item || {}) };
+    normalized.avatarUrl = fallbackAvatarUrl(normalized, `feed-${tab}-${index + 1}`);
+    normalized.mediaUrl = fallbackMediaUrl(normalized, tab);
+    return normalized;
+  });
+}
+
+function hydrateCreatorItems(items) {
+  return (Array.isArray(items) ? items : []).map((item, index) => {
+    const normalized = { ...(item || {}) };
+    normalized.avatarUrl = fallbackAvatarUrl(normalized, `creator-${index + 1}`);
+    return normalized;
+  });
+}
+
+function hydrateCopyTraders(items) {
+  return (Array.isArray(items) ? items : []).map((item, index) => {
+    const normalized = { ...(item || {}) };
+    normalized.avatarUrl = fallbackAvatarUrl(normalized, `trader-${index + 1}`);
+    return normalized;
+  });
+}
+
 function createSocialFeedService({ store, config = {} }) {
   if (!store) {
     throw new Error('Social feed store is required');
@@ -37,13 +91,18 @@ function createSocialFeedService({ store, config = {} }) {
       pageSize: safePageSize,
       userId
     });
-    return data;
+    return {
+      ...(data || {}),
+      tab: normalizedTab,
+      items: hydrateFeedItems(data?.items, normalizedTab)
+    };
   }
 
   async function getSuggestedCreators({ limit, authUser }) {
     const safeLimit = Math.max(1, Math.min(20, toInt(limit, 6)));
     const userId = await store.resolveUserId(authUser).catch(() => null);
-    return store.listSuggestedCreators({ limit: safeLimit, userId });
+    const items = await store.listSuggestedCreators({ limit: safeLimit, userId });
+    return hydrateCreatorItems(items);
   }
 
   async function followCreator({ authUser, creatorId }) {
@@ -63,7 +122,8 @@ function createSocialFeedService({ store, config = {} }) {
 
   async function getCopyTraders({ limit }) {
     const safeLimit = Math.max(1, Math.min(30, toInt(limit, 10)));
-    return store.listCopyTraders({ limit: safeLimit });
+    const items = await store.listCopyTraders({ limit: safeLimit });
+    return hydrateCopyTraders(items);
   }
 
   async function createAnnouncement({ title, body }) {

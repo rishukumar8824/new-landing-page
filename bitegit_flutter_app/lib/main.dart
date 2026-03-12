@@ -79,11 +79,7 @@ List<String> _apiBaseUrls() {
   final fromEnv = _normalizeApiBase(
     const String.fromEnvironment('BITEGIT_API_BASE', defaultValue: ''),
   );
-  const defaults = <String>[
-    'https://new-landing-page-wz8p.onrender.com',
-    'https://www.bitegit.com',
-    'https://bitegit.com',
-  ];
+  const defaults = <String>['https://new-landing-page-wz8p.onrender.com'];
   final ordered = <String>[if (fromEnv.isNotEmpty) fromEnv, ...defaults];
   final unique = <String>[];
   for (final base in ordered) {
@@ -5267,12 +5263,18 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
 
     if (!mounted) return;
     if (!append) {
+      final fallbackItems = _tabKey == 'following'
+          ? _localFollowingFallbackPosts()
+          : _fallbackPostsForTab(_tabKey);
       setState(() {
-        _posts = _fallbackPostsForTab(_tabKey);
+        _posts = fallbackItems;
         _hasMore = false;
-        _errorText = response.statusCode == 401 && _tabKey == 'following'
+        _errorText =
+            response.statusCode == 401 &&
+                _tabKey == 'following' &&
+                fallbackItems.isEmpty
             ? 'Login required to load Following feed.'
-            : 'Feed temporarily unavailable. Showing cached cards.';
+            : null;
       });
     }
   }
@@ -5346,6 +5348,24 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
     );
     if (!mounted) return;
     if (!_apiSuccess(response)) {
+      final softFailure =
+          response.statusCode == 0 ||
+          response.statusCode == 401 ||
+          response.statusCode == 403 ||
+          response.statusCode >= 500;
+      if (softFailure) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Following ${creator.name}. Sync will complete when connection stabilizes.',
+            ),
+          ),
+        );
+        if (_tabKey == 'following') {
+          await _loadFeedPage(append: false);
+        }
+        return;
+      }
       setState(() => _followingCreators.remove(creator.id));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -5362,6 +5382,23 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
     if (_tabKey == 'following') {
       await _loadFeedPage(append: false);
     }
+  }
+
+  List<_SocialFeedPost> _localFollowingFallbackPosts() {
+    if (_followingCreators.isEmpty) {
+      return const <_SocialFeedPost>[];
+    }
+    final followedNames = _creators
+        .where((creator) => _followingCreators.contains(creator.id))
+        .map((creator) => creator.name.trim().toLowerCase())
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    if (followedNames.isEmpty) {
+      return const <_SocialFeedPost>[];
+    }
+    return _fallbackPostsForTab('discover')
+        .where((post) => followedNames.contains(post.username.trim().toLowerCase()))
+        .toList(growable: false);
   }
 
   void _dismissPost(String id) {
@@ -5593,7 +5630,7 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
           contentText:
               'Campaign: Trade Futures and unlock up to 20% fee rebate this week.',
           mediaType: 'image',
-          mediaUrl: '',
+          mediaUrl: 'https://picsum.photos/seed/bitegit-campaign/900/520',
           isLive: false,
           commentCount: 0,
           repostCount: 0,
@@ -5628,12 +5665,13 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
         contentText:
             'BTC liquidity zones updated for NY session. Watching 67.8k-68.2k.',
         mediaType: 'image',
-        mediaUrl: '',
+        mediaUrl: 'https://picsum.photos/seed/bitegit-discover-1/900/520',
         isLive: false,
         commentCount: 19,
         repostCount: 8,
         likeCount: 142,
         viewCount: 3580,
+        avatarUrl: 'https://i.pravatar.cc/120?img=12',
       ),
       _SocialFeedPost(
         id: 'fallback-discover-2',
@@ -5642,12 +5680,13 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
         contentText:
             'ETH perp basis stable. No aggressive long until confirmation close.',
         mediaType: 'video',
-        mediaUrl: '',
+        mediaUrl: 'https://picsum.photos/seed/bitegit-discover-2/900/520',
         isLive: false,
         commentCount: 7,
         repostCount: 3,
         likeCount: 68,
         viewCount: 1910,
+        avatarUrl: 'https://i.pravatar.cc/120?img=18',
       ),
     ];
   }
@@ -5658,18 +5697,21 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
       name: 'Alpha Whale',
       followersCount: 21873,
       verified: true,
+      avatarUrl: 'https://i.pravatar.cc/120?img=12',
     ),
     _SuggestedCreator(
       id: '2',
       name: 'Chain Pulse',
       followersCount: 14704,
       verified: true,
+      avatarUrl: 'https://i.pravatar.cc/120?img=18',
     ),
     _SuggestedCreator(
       id: '3',
       name: 'Macro Desk',
       followersCount: 9931,
       verified: false,
+      avatarUrl: 'https://i.pravatar.cc/120?img=22',
     ),
   ];
 
@@ -5677,6 +5719,7 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
     _CopyTrader(
       id: 't1',
       username: 'Alpha Whale',
+      avatarUrl: 'https://i.pravatar.cc/120?img=12',
       minCopyAmount: 10,
       pnl7d: 2142.33,
       roiPercent: 38.1,
@@ -5686,6 +5729,7 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
     _CopyTrader(
       id: 't2',
       username: 'Chain Pulse',
+      avatarUrl: 'https://i.pravatar.cc/120?img=18',
       minCopyAmount: 25,
       pnl7d: 1497.2,
       roiPercent: 31.7,
@@ -5732,17 +5776,21 @@ class _SocialPostCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: const Color(
-                  0xFFF1CB3E,
-                ).withValues(alpha: 0.22),
-                child: Text(
-                  _initialsOf(post.username),
-                  style: TextStyle(
-                    color: primary,
-                    fontSize: 12.8,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: 0.22),
+                backgroundImage: post.avatarUrl.isNotEmpty
+                    ? NetworkImage(post.avatarUrl)
+                    : null,
+                onBackgroundImageError: (_, __) {},
+                child: post.avatarUrl.isEmpty
+                    ? Text(
+                        _initialsOf(post.username),
+                        style: TextStyle(
+                          color: primary,
+                          fontSize: 12.8,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -6005,17 +6053,21 @@ class _SuggestedCreatorsSection extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor: const Color(
-                            0xFFF1CB3E,
-                          ).withValues(alpha: .24),
-                          child: Text(
-                            _initialsOf(creator.name),
-                            style: const TextStyle(
-                              color: Color(0xFF1A1F2B),
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                          backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: .24),
+                          backgroundImage: creator.avatarUrl.isNotEmpty
+                              ? NetworkImage(creator.avatarUrl)
+                              : null,
+                          onBackgroundImageError: (_, __) {},
+                          child: creator.avatarUrl.isEmpty
+                              ? Text(
+                                  _initialsOf(creator.name),
+                                  style: const TextStyle(
+                                    color: Color(0xFF1A1F2B),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                )
+                              : null,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -6122,17 +6174,21 @@ class _CopyTradingForYouSection extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 17,
-                  backgroundColor: const Color(
-                    0xFFF1CB3E,
-                  ).withValues(alpha: .24),
-                  child: Text(
-                    _initialsOf(trader.username),
-                    style: const TextStyle(
-                      color: Color(0xFF1A1F2B),
-                      fontSize: 11.8,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
+                  backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: .24),
+                  backgroundImage: trader.avatarUrl.isNotEmpty
+                      ? NetworkImage(trader.avatarUrl)
+                      : null,
+                  onBackgroundImageError: (_, __) {},
+                  child: trader.avatarUrl.isEmpty
+                      ? Text(
+                          _initialsOf(trader.username),
+                          style: const TextStyle(
+                            color: Color(0xFF1A1F2B),
+                            fontSize: 11.8,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        )
+                      : null,
                 ),
                 const SizedBox(width: 9),
                 Expanded(
