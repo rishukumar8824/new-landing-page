@@ -1329,16 +1329,54 @@ class _HomeRefreshLogoLoaderState extends State<_HomeRefreshLogoLoader>
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final cardBg = isLight ? const Color(0xF4F4F7FC) : const Color(0xE6111722);
+    final cardBorder = isLight
+        ? const Color(0xFFD5DCEC)
+        : const Color(0xFF283247);
+    final labelColor = isLight ? const Color(0xFF111827) : Colors.white;
+
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         final turn = _controller.value * pi * 2;
-        final pulse = 0.93 + (0.08 * sin(turn).abs());
-        return Transform.rotate(
-          angle: turn,
-          child: Transform.scale(
-            scale: pulse,
-            child: const _ExchangeLogoGlyph(size: 46, glowStrength: 0.6),
+        final pulse = 0.97 + (0.05 * sin(turn).abs());
+        return Transform.scale(
+          scale: pulse,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: cardBorder, width: 1.1),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x4D000000),
+                  blurRadius: 18,
+                  spreadRadius: 1,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Transform.rotate(
+                  angle: turn,
+                  child: const _ExchangeLogoGlyph(size: 28, glowStrength: 0.62),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'BITEGIT',
+                  style: TextStyle(
+                    color: labelColor,
+                    fontSize: 13.8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.45,
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -3599,17 +3637,22 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-            Positioned.fill(
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              left: 0,
+              right: 0,
               child: IgnorePointer(
                 child: Center(
-                  child: AnimatedOpacity(
+                  child: AnimatedSlide(
                     duration: const Duration(milliseconds: 240),
-                    curve: Curves.easeOut,
-                    opacity: _refreshingHome ? 1 : 0,
-                    child: AnimatedScale(
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOutBack,
-                      scale: _refreshingHome ? 1 : 0.9,
+                    curve: Curves.easeOutCubic,
+                    offset: _refreshingHome
+                        ? Offset.zero
+                        : const Offset(0, -0.6),
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 240),
+                      curve: Curves.easeOut,
+                      opacity: _refreshingHome ? 1 : 0,
                       child: const _HomeRefreshLogoLoader(),
                     ),
                   ),
