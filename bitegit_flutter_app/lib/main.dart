@@ -13,6 +13,15 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'auth/auth_screens.dart';
+import 'ui/events/event_detail_page.dart';
+import 'ui/events/event_models.dart';
+import 'ui/home/balance_section.dart';
+import 'ui/home/event_slider.dart';
+import 'ui/home/home_header.dart';
+import 'ui/home/market_ticker.dart';
+import 'ui/home/quick_actions.dart';
+import 'ui/home/scroll_logo_overlay.dart';
+import 'ui/more/more_features_page.dart';
 import 'user_center/user_center_page.dart';
 
 final ValueNotifier<bool> kycVerifiedNotifier = ValueNotifier<bool>(false);
@@ -3302,15 +3311,12 @@ class _ExchangeShellState extends State<ExchangeShell> {
         onNavigateTab: _goToTab,
         onOpenTradePair: _openTradePair,
       ),
-      MarketsPage(
-        onOpenProfile: _openUserCenter,
-        onOpenTradePair: _openTradePair,
-      ),
       FuturesPage(
         onOpenProfile: _openUserCenter,
         onOpenTradePair: _openTradePair,
       ),
       TradePage(onOpenProfile: _openUserCenter),
+      const RewardsContestOverviewPage(),
       AssetsPage(
         onOpenProfile: _openUserCenter,
         onNavigateTab: _goToTab,
@@ -3362,7 +3368,7 @@ class _ExchangeShellState extends State<ExchangeShell> {
   Future<void> _openTradePair(MarketPair pair) async {
     selectedTradePairNotifier.value = pair;
     if (!mounted) return;
-    setState(() => _index = 3);
+    setState(() => _index = 2);
   }
 
   Future<void> _maybeShowGlobalAnnouncement() async {
@@ -3444,7 +3450,7 @@ class _ExchangeShellState extends State<ExchangeShell> {
         child: NavigationBar(
           height: 70,
           backgroundColor: Colors.transparent,
-          indicatorColor: const Color(0xFF9DFB3B),
+          indicatorColor: const Color(0x18377DFF),
           selectedIndex: _index,
           onDestinationSelected: _goToTab,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -3454,16 +3460,17 @@ class _ExchangeShellState extends State<ExchangeShell> {
               label: 'Home',
             ),
             NavigationDestination(
-              icon: Icon(Icons.show_chart),
-              label: 'Markets',
-            ),
-            NavigationDestination(
               icon: Icon(Icons.description_outlined),
               label: 'Futures',
             ),
             NavigationDestination(
-              icon: Icon(Icons.candlestick_chart),
+              icon: _TradeNavIcon(),
+              selectedIcon: _TradeNavIcon(),
               label: 'Trade',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.savings_outlined),
+              label: 'Earn',
             ),
             NavigationDestination(
               icon: Icon(Icons.account_balance_wallet_outlined),
@@ -3472,6 +3479,23 @@ class _ExchangeShellState extends State<ExchangeShell> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TradeNavIcon extends StatelessWidget {
+  const _TradeNavIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFF377DFF),
+      ),
+      child: const Icon(Icons.candlestick_chart, color: Colors.white, size: 21),
     );
   }
 }
@@ -3494,12 +3518,15 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey<_HomeSocialDiscoveryFeedState> _socialFeedKey =
-      GlobalKey<_HomeSocialDiscoveryFeedState>();
-  final GlobalKey<_HomePopularPairsSectionState> _pairsSectionKey =
-      GlobalKey<_HomePopularPairsSectionState>();
-  bool _composerOpen = false;
+  final GlobalKey<GateEventSliderState> _eventsKey =
+      GlobalKey<GateEventSliderState>();
+  final GlobalKey<GateMarketTickerSectionState> _tickerKey =
+      GlobalKey<GateMarketTickerSectionState>();
   bool _refreshingHome = false;
+  bool _showScrollLogo = false;
+  DateTime _logoCooldownUntil = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _logoTimer;
+  double _lastOffset = 0;
 
   @override
   void initState() {
@@ -3510,15 +3537,34 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _scrollController.removeListener(_handleScroll);
+    _logoTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _handleScroll() {
     if (!_scrollController.hasClients) return;
-    if (_scrollController.position.extentAfter < 900) {
-      _socialFeedKey.currentState?.loadMoreIfNeeded();
+    final current = _scrollController.offset;
+    if ((current - _lastOffset).abs() > 16) {
+      _triggerScrollLogo();
     }
+    _lastOffset = current;
+  }
+
+  void _triggerScrollLogo() {
+    final now = DateTime.now();
+    if (now.isBefore(_logoCooldownUntil)) {
+      return;
+    }
+    _logoCooldownUntil = now.add(const Duration(milliseconds: 280));
+    _logoTimer?.cancel();
+    if (!_showScrollLogo && mounted) {
+      setState(() => _showScrollLogo = true);
+    }
+    _logoTimer = Timer(const Duration(milliseconds: 780), () {
+      if (!mounted) return;
+      setState(() => _showScrollLogo = false);
+    });
   }
 
   Future<void> _refreshHomeContent() async {
@@ -3533,10 +3579,8 @@ class _HomePageState extends State<HomePage> {
         _syncWalletFromBackend(accessToken: token),
         _syncDepositSessionFromBackend(accessToken: token),
         _syncHomeNotificationsFromBackend(accessToken: token),
-        _pairsSectionKey.currentState?.refreshFromParent() ??
-            Future<void>.value(),
-        _socialFeedKey.currentState?.refreshFromParent() ??
-            Future<void>.value(),
+        _eventsKey.currentState?.refreshFromParent() ?? Future<void>.value(),
+        _tickerKey.currentState?.refreshFromParent() ?? Future<void>.value(),
       ]);
     } finally {
       if (mounted) {
@@ -3546,131 +3590,264 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _handleComposerAction(String action) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$action publishing will open here.')),
-      );
-    }
-    setState(() => _composerOpen = false);
+  void _openHotPair() {
+    final hotPair = kMarketPairs.firstWhere(
+      (pair) => pair.symbol.toUpperCase().contains('GT'),
+      orElse: () => kMarketPairs.first,
+    );
+    widget.onOpenTradePair(hotPair);
+  }
+
+  void _openPairBySymbol(String symbol) {
+    final upper = symbol.toUpperCase();
+    final found = kMarketPairs.firstWhere(
+      (pair) => pair.symbol.toUpperCase().startsWith(upper),
+      orElse: () => kMarketPairs.first,
+    );
+    widget.onOpenTradePair(found);
+  }
+
+  Future<void> _openEventDetails(ExchangeEvent event) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => EventDetailPage(event: event)),
+    );
+  }
+
+  String _pnlText(double total) {
+    final pnl = total * 0.0;
+    final percent = total == 0 ? 0.0 : (pnl / total) * 100;
+    final sign = pnl >= 0 ? '+' : '-';
+    return '$sign${pnl.abs().toStringAsFixed(2)} USD ($sign${percent.abs().toStringAsFixed(2)}%)';
   }
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<HomeWidgetSettings>(
-      valueListenable: homeWidgetSettingsNotifier,
-      builder: (context, settings, _) {
-        return Stack(
-          children: [
-            RefreshIndicator(
-              displacement: 74,
-              edgeOffset: 8,
-              color: Colors.transparent,
-              backgroundColor: Colors.transparent,
-              onRefresh: _refreshHomeContent,
-              child: ListView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
-                ),
-                cacheExtent: 1800,
-                padding: const EdgeInsets.all(14),
-                children: [
-                  _TopHeader(onOpenProfile: widget.onOpenProfile),
-                  const SizedBox(height: 8),
-                  if (settings.showDepositBanner) ...[
-                    _HomeDepositBanner(
-                      onDeposit: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const DepositPage(),
-                        ),
-                      ),
-                      onOpenAssets: () => widget.onNavigateTab(4),
+    final shortcutActions = <HomeQuickActionItem>[
+      HomeQuickActionItem(
+        label: 'Launchpool',
+        icon: Icons.rocket_launch_outlined,
+        badge: 'NEW',
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const RewardsContestOverviewPage(),
+          ),
+        ),
+      ),
+      HomeQuickActionItem(
+        label: 'P2P',
+        icon: Icons.people_alt_outlined,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const P2PPage()),
+        ),
+      ),
+      HomeQuickActionItem(
+        label: 'Deposit',
+        icon: Icons.download_rounded,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const DepositPage()),
+        ),
+      ),
+      HomeQuickActionItem(
+        label: 'More',
+        icon: Icons.grid_view_rounded,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const MoreFeaturesPage()),
+        ),
+      ),
+    ];
+
+    return ValueListenableBuilder<double>(
+      valueListenable: fundingUsdtBalanceNotifier,
+      builder: (context, fundingBalance, __) {
+        return ValueListenableBuilder<double>(
+          valueListenable: spotUsdtBalanceNotifier,
+          builder: (context, spotBalance, _) {
+            final totalAssets = fundingBalance + spotBalance;
+            return Stack(
+              children: [
+                RefreshIndicator(
+                  displacement: 74,
+                  edgeOffset: 8,
+                  color: Colors.transparent,
+                  backgroundColor: Colors.transparent,
+                  onRefresh: _refreshHomeContent,
+                  child: ListView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: BouncingScrollPhysics(),
                     ),
-                    const SizedBox(height: 12),
-                  ],
-                  if (settings.showQuickActions) ...[
-                    _HomeQuickActions(
-                      onDeposit: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const DepositPage(),
+                    cacheExtent: 1800,
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                    children: [
+                      GateHomeHeader(
+                        avatarText: _initialsOf(nicknameNotifier.value),
+                        onOpenProfile: widget.onOpenProfile,
+                        onOpenSupport: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const SupportHomePage(),
+                          ),
+                        ),
+                        onOpenNotifications: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const SupportAlertsPage(),
+                          ),
                         ),
                       ),
-                      onOpenP2POrders: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const P2PPage(),
+                      const SizedBox(height: 14),
+                      _GatePairSearchBar(
+                        hotPair: '🔥 GT/USDT',
+                        onTapSearch: _openHotPair,
+                        onTapScan: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const ScanPage(),
+                          ),
                         ),
                       ),
-                      onWithdraw: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const WithdrawPage(),
+                      const SizedBox(height: 14),
+                      GateBalanceSection(
+                        totalAssets: totalAssets,
+                        pnlText: _pnlText(totalAssets),
+                        onDeposit: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const DepositPage(),
+                          ),
+                        ),
+                        onP2P: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(builder: (_) => const P2PPage()),
                         ),
                       ),
-                      onReward: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const RewardsContestOverviewPage(),
-                        ),
+                      const SizedBox(height: 16),
+                      GateQuickActions(actions: shortcutActions),
+                      const SizedBox(height: 16),
+                      GateEventSlider(key: _eventsKey, onOpenEvent: _openEventDetails),
+                      const SizedBox(height: 12),
+                      GateMarketTickerSection(
+                        key: _tickerKey,
+                        onTapSymbol: _openPairBySymbol,
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  if (settings.showPromoScroller) ...[
-                    const _HomeP2PTemplateScroller(),
-                    const SizedBox(height: 10),
-                  ],
-                  if (settings.showTicker) ...[
-                    const _AnnouncementTicker(items: kMarketNotices),
-                    const SizedBox(height: 10),
-                  ],
-                  if (settings.showPairs) ...[
-                    _HomePopularPairsSection(
-                      key: _pairsSectionKey,
-                      onOpenTradePair: widget.onOpenTradePair,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  _HomeSocialDiscoveryFeed(
-                    key: _socialFeedKey,
-                    accessTokenListenable: authAccessTokenNotifier,
+                      const SizedBox(height: 12),
+                      _GatePairsStrip(onOpenTradePair: widget.onOpenTradePair),
+                      const SizedBox(height: 104),
+                    ],
                   ),
-                  const SizedBox(height: 104),
+                ),
+                ScrollLogoOverlay(
+                  visible: _showScrollLogo || _refreshingHome,
+                  child: const _ExchangeLogoGlyph(size: 52, glowStrength: 0.85),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _GatePairSearchBar extends StatelessWidget {
+  const _GatePairSearchBar({
+    required this.hotPair,
+    required this.onTapSearch,
+    required this.onTapScan,
+  });
+
+  final String hotPair;
+  final VoidCallback onTapSearch;
+  final VoidCallback onTapScan;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final bg = isLight ? const Color(0xFFE8ECF4) : const Color(0xFF1A1F2A);
+    final text = isLight ? const Color(0xFF5C667B) : const Color(0xFF8F98AB);
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTapSearch,
+      child: Container(
+        height: 60,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.search_rounded, color: Color(0xFF7E879B), size: 34 / 1.2),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                hotPair,
+                style: TextStyle(
+                  color: text,
+                  fontSize: 21 / 1.2,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: onTapScan,
+              icon: Icon(Icons.qr_code_scanner_rounded, color: text, size: 28),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GatePairsStrip extends StatelessWidget {
+  const _GatePairsStrip({required this.onOpenTradePair});
+
+  final ValueChanged<MarketPair> onOpenTradePair;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = kMarketPairs.take(12).toList(growable: false);
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: rows.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final pair = rows[index];
+          final down = pair.change.startsWith('-');
+          final color = down ? const Color(0xFFFB4E63) : const Color(0xFF37D39A);
+          return InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: () => onOpenTradePair(pair),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0C121A),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFF1F293B)),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    pair.symbol,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.4,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    pair.change,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 11.6,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
             ),
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 8,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Center(
-                  child: AnimatedSlide(
-                    duration: const Duration(milliseconds: 240),
-                    curve: Curves.easeOutCubic,
-                    offset: _refreshingHome
-                        ? Offset.zero
-                        : const Offset(0, -0.6),
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 240),
-                      curve: Curves.easeOut,
-                      opacity: _refreshingHome ? 1 : 0,
-                      child: const _HomeRefreshLogoLoader(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              right: 18,
-              bottom: 102,
-              child: _HomeFeedComposerFab(
-                open: _composerOpen,
-                onToggle: () => setState(() => _composerOpen = !_composerOpen),
-                onSelect: _handleComposerAction,
-              ),
-            ),
-          ],
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
