@@ -3460,17 +3460,8 @@ class _HomePageState extends State<HomePage> {
       GlobalKey<_HomeSocialDiscoveryFeedState>();
   final GlobalKey<_HomePopularPairsSectionState> _pairsSectionKey =
       GlobalKey<_HomePopularPairsSectionState>();
-  static const Duration _scrollLogoVisibleDuration = Duration(
-    milliseconds: 1350,
-  );
-  static const Duration _scrollLogoCooldown = Duration(milliseconds: 1700);
-  static const double _scrollLogoTriggerDelta = 56;
   bool _composerOpen = false;
   bool _refreshingHome = false;
-  bool _showScrollLogo = false;
-  double _lastScrollOffset = 0;
-  DateTime _nextScrollLogoAt = DateTime.fromMillisecondsSinceEpoch(0);
-  Timer? _scrollLogoTimer;
 
   @override
   void initState() {
@@ -3481,40 +3472,15 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _scrollController.removeListener(_handleScroll);
-    _scrollLogoTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _handleScroll() {
     if (!_scrollController.hasClients) return;
-    final currentOffset = _scrollController.offset;
-    final delta = currentOffset - _lastScrollOffset;
-    if (delta >= _scrollLogoTriggerDelta && currentOffset > 20) {
-      _showScrollLogoPopup();
-    }
-    _lastScrollOffset = currentOffset;
     if (_scrollController.position.extentAfter < 900) {
       _socialFeedKey.currentState?.loadMoreIfNeeded();
     }
-  }
-
-  void _showScrollLogoPopup() {
-    final now = DateTime.now();
-    if (now.isBefore(_nextScrollLogoAt)) {
-      return;
-    }
-    _nextScrollLogoAt = now.add(_scrollLogoCooldown);
-    _scrollLogoTimer?.cancel();
-    if (!_showScrollLogo && mounted) {
-      setState(() => _showScrollLogo = true);
-    }
-    _scrollLogoTimer = Timer(_scrollLogoVisibleDuration, () {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _showScrollLogo = false);
-    });
   }
 
   Future<void> _refreshHomeContent() async {
@@ -3553,7 +3519,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
     return ValueListenableBuilder<HomeWidgetSettings>(
       valueListenable: homeWidgetSettingsNotifier,
       builder: (context, settings, _) {
@@ -3638,61 +3603,15 @@ class _HomePageState extends State<HomePage> {
               child: IgnorePointer(
                 child: Center(
                   child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 220),
+                    duration: const Duration(milliseconds: 240),
                     curve: Curves.easeOut,
-                    opacity: _showScrollLogo ? 1 : 0,
+                    opacity: _refreshingHome ? 1 : 0,
                     child: AnimatedScale(
                       duration: const Duration(milliseconds: 260),
                       curve: Curves.easeOutBack,
-                      scale: _showScrollLogo ? 1 : 0.84,
-                      child: Container(
-                        width: 106,
-                        height: 106,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isLight
-                              ? const Color(0xEAF4F7FC)
-                              : const Color(0xCC101722),
-                          borderRadius: BorderRadius.circular(30),
-                          border: Border.all(
-                            color: isLight
-                                ? const Color(0xFFCCD6E8)
-                                : const Color(0xFF2C3545),
-                            width: 1.1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: isLight
-                                  ? const Color(0x33121A29)
-                                  : const Color(0x73000000),
-                              blurRadius: 22,
-                              spreadRadius: 1,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: const _ExchangeLogoGlyph(
-                          size: 56,
-                          glowStrength: 0.8,
-                        ),
-                      ),
+                      scale: _refreshingHome ? 1 : 0.9,
+                      child: const _HomeRefreshLogoLoader(),
                     ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 12,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: AnimatedSlide(
-                  duration: const Duration(milliseconds: 180),
-                  offset: _refreshingHome ? Offset.zero : const Offset(0, -1.2),
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 180),
-                    opacity: _refreshingHome ? 1 : 0,
-                    child: const Center(child: _HomeRefreshLogoLoader()),
                   ),
                 ),
               ),
