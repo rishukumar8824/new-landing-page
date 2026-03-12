@@ -79,7 +79,11 @@ List<String> _apiBaseUrls() {
   final fromEnv = _normalizeApiBase(
     const String.fromEnvironment('BITEGIT_API_BASE', defaultValue: ''),
   );
-  const defaults = <String>['https://bitegit.com', 'https://www.bitegit.com'];
+  const defaults = <String>[
+    'https://new-landing-page-wz8p.onrender.com',
+    'https://www.bitegit.com',
+    'https://bitegit.com',
+  ];
   final ordered = <String>[if (fromEnv.isNotEmpty) fromEnv, ...defaults];
   final unique = <String>[];
   for (final base in ordered) {
@@ -5160,6 +5164,7 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
       statusCode: 0,
       bodyMap: null,
     );
+    _ApiHttpResponse? clientError;
     for (final base in _apiBaseUrls()) {
       final uri = _apiUri(base, path).replace(queryParameters: query);
       final response = await _getJsonFromApi(
@@ -5167,11 +5172,16 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
         accessToken: token.isEmpty ? null : token,
       );
       last = response;
-      if (response.statusCode > 0 && response.statusCode < 500) {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
         return response;
       }
+      if (response.statusCode >= 400 &&
+          response.statusCode < 500 &&
+          clientError == null) {
+        clientError = response;
+      }
     }
-    return last;
+    return clientError ?? last;
   }
 
   Future<_ApiHttpResponse> _fetchPost(
@@ -5183,6 +5193,7 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
       statusCode: 0,
       bodyMap: null,
     );
+    _ApiHttpResponse? clientError;
     for (final base in _apiBaseUrls()) {
       final response = await _postJsonToApi(
         _apiUri(base, path),
@@ -5190,11 +5201,16 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
         accessToken: token.isEmpty ? null : token,
       );
       last = response;
-      if (response.statusCode > 0 && response.statusCode < 500) {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
         return response;
       }
+      if (response.statusCode >= 400 &&
+          response.statusCode < 500 &&
+          clientError == null) {
+        clientError = response;
+      }
     }
-    return last;
+    return clientError ?? last;
   }
 
   Future<void> _reloadAll() async {
