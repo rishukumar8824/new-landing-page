@@ -39,7 +39,7 @@ const { createAdminControllers } = require('./admin/controllers/admin-controller
 const { registerAdminRoutes } = require('./admin/routes/admin-routes');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
 app.set('trust proxy', 1);
 
@@ -2810,10 +2810,7 @@ app.get('/healthz', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  if (!persistenceReady || !isDbConnected()) {
-    return res.status(503).json({ status: 'error', db: 'disconnected' });
-  }
-  return res.status(200).json({ status: 'ok', db: 'connected' });
+  return res.status(200).json({ status: 'OK', service: 'bitegit-backend' });
 });
 
 if (ENABLE_DEV_TEST_ROUTES) {
@@ -2902,7 +2899,7 @@ async function boot() {
     console.log('Environment loader: dotenv');
 
     if (!httpServer) {
-      httpServer = app.listen(PORT, HOST, () => {
+      httpServer = app.listen(PORT, '0.0.0.0', () => {
         console.log(`Server running on port ${PORT}`);
       });
       registerShutdownHandlers();
