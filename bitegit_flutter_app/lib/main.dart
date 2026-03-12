@@ -79,7 +79,10 @@ List<String> _apiBaseUrls() {
   final fromEnv = _normalizeApiBase(
     const String.fromEnvironment('BITEGIT_API_BASE', defaultValue: ''),
   );
-  const defaults = <String>['https://new-landing-page-wz8p.onrender.com'];
+  const defaults = <String>[
+    'https://new-landing-page-rlv6.onrender.com',
+    'https://new-landing-page-wz8p.onrender.com',
+  ];
   final ordered = <String>[if (fromEnv.isNotEmpty) fromEnv, ...defaults];
   final unique = <String>[];
   for (final base in ordered) {
