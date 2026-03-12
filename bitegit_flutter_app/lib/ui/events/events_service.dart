@@ -107,6 +107,26 @@ class EventsService {
         'description': 'Complete missions and redeem merch',
         'link': '/events/futures-mall',
       },
+      {
+        'title': 'Gate Futures Points Airdrop',
+        'description': 'Claim up to 100 USDT and bonus points',
+        'link': '/events/futures-points-airdrop',
+      },
+      {
+        'title': 'Spring Gold Rush Campaign',
+        'description': 'Invite friends and earn XAUT rewards',
+        'link': '/events/spring-gold-rush',
+      },
+      {
+        'title': 'TradFi Gold Lucky Bag',
+        'description': 'Trade daily to win limited lucky-bag rewards',
+        'link': '/events/tradfi-gold-lucky-bag',
+      },
+      {
+        'title': 'Featured Coins Spotlight',
+        'description': 'Discover trending listings with bonus tasks',
+        'link': '/events/featured-coins-spotlight',
+      },
     ];
 
     return List<ExchangeEvent>.generate(source.length, (index) {
