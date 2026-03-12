@@ -1,3 +1,5 @@
+const { createSocialFeedFallbackStore } = require('./fallback-store');
+
 function createHttpError(statusCode, message, code) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -77,6 +79,17 @@ function createSocialFeedService({ store, config = {} }) {
     throw new Error('Social feed store is required');
   }
 
+  const resilientFallbackStore = createSocialFeedFallbackStore({
+    logger: {
+      log() {},
+      error() {},
+      warn() {}
+    }
+  });
+  const resilientFallbackInitPromise = resilientFallbackStore
+    .initialize()
+    .catch(() => undefined);
+
   const defaultPageSize = Math.max(5, toInt(config.defaultPageSize, 10));
   const maxPageSize = Math.max(defaultPageSize, toInt(config.maxPageSize, 25));
 
@@ -85,45 +98,93 @@ function createSocialFeedService({ store, config = {} }) {
     const safePage = Math.max(1, toInt(page, 1));
     const safePageSize = Math.max(1, Math.min(maxPageSize, toInt(pageSize, defaultPageSize)));
     const userId = await store.resolveUserId(authUser).catch(() => null);
-    const data = await store.listFeed({
-      tab: normalizedTab,
-      page: safePage,
-      pageSize: safePageSize,
-      userId
-    });
-    return {
-      ...(data || {}),
-      tab: normalizedTab,
-      items: hydrateFeedItems(data?.items, normalizedTab)
-    };
+    try {
+      const data = await store.listFeed({
+        tab: normalizedTab,
+        page: safePage,
+        pageSize: safePageSize,
+        userId
+      });
+      return {
+        ...(data || {}),
+        tab: normalizedTab,
+        items: hydrateFeedItems(data?.items, normalizedTab)
+      };
+    } catch (error) {
+      await resilientFallbackInitPromise;
+      const fallbackUserId = await resilientFallbackStore.resolveUserId(authUser).catch(() => null);
+      const data = await resilientFallbackStore.listFeed({
+        tab: normalizedTab,
+        page: safePage,
+        pageSize: safePageSize,
+        userId: fallbackUserId
+      });
+      return {
+        ...(data || {}),
+        tab: normalizedTab,
+        source: 'resilient-fallback',
+        items: hydrateFeedItems(data?.items, normalizedTab)
+      };
+    }
   }
 
   async function getSuggestedCreators({ limit, authUser }) {
     const safeLimit = Math.max(1, Math.min(20, toInt(limit, 6)));
     const userId = await store.resolveUserId(authUser).catch(() => null);
-    const items = await store.listSuggestedCreators({ limit: safeLimit, userId });
-    return hydrateCreatorItems(items);
+    try {
+      const items = await store.listSuggestedCreators({ limit: safeLimit, userId });
+      return hydrateCreatorItems(items);
+    } catch (error) {
+      await resilientFallbackInitPromise;
+      const fallbackUserId = await resilientFallbackStore.resolveUserId(authUser).catch(() => null);
+      const items = await resilientFallbackStore.listSuggestedCreators({
+        limit: safeLimit,
+        userId: fallbackUserId
+      });
+      return hydrateCreatorItems(items);
+    }
   }
 
   async function followCreator({ authUser, creatorId }) {
-    const userId = await store.resolveUserId(authUser);
-    if (!userId) {
-      throw createHttpError(401, 'Login required to follow creator.', 'AUTH_REQUIRED');
-    }
     const safeCreatorId = toInt(creatorId);
     if (!safeCreatorId) {
       throw createHttpError(400, 'Invalid creator id.', 'CREATOR_INVALID');
     }
-    return store.followCreator({
-      userId,
-      creatorId: safeCreatorId
-    });
+    try {
+      const userId = await store.resolveUserId(authUser);
+      if (!userId) {
+        throw createHttpError(401, 'Login required to follow creator.', 'AUTH_REQUIRED');
+      }
+      return store.followCreator({
+        userId,
+        creatorId: safeCreatorId
+      });
+    } catch (error) {
+      if (Number(error?.statusCode) === 400) {
+        throw error;
+      }
+      await resilientFallbackInitPromise;
+      const fallbackUserId = await resilientFallbackStore.resolveUserId(authUser).catch(() => null);
+      if (!fallbackUserId) {
+        throw createHttpError(401, 'Login required to follow creator.', 'AUTH_REQUIRED');
+      }
+      return resilientFallbackStore.followCreator({
+        userId: fallbackUserId,
+        creatorId: safeCreatorId
+      });
+    }
   }
 
   async function getCopyTraders({ limit }) {
     const safeLimit = Math.max(1, Math.min(30, toInt(limit, 10)));
-    const items = await store.listCopyTraders({ limit: safeLimit });
-    return hydrateCopyTraders(items);
+    try {
+      const items = await store.listCopyTraders({ limit: safeLimit });
+      return hydrateCopyTraders(items);
+    } catch (error) {
+      await resilientFallbackInitPromise;
+      const items = await resilientFallbackStore.listCopyTraders({ limit: safeLimit });
+      return hydrateCopyTraders(items);
+    }
   }
 
   async function createAnnouncement({ title, body }) {

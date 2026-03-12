@@ -167,6 +167,7 @@ let persistenceReady = false;
 let httpServer = null;
 let shuttingDown = false;
 let bootRetryTimer = null;
+let p2pExpirySweepTimer = null;
 const socialFeedBootstrapConfig = readSocialFeedConfig();
 const socialFeedBootstrapStore = createSocialFeedFallbackStore();
 const socialFeedBootstrapInitPromise = socialFeedBootstrapStore
@@ -2824,10 +2825,11 @@ app.get('/trade/:market/:symbol', (req, res) => {
 });
 
 app.get('/healthz', (req, res) => {
-  if (!persistenceReady || !isDbConnected()) {
-    return res.status(503).json({ status: 'error', db: 'disconnected' });
-  }
-  return res.status(200).json({ status: 'ok', db: 'connected' });
+  return res.status(200).json({
+    status: 'ok',
+    ready: persistenceReady,
+    db: isDbConnected() ? 'connected' : 'disconnected'
+  });
 });
 
 app.get('/api/health', (req, res) => {
@@ -2973,48 +2975,78 @@ function registerShutdownHandlers() {
       shuttingDown = true;
       console.log(`${signal} received, shutting down HTTP server...`);
 
+      if (bootRetryTimer) {
+        clearTimeout(bootRetryTimer);
+        bootRetryTimer = null;
+      }
+
+      if (p2pExpirySweepTimer) {
+        clearInterval(p2pExpirySweepTimer);
+        p2pExpirySweepTimer = null;
+      }
+
+      const forceExitTimer = setTimeout(() => {
+        console.log('Shutdown timeout reached. Forcing process exit.');
+        process.exit(0);
+      }, 8000);
+      if (typeof forceExitTimer.unref === 'function') {
+        forceExitTimer.unref();
+      }
+
+      const finalizeShutdown = async () => {
+        const closeTasks = [];
+
+        if (userCenterStore && typeof userCenterStore.close === 'function') {
+          closeTasks.push(
+            userCenterStore.close().then(() => {
+              console.log('[user-center] MySQL store closed.');
+            })
+          );
+        }
+        if (socialFeedStore && typeof socialFeedStore.close === 'function') {
+          closeTasks.push(
+            socialFeedStore.close().then(() => {
+              console.log('[social-feed] MySQL store closed.');
+            })
+          );
+        }
+        if (otpAuthStore && typeof otpAuthStore.close === 'function') {
+          closeTasks.push(
+            otpAuthStore.close().then(() => {
+              console.log('[auth-otp] MySQL store closed.');
+            })
+          );
+        }
+
+        let mongoClient = null;
+        try {
+          mongoClient = getMongoClient();
+        } catch (error) {
+          mongoClient = null;
+        }
+        if (mongoClient && typeof mongoClient.close === 'function') {
+          closeTasks.push(
+            mongoClient.close().then(() => {
+              console.log('MongoDB client closed.');
+            })
+          );
+        }
+
+        await Promise.allSettled(closeTasks);
+        clearTimeout(forceExitTimer);
+        console.log('Shutdown complete.');
+        process.exit(0);
+      };
+
       if (!httpServer) {
+        finalizeShutdown().catch(() => process.exit(0));
         return;
       }
 
       httpServer.close(() => {
-        if (userCenterStore) {
-          userCenterStore
-            .close()
-            .then(() => {
-              console.log('[user-center] MySQL store closed.');
-            })
-            .catch((closeError) => {
-              console.error('[user-center] Failed to close MySQL store:', closeError.message);
-            });
-        }
-        if (socialFeedStore) {
-          socialFeedStore
-            .close()
-            .then(() => {
-              console.log('[social-feed] MySQL store closed.');
-            })
-            .catch((closeError) => {
-              console.error('[social-feed] Failed to close MySQL store:', closeError.message);
-            });
-        }
-        if (otpAuthStore) {
-          otpAuthStore
-            .close()
-            .then(() => {
-              console.log('[auth-otp] MySQL store closed.');
-            })
-            .catch((closeError) => {
-              console.error('[auth-otp] Failed to close MySQL store:', closeError.message);
-            });
-        }
         console.log('HTTP server closed.');
+        finalizeShutdown().catch(() => process.exit(0));
       });
-
-      // Ensure shutdown does not hang forever.
-      setTimeout(() => {
-        console.log('Shutdown timeout reached.');
-      }, 8000).unref();
     });
   });
 }
@@ -3344,7 +3376,10 @@ async function boot() {
 
     app.use(errorHandler);
 
-    setInterval(async () => {
+    if (p2pExpirySweepTimer) {
+      clearInterval(p2pExpirySweepTimer);
+    }
+    p2pExpirySweepTimer = setInterval(async () => {
       try {
         const result = await p2pOrderExpiryService.runExpirySweep();
         if (result.cancelledCount > 0) {
@@ -3354,6 +3389,9 @@ async function boot() {
         console.error('Failed to run P2P expiry sweep:', error.message);
       }
     }, P2P_EXPIRY_SWEEP_INTERVAL_MS);
+    if (typeof p2pExpirySweepTimer.unref === 'function') {
+      p2pExpirySweepTimer.unref();
+    }
 
     persistenceReady = true;
     console.log(`MongoDB connected to ${mongoConfig.dbName}`);
