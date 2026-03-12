@@ -39,7 +39,7 @@ const { createAdminControllers } = require('./admin/controllers/admin-controller
 const { registerAdminRoutes } = require('./admin/routes/admin-routes');
 
 const app = express();
-const PORT = Number.parseInt(String(process.env.PORT || '10000'), 10);
+const PORT = process.env.PORT || 5000;
 const HOST = '0.0.0.0';
 app.set('trust proxy', 1);
 

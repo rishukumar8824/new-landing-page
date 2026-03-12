@@ -1,20 +1,19 @@
 services:
   - type: web
-    name: usdt-landing-backend
+    name: bitegit-exchange-api
     env: node
     plan: free
     branch: main
-    rootDir: backend
     buildCommand: npm install
     startCommand: node index.js
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
-      - key: MONGO_URI
-        sync: false
-      - key: WHATSAPP_NUMBER
-        sync: false
-      - key: FRONTEND_URL
-        sync: false
       - key: NODE_ENV
         value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: PORT
+        value: 5000

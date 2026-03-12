@@ -1,57 +1,43 @@
-# USDT Buy/Sell Landing Page (Fresh Deployment)
+# Bitegit Exchange Backend
 
-This repository is structured for a fresh full-stack deployment:
+This repository is prepared for direct deployment on Render Web Service from GitHub.
 
-- `frontend/` -> Next.js + TailwindCSS landing page (deploy to Vercel)
-- `backend/` -> Node.js + Express + MongoDB API (deploy to Render)
+## Runtime
 
-## Features
+- Node.js 18+
+- Start command: `node index.js`
+- NPM script: `npm start`
+- Server bind: `0.0.0.0`
+- Port: `process.env.PORT || 5000`
 
-- Landing form fields: Name, Mobile Number, Preference (Buy USDT / Sell USDT)
-- Form flow:
-  1. Submit to backend API (`POST /api/lead`)
-  2. Save lead in MongoDB Atlas
-  3. Redirect to WhatsApp with pre-filled message
-- Backend health endpoint: `GET /api/health`
-
-## Environment Variables
-
-### Backend (`backend/.env`)
+## Required Environment Variables
 
 - `MONGO_URI`
-- `WHATSAPP_NUMBER`
-- `FRONTEND_URL`
-- `NODE_ENV=production`
-- `PORT=5001` (optional locally)
+- `JWT_SECRET`
+- `PORT`
 
-### Frontend (`frontend/.env.local`)
+Optional compatibility variable:
 
-- `NEXT_PUBLIC_API_URL`
-- `NEXT_PUBLIC_WHATSAPP_NUMBER`
+- `MONGODB_URI`
 
 ## Local Run
 
 ```bash
-cd backend && npm install && npm run dev
-cd ../frontend && npm install && npm run dev
+npm install
+npm start
 ```
 
-Frontend: `http://localhost:3000`
-Backend: `http://localhost:5001`
+## Render Deploy
 
-## Deploy
+Use `render.yaml` or configure manually:
 
-### Backend on Render
-
-- Service root directory: `backend`
 - Build command: `npm install`
-- Start command: `npm start`
+- Start command: `node index.js`
 - Health check path: `/api/health`
-- Add env vars: `MONGO_URI`, `WHATSAPP_NUMBER`, `FRONTEND_URL`, `NODE_ENV=production`
 
-### Frontend on Vercel
+Set these env vars on Render:
 
-- Project root directory: `frontend`
-- Add env vars:
-  - `NEXT_PUBLIC_API_URL=https://<your-render-service>.onrender.com`
-  - `NEXT_PUBLIC_WHATSAPP_NUMBER=<your_whatsapp_number>`
+- `MONGO_URI`
+- `JWT_SECRET`
+- `PORT`
+- `NODE_ENV=production`
