@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "start:prod": "pm2-runtime start ecosystem.config.js --env production",
+    "apk:publish": "bash deploy/publish-flutter-apk.sh",
     "pm2:start": "pm2 start ecosystem.config.js --env production",
     "pm2:stop": "pm2 stop bitegit-app || true",
     "seed:admin": "node admin/seed-admin.js",
