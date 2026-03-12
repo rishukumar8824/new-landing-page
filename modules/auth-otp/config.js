@@ -9,14 +9,14 @@ function normalizeBool(value) {
 }
 
 function readAuthOtpConfig() {
-  const mysqlHost = String(process.env.AUTH_MYSQL_HOST || process.env.MYSQL_HOST || process.env.DB_HOST || '').trim();
-  const mysqlUser = String(process.env.AUTH_MYSQL_USER || process.env.MYSQL_USER || process.env.DB_USER || '').trim();
-  const mysqlPassword = String(process.env.AUTH_MYSQL_PASSWORD || process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || '').trim();
-  const mysqlDatabase = String(process.env.AUTH_MYSQL_DATABASE || process.env.MYSQL_DATABASE || process.env.DB_NAME || '').trim();
+  const mysqlHost = String(process.env.AUTH_MYSQL_HOST || '').trim();
+  const mysqlUser = String(process.env.AUTH_MYSQL_USER || '').trim();
+  const mysqlPassword = String(process.env.AUTH_MYSQL_PASSWORD || '').trim();
+  const mysqlDatabase = String(process.env.AUTH_MYSQL_DATABASE || '').trim();
 
   const mysqlConfig = {
     host: mysqlHost,
-    port: toInt(process.env.AUTH_MYSQL_PORT || process.env.MYSQL_PORT || process.env.DB_PORT, 3306),
+    port: toInt(process.env.AUTH_MYSQL_PORT, 3306),
     user: mysqlUser,
     password: mysqlPassword,
     database: mysqlDatabase,
