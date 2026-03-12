@@ -184,6 +184,7 @@ function readLeads() {
 
 function validateStartupConfig() {
   const missing = [];
+  const parsedPort = Number(PORT);
   const isProductionEnv = String(process.env.NODE_ENV || '')
     .trim()
     .toLowerCase() === 'production';
@@ -194,7 +195,7 @@ function validateStartupConfig() {
   if (!String(process.env.JWT_SECRET || '').trim()) {
     missing.push('JWT_SECRET');
   }
-  if (!Number.isFinite(PORT) || PORT <= 0) {
+  if (!Number.isFinite(parsedPort) || parsedPort <= 0) {
     missing.push('PORT');
   }
   if (isProductionEnv && !String(process.env.ADMIN_USERNAME || '').trim()) {
@@ -2892,18 +2893,18 @@ function registerShutdownHandlers() {
 
 async function boot() {
   try {
-    validateStartupConfig();
-    tokenService.ensureJwtSecret();
-    const mongoConfig = getMongoConfig();
-    console.log(`MongoDB target URI: ${mongoConfig.maskedUri}`);
-    console.log('Environment loader: dotenv');
-
     if (!httpServer) {
       httpServer = app.listen(PORT, '0.0.0.0', () => {
         console.log(`Server running on port ${PORT}`);
       });
       registerShutdownHandlers();
     }
+
+    validateStartupConfig();
+    tokenService.ensureJwtSecret();
+    const mongoConfig = getMongoConfig();
+    console.log(`MongoDB target URI: ${mongoConfig.maskedUri}`);
+    console.log('Environment loader: dotenv');
 
     await connectToMongo();
     const collections = getCollections();
