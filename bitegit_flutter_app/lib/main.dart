@@ -56,6 +56,19 @@ final ValueNotifier<double> fundingUsdtBalanceNotifier = ValueNotifier<double>(
   0,
 );
 final ValueNotifier<double> spotUsdtBalanceNotifier = ValueNotifier<double>(0);
+final ValueNotifier<double> portfolioTotalValueNotifier = ValueNotifier<double>(
+  0,
+);
+final ValueNotifier<bool> portfolioBalanceHiddenNotifier = ValueNotifier<bool>(
+  false,
+);
+final ValueNotifier<List<String>> homeQuickActionIdsNotifier =
+    ValueNotifier<List<String>>(<String>[
+      'launchpool',
+      'p2p',
+      'deposit',
+      'more',
+    ]);
 final ValueNotifier<HomeWidgetSettings> homeWidgetSettingsNotifier =
     ValueNotifier<HomeWidgetSettings>(const HomeWidgetSettings());
 final ValueNotifier<List<P2PAdItem>> p2pMarketplaceAdsNotifier =
@@ -65,13 +78,33 @@ final ValueNotifier<List<P2POrderItem>> p2pOrdersNotifier =
 final ValueNotifier<bool> hasActiveDepositSessionNotifier = ValueNotifier<bool>(
   false,
 );
+final ValueNotifier<PortfolioPnlSnapshot> portfolioPnlNotifier =
+    ValueNotifier<PortfolioPnlSnapshot>(const PortfolioPnlSnapshot());
+final ValueNotifier<List<DepositWalletCoin>> depositWalletCatalogNotifier =
+    ValueNotifier<List<DepositWalletCoin>>(<DepositWalletCoin>[]);
 final ValueNotifier<Map<String, String>> usdtDepositAddressByNetworkNotifier =
     ValueNotifier<Map<String, String>>(<String, String>{});
 String _authRefreshToken = '';
 
 const String _sessionStorageKey = 'bitegit_session_v2';
 const String _secureSessionStorageKey = 'bitegit_session_secure_v1';
+const String _portfolioHiddenStorageKey = 'bitegit_portfolio_hidden_v1';
+const String _homeQuickActionsStorageKey = 'bitegit_home_quick_actions_v1';
+const String _portfolioDayStampStorageKey = 'bitegit_portfolio_day_stamp_v1';
+const String _portfolioDayOwnerStorageKey = 'bitegit_portfolio_day_owner_v1';
+const String _portfolioDayStartValueStorageKey =
+    'bitegit_portfolio_day_start_value_v1';
+const List<String> _defaultHomeQuickActionIds = <String>[
+  'launchpool',
+  'p2p',
+  'deposit',
+  'more',
+];
 const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+String _portfolioDayStampCache = '';
+String _portfolioDayOwnerCache = '';
+double _portfolioDayStartValueCache = 0;
+bool _portfolioTrackingBound = false;
 
 String _normalizeApiBase(String raw) {
   final normalized = raw.trim();
@@ -109,6 +142,155 @@ double _toDouble(dynamic input, [double fallback = 0]) {
   return double.tryParse(input?.toString() ?? '') ?? fallback;
 }
 
+String _portfolioDayStamp(DateTime value) {
+  final month = value.month.toString().padLeft(2, '0');
+  final day = value.day.toString().padLeft(2, '0');
+  return '${value.year}-$month-$day';
+}
+
+double _currentPortfolioValue() {
+  final total = portfolioTotalValueNotifier.value;
+  if (total > 0) {
+    return total;
+  }
+  return fundingUsdtBalanceNotifier.value + spotUsdtBalanceNotifier.value;
+}
+
+List<String> _sanitizeHomeQuickActionIds(Iterable<String> rawValues) {
+  const allowed = <String>{
+    'launchpool',
+    'p2p',
+    'deposit',
+    'buy_crypto',
+    'convert',
+    'futures',
+    'bots',
+    'copy_trading',
+    'more',
+  };
+  final sanitized = <String>[];
+  for (final raw in rawValues) {
+    final normalized = raw.trim().toLowerCase();
+    if (normalized.isEmpty ||
+        !allowed.contains(normalized) ||
+        sanitized.contains(normalized)) {
+      continue;
+    }
+    sanitized.add(normalized);
+    if (sanitized.length == 4) {
+      return sanitized;
+    }
+  }
+  for (final fallback in _defaultHomeQuickActionIds) {
+    if (sanitized.contains(fallback)) {
+      continue;
+    }
+    sanitized.add(fallback);
+    if (sanitized.length == 4) {
+      break;
+    }
+  }
+  return sanitized;
+}
+
+String _formatPortfolioPnlText(PortfolioPnlSnapshot snapshot) {
+  final pnl = snapshot.pnl;
+  final percent = snapshot.pnlPercent;
+  final sign = pnl >= 0 ? '+' : '-';
+  return '$sign${pnl.abs().toStringAsFixed(2)} USD ($sign${percent.abs().toStringAsFixed(2)}%)';
+}
+
+Future<void> _setPortfolioBalanceHidden(bool hidden) async {
+  portfolioBalanceHiddenNotifier.value = hidden;
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool(_portfolioHiddenStorageKey, hidden);
+}
+
+Future<void> _setHomeQuickActionIds(List<String> values) async {
+  final sanitized = _sanitizeHomeQuickActionIds(values);
+  homeQuickActionIdsNotifier.value = sanitized;
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setStringList(_homeQuickActionsStorageKey, sanitized);
+}
+
+Future<void> _loadLocalUiPreferences() async {
+  final prefs = await SharedPreferences.getInstance();
+  portfolioBalanceHiddenNotifier.value =
+      prefs.getBool(_portfolioHiddenStorageKey) ?? false;
+  homeQuickActionIdsNotifier.value = _sanitizeHomeQuickActionIds(
+    prefs.getStringList(_homeQuickActionsStorageKey) ??
+        _defaultHomeQuickActionIds,
+  );
+  _portfolioDayOwnerCache =
+      (prefs.getString(_portfolioDayOwnerStorageKey) ?? '').trim();
+
+  final nowStamp = _portfolioDayStamp(DateTime.now());
+  final savedStamp = (prefs.getString(_portfolioDayStampStorageKey) ?? '')
+      .trim();
+  final savedStartValue = prefs.getDouble(_portfolioDayStartValueStorageKey);
+  final currentValue = _currentPortfolioValue();
+  if (savedStamp == nowStamp && savedStartValue != null) {
+    _portfolioDayStampCache = savedStamp;
+    _portfolioDayStartValueCache = savedStartValue;
+  } else {
+    _portfolioDayStampCache = nowStamp;
+    _portfolioDayStartValueCache = currentValue;
+    await prefs.setString(_portfolioDayStampStorageKey, nowStamp);
+    await prefs.setDouble(_portfolioDayStartValueStorageKey, currentValue);
+  }
+
+  portfolioPnlNotifier.value = PortfolioPnlSnapshot(
+    dayStartValue: _portfolioDayStartValueCache,
+    currentValue: currentValue,
+  );
+}
+
+void _handlePortfolioValueChanged() {
+  final nowStamp = _portfolioDayStamp(DateTime.now());
+  final currentValue = _currentPortfolioValue();
+  if (_portfolioDayStampCache != nowStamp) {
+    _portfolioDayStampCache = nowStamp;
+    _portfolioDayStartValueCache = currentValue;
+    unawaited(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_portfolioDayStampStorageKey, nowStamp);
+      await prefs.setDouble(_portfolioDayStartValueStorageKey, currentValue);
+    }());
+  }
+
+  portfolioPnlNotifier.value = PortfolioPnlSnapshot(
+    dayStartValue: _portfolioDayStartValueCache,
+    currentValue: currentValue,
+  );
+}
+
+void _bindPortfolioTracking() {
+  if (_portfolioTrackingBound) {
+    return;
+  }
+  _portfolioTrackingBound = true;
+  fundingUsdtBalanceNotifier.addListener(_handlePortfolioValueChanged);
+  spotUsdtBalanceNotifier.addListener(_handlePortfolioValueChanged);
+  portfolioTotalValueNotifier.addListener(_handlePortfolioValueChanged);
+  _handlePortfolioValueChanged();
+}
+
+Future<void> _resetPortfolioDayStartSnapshot({String? owner}) async {
+  final currentValue = _currentPortfolioValue();
+  final nowStamp = _portfolioDayStamp(DateTime.now());
+  _portfolioDayOwnerCache = (owner ?? '').trim().toLowerCase();
+  _portfolioDayStampCache = nowStamp;
+  _portfolioDayStartValueCache = currentValue;
+  portfolioPnlNotifier.value = PortfolioPnlSnapshot(
+    dayStartValue: currentValue,
+    currentValue: currentValue,
+  );
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(_portfolioDayStampStorageKey, nowStamp);
+  await prefs.setString(_portfolioDayOwnerStorageKey, _portfolioDayOwnerCache);
+  await prefs.setDouble(_portfolioDayStartValueStorageKey, currentValue);
+}
+
 class _ApiHttpResponse {
   const _ApiHttpResponse({required this.statusCode, required this.bodyMap});
 
@@ -142,6 +324,22 @@ class DepositWalletCoin {
   final String coin;
   final String defaultNetwork;
   final List<DepositWalletNetwork> networks;
+}
+
+class PortfolioPnlSnapshot {
+  const PortfolioPnlSnapshot({this.dayStartValue = 0, this.currentValue = 0});
+
+  final double dayStartValue;
+  final double currentValue;
+
+  double get pnl => currentValue - dayStartValue;
+
+  double get pnlPercent {
+    if (dayStartValue <= 0) {
+      return 0;
+    }
+    return (pnl / dayStartValue) * 100;
+  }
 }
 
 Future<_ApiHttpResponse> _getJsonFromApi(Uri uri, {String? accessToken}) async {
@@ -273,62 +471,208 @@ Future<bool> _refreshAccessTokenWithRefreshToken() async {
   return false;
 }
 
+List<DepositWalletCoin> _parseDepositWalletCatalog(dynamic coinsRaw) {
+  if (coinsRaw is! List) {
+    return const <DepositWalletCoin>[];
+  }
+
+  final coins = <DepositWalletCoin>[];
+  for (final rawCoin in coinsRaw) {
+    if (rawCoin is! Map) {
+      continue;
+    }
+    final coin = (rawCoin['coin'] ?? rawCoin['token'] ?? '')
+        .toString()
+        .trim()
+        .toUpperCase();
+    if (coin.isEmpty) {
+      continue;
+    }
+
+    final networksRaw = rawCoin['networks'];
+    if (networksRaw is! List) {
+      continue;
+    }
+
+    final networks = <DepositWalletNetwork>[];
+    for (final rawNetwork in networksRaw) {
+      if (rawNetwork is! Map) {
+        continue;
+      }
+      final network = (rawNetwork['network'] ?? rawNetwork['chain'] ?? '')
+          .toString()
+          .trim()
+          .toUpperCase();
+      final address = (rawNetwork['address'] ?? '').toString().trim();
+      if (network.isEmpty ||
+          address.isEmpty ||
+          rawNetwork['enabled'] == false) {
+        continue;
+      }
+      networks.add(
+        DepositWalletNetwork(
+          network: network,
+          address: address,
+          minConfirmations:
+              int.tryParse(
+                (rawNetwork['minConfirmations'] ??
+                        rawNetwork['confirmations'] ??
+                        1)
+                    .toString(),
+              ) ??
+              1,
+          enabled: true,
+          qrCodeUrl: (rawNetwork['qrCodeUrl'] ?? rawNetwork['qr'] ?? '')
+              .toString()
+              .trim(),
+        ),
+      );
+    }
+    if (networks.isEmpty) {
+      continue;
+    }
+
+    final requestedDefault = (rawCoin['defaultNetwork'] ?? '')
+        .toString()
+        .trim()
+        .toUpperCase();
+    final defaultNetwork =
+        networks.any((row) => row.network == requestedDefault)
+        ? requestedDefault
+        : networks.first.network;
+    coins.add(
+      DepositWalletCoin(
+        coin: coin,
+        defaultNetwork: defaultNetwork,
+        networks: networks,
+      ),
+    );
+  }
+
+  return coins;
+}
+
+List<DepositWalletCoin> _walletCatalogFromAddressMap(
+  Map<String, String> addresses,
+) {
+  final networks = addresses.entries
+      .where(
+        (entry) => entry.key.trim().isNotEmpty && entry.value.trim().isNotEmpty,
+      )
+      .map(
+        (entry) => DepositWalletNetwork(
+          network: entry.key.trim().toUpperCase(),
+          address: entry.value.trim(),
+          minConfirmations: 1,
+          enabled: true,
+        ),
+      )
+      .toList(growable: false);
+  if (networks.isEmpty) {
+    return const <DepositWalletCoin>[];
+  }
+
+  return <DepositWalletCoin>[
+    DepositWalletCoin(
+      coin: 'USDT',
+      defaultNetwork: networks.first.network,
+      networks: networks,
+    ),
+  ];
+}
+
 Future<void> _syncWalletFromBackend({String? accessToken}) async {
   var token = (accessToken ?? authAccessTokenNotifier.value).trim();
   if (token.isEmpty) {
     return;
   }
 
+  const walletPaths = <String>['/api/wallet/summary', '/api/p2p/wallet'];
   for (final base in _apiBaseUrls()) {
-    var response = await _getJsonFromApi(
-      _apiUri(base, '/api/wallet/summary'),
-      accessToken: token,
-    );
-    if (response.statusCode == 401) {
-      final refreshed = await _refreshAccessTokenWithRefreshToken();
-      if (refreshed) {
-        token = authAccessTokenNotifier.value.trim();
-        response = await _getJsonFromApi(
-          _apiUri(base, '/api/wallet/summary'),
-          accessToken: token,
-        );
+    for (final path in walletPaths) {
+      var response = await _getJsonFromApi(
+        _apiUri(base, path),
+        accessToken: token,
+      );
+      if (response.statusCode == 401) {
+        final refreshed = await _refreshAccessTokenWithRefreshToken();
+        if (refreshed) {
+          token = authAccessTokenNotifier.value.trim();
+          response = await _getJsonFromApi(
+            _apiUri(base, path),
+            accessToken: token,
+          );
+        }
       }
-    }
-    if (!_apiSuccess(response)) {
-      continue;
-    }
-    final summary = response.bodyMap?['summary'];
-    final wallet = response.bodyMap?['wallet'];
-    final summaryMap = summary is Map<String, dynamic>
-        ? summary
-        : (wallet is Map<String, dynamic> ? wallet : const <String, dynamic>{});
-    final available = _toDouble(
-      summaryMap['available_balance'] ?? summaryMap['availableBalance'],
-      0,
-    );
-    final spot = _toDouble(summaryMap['spot_balance'], available);
-    fundingUsdtBalanceNotifier.value = available;
-    spotUsdtBalanceNotifier.value = spot;
-    _syncActiveUserState(walletBalanceUsdt: available);
+      if (!_apiSuccess(response)) {
+        continue;
+      }
+      final summary = response.bodyMap?['summary'];
+      final wallet = response.bodyMap?['wallet'];
+      final walletMap = wallet is Map<String, dynamic>
+          ? wallet
+          : const <String, dynamic>{};
+      final summaryMap = summary is Map<String, dynamic> ? summary : walletMap;
+      final available = _toDouble(
+        summaryMap['available_balance'] ?? summaryMap['availableBalance'],
+        0,
+      );
+      final totalBalance = _toDouble(
+        summaryMap['total_balance'] ?? summaryMap['totalBalance'],
+        available,
+      );
+      final spot = _toDouble(summaryMap['spot_balance'], available);
+      fundingUsdtBalanceNotifier.value = available;
+      spotUsdtBalanceNotifier.value = spot;
+      portfolioTotalValueNotifier.value = totalBalance > 0
+          ? totalBalance
+          : available;
+      _syncActiveUserState(
+        walletBalanceUsdt: totalBalance > 0 ? totalBalance : available,
+      );
+      final activeOwner = (activeExchangeUserNotifier.value?.email ?? '')
+          .trim()
+          .toLowerCase();
+      if (activeOwner.isNotEmpty && _portfolioDayOwnerCache != activeOwner) {
+        unawaited(_resetPortfolioDayStartSnapshot(owner: activeOwner));
+      }
 
-    final rawNetworks = summaryMap['deposit_networks'];
-    if (rawNetworks is List) {
-      final addresses = <String, String>{};
-      for (final item in rawNetworks) {
-        if (item is! Map) continue;
-        final network = (item['network'] ?? item['chain'] ?? '')
-            .toString()
-            .trim()
-            .toUpperCase();
-        final address = (item['address'] ?? '').toString().trim();
-        if (network.isEmpty || address.isEmpty) continue;
-        addresses[network] = address;
+      final parsedCatalog = _parseDepositWalletCatalog(
+        response.bodyMap?['depositWallets'],
+      );
+      if (parsedCatalog.isNotEmpty) {
+        depositWalletCatalogNotifier.value = parsedCatalog;
       }
-      if (addresses.isNotEmpty) {
-        usdtDepositAddressByNetworkNotifier.value = addresses;
+
+      final rawNetworks =
+          summaryMap['deposit_networks'] ?? walletMap['depositNetworks'];
+      if (rawNetworks is List) {
+        final addresses = <String, String>{};
+        for (final item in rawNetworks) {
+          if (item is! Map) {
+            continue;
+          }
+          final network = (item['network'] ?? item['chain'] ?? '')
+              .toString()
+              .trim()
+              .toUpperCase();
+          final address = (item['address'] ?? '').toString().trim();
+          if (network.isEmpty || address.isEmpty) {
+            continue;
+          }
+          addresses[network] = address;
+        }
+        if (addresses.isNotEmpty) {
+          usdtDepositAddressByNetworkNotifier.value = addresses;
+          if (parsedCatalog.isEmpty) {
+            depositWalletCatalogNotifier.value = _walletCatalogFromAddressMap(
+              addresses,
+            );
+          }
+        }
       }
+      return;
     }
-    return;
   }
 }
 
@@ -485,90 +829,96 @@ Future<List<DepositWalletCoin>> _fetchDepositWalletCatalog({
 }) async {
   var token = (accessToken ?? authAccessTokenNotifier.value).trim();
   if (token.isEmpty) {
-    return _fallbackDepositWalletCatalog();
-  }
-
-  for (final base in _apiBaseUrls()) {
-    var response = await _getJsonFromApi(
-      _apiUri(base, '/api/deposits/wallets'),
-      accessToken: token,
+    final cached = depositWalletCatalogNotifier.value;
+    if (cached.isNotEmpty) {
+      return cached;
+    }
+    final fromAddresses = _walletCatalogFromAddressMap(
+      usdtDepositAddressByNetworkNotifier.value,
     );
-    if (response.statusCode == 401) {
-      final refreshed = await _refreshAccessTokenWithRefreshToken();
-      if (refreshed) {
-        token = authAccessTokenNotifier.value.trim();
-        response = await _getJsonFromApi(
-          _apiUri(base, '/api/deposits/wallets'),
-          accessToken: token,
-        );
-      }
-    }
-    if (!_apiSuccess(response)) {
-      continue;
-    }
+    return fromAddresses.isNotEmpty
+        ? fromAddresses
+        : _fallbackDepositWalletCatalog();
+  }
 
-    final coinsRaw = response.bodyMap?['coins'];
-    if (coinsRaw is! List) {
-      continue;
-    }
-
-    final coins = <DepositWalletCoin>[];
-    for (final rawCoin in coinsRaw) {
-      if (rawCoin is! Map) continue;
-      final coin = (rawCoin['coin'] ?? '').toString().trim().toUpperCase();
-      if (coin.isEmpty) continue;
-
-      final networksRaw = rawCoin['networks'];
-      if (networksRaw is! List) continue;
-
-      final networks = <DepositWalletNetwork>[];
-      for (final rawNetwork in networksRaw) {
-        if (rawNetwork is! Map) continue;
-        final network = (rawNetwork['network'] ?? '')
-            .toString()
-            .trim()
-            .toUpperCase();
-        if (network.isEmpty) continue;
-        networks.add(
-          DepositWalletNetwork(
-            network: network,
-            address: (rawNetwork['address'] ?? '').toString().trim(),
-            minConfirmations:
-                int.tryParse(
-                  (rawNetwork['minConfirmations'] ?? 1).toString(),
-                ) ??
-                1,
-            enabled: rawNetwork['enabled'] != false,
-            qrCodeUrl: (rawNetwork['qrCodeUrl'] ?? '').toString().trim(),
-          ),
-        );
-      }
-      final activeNetworks = networks
-          .where((row) => row.enabled && row.address.trim().isNotEmpty)
-          .toList();
-      if (activeNetworks.isEmpty) continue;
-
-      final defaultNetwork = (rawCoin['defaultNetwork'] ?? '')
-          .toString()
-          .trim()
-          .toUpperCase();
-      coins.add(
-        DepositWalletCoin(
-          coin: coin,
-          defaultNetwork: defaultNetwork.isEmpty
-              ? activeNetworks.first.network
-              : defaultNetwork,
-          networks: activeNetworks,
-        ),
+  const walletPaths = <String>[
+    '/api/deposits/wallets',
+    '/api/p2p/wallet',
+    '/api/wallet/summary',
+  ];
+  for (final base in _apiBaseUrls()) {
+    for (final path in walletPaths) {
+      var response = await _getJsonFromApi(
+        _apiUri(base, path),
+        accessToken: token,
       );
-    }
+      if (response.statusCode == 401) {
+        final refreshed = await _refreshAccessTokenWithRefreshToken();
+        if (refreshed) {
+          token = authAccessTokenNotifier.value.trim();
+          response = await _getJsonFromApi(
+            _apiUri(base, path),
+            accessToken: token,
+          );
+        }
+      }
+      if (!_apiSuccess(response)) {
+        continue;
+      }
 
-    if (coins.isNotEmpty) {
-      return coins;
+      final body = response.bodyMap ?? const <String, dynamic>{};
+      final coins = _parseDepositWalletCatalog(
+        body['coins'] ?? body['depositWallets'],
+      );
+      if (coins.isNotEmpty) {
+        depositWalletCatalogNotifier.value = coins;
+        return coins;
+      }
+
+      final summary = body['summary'];
+      final wallet = body['wallet'];
+      final walletMap = wallet is Map<String, dynamic>
+          ? wallet
+          : const <String, dynamic>{};
+      final summaryMap = summary is Map<String, dynamic> ? summary : walletMap;
+      final rawNetworks =
+          summaryMap['deposit_networks'] ?? walletMap['depositNetworks'];
+      if (rawNetworks is List) {
+        final addresses = <String, String>{};
+        for (final item in rawNetworks) {
+          if (item is! Map) {
+            continue;
+          }
+          final network = (item['network'] ?? item['chain'] ?? '')
+              .toString()
+              .trim()
+              .toUpperCase();
+          final address = (item['address'] ?? '').toString().trim();
+          if (network.isEmpty || address.isEmpty) {
+            continue;
+          }
+          addresses[network] = address;
+        }
+        final fallbackCoins = _walletCatalogFromAddressMap(addresses);
+        if (fallbackCoins.isNotEmpty) {
+          usdtDepositAddressByNetworkNotifier.value = addresses;
+          depositWalletCatalogNotifier.value = fallbackCoins;
+          return fallbackCoins;
+        }
+      }
     }
   }
 
-  return _fallbackDepositWalletCatalog();
+  final cached = depositWalletCatalogNotifier.value;
+  if (cached.isNotEmpty) {
+    return cached;
+  }
+  final fromAddresses = _walletCatalogFromAddressMap(
+    usdtDepositAddressByNetworkNotifier.value,
+  );
+  return fromAddresses.isNotEmpty
+      ? fromAddresses
+      : _fallbackDepositWalletCatalog();
 }
 
 Future<List<AssetTransactionRecord>> _fetchDepositHistory({
@@ -992,6 +1342,7 @@ void _hydrateSessionFromUser(ExchangeUser user) {
   avatarSymbolNotifier.value = _firstLetter(user.email);
   fundingUsdtBalanceNotifier.value = user.walletBalanceUsdt;
   spotUsdtBalanceNotifier.value = 0;
+  portfolioTotalValueNotifier.value = user.walletBalanceUsdt;
   _setKycStatus(user.kycStatus);
   isUserLoggedInNotifier.value = true;
   unawaited(_persistSessionState());
@@ -1049,10 +1400,13 @@ void _logoutActiveSession() {
   profileImagePathNotifier.value = null;
   fundingUsdtBalanceNotifier.value = 0;
   spotUsdtBalanceNotifier.value = 0;
+  portfolioTotalValueNotifier.value = 0;
+  depositWalletCatalogNotifier.value = const <DepositWalletCoin>[];
   hasActiveDepositSessionNotifier.value = false;
   usdtDepositAddressByNetworkNotifier.value = <String, String>{};
   _setKycStatus('pending');
   isUserLoggedInNotifier.value = false;
+  unawaited(_resetPortfolioDayStartSnapshot(owner: ''));
   unawaited(_clearSessionState());
 }
 
@@ -1076,15 +1430,9 @@ String _generateUserUid() {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await _clearTransientAppCacheOnLaunch();
-  await _restoreSessionState();
+  await _loadLocalUiPreferences();
+  _bindPortfolioTracking();
   runApp(const BitegitApp());
-}
-
-Future<void> _clearTransientAppCacheOnLaunch() async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.remove('social_feed_cache');
-  await prefs.remove('social_feed_last_fetch');
 }
 
 class BitegitApp extends StatelessWidget {
@@ -1236,6 +1584,7 @@ class _AppLaunchBootstrapState extends State<AppLaunchBootstrap>
   @override
   void initState() {
     super.initState();
+    unawaited(_restoreSessionState());
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1600),
@@ -1348,43 +1697,44 @@ class _HomeRefreshLogoLoaderState extends State<_HomeRefreshLogoLoader>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final turn = _controller.value * pi * 2;
-        final pulse = 0.97 + (0.05 * sin(turn).abs());
-        return Transform.scale(
-          scale: pulse,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: cardBorder, width: 1.1),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x4D000000),
-                  blurRadius: 18,
-                  spreadRadius: 1,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Transform.rotate(
-                  angle: turn,
-                  child: const _ExchangeLogoGlyph(size: 28, glowStrength: 0.62),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'BITEGIT',
-                  style: TextStyle(
-                    color: labelColor,
-                    fontSize: 13.8,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.45,
+        final wave = sin(_controller.value * pi * 2);
+        final pulse = 0.98 + (0.035 * wave.abs());
+        final lift = -6 * wave.abs();
+        return Transform.translate(
+          offset: Offset(0, lift),
+          child: Transform.scale(
+            scale: pulse,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: cardBorder, width: 1.1),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x4D000000),
+                    blurRadius: 18,
+                    spreadRadius: 1,
+                    offset: Offset(0, 8),
                   ),
-                ),
-              ],
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const _ExchangeLogoGlyph(size: 28, glowStrength: 0.62),
+                  const SizedBox(width: 10),
+                  Text(
+                    'BITEGIT',
+                    style: TextStyle(
+                      color: labelColor,
+                      fontSize: 13.8,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.45,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -3621,143 +3971,218 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  String _pnlText(double total) {
-    final pnl = total * 0.0;
-    final percent = total == 0 ? 0.0 : (pnl / total) * 100;
-    final sign = pnl >= 0 ? '+' : '-';
-    return '$sign${pnl.abs().toStringAsFixed(2)} USD ($sign${percent.abs().toStringAsFixed(2)}%)';
+  void _showFeaturePending(String label) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$label will be enabled soon.')));
+  }
+
+  Future<void> _openMorePage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MoreFeaturesPage(
+          initialFavoriteIds: homeQuickActionIdsNotifier.value,
+          onSaveFavoriteIds: (values) {
+            unawaited(_setHomeQuickActionIds(values));
+          },
+        ),
+      ),
+    );
+  }
+
+  HomeQuickActionItem _actionForId(String id) {
+    switch (id) {
+      case 'launchpool':
+        return HomeQuickActionItem(
+          label: 'Launchpool',
+          icon: Icons.rocket_launch_outlined,
+          badge: 'NEW',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const RewardsContestOverviewPage(),
+            ),
+          ),
+        );
+      case 'p2p':
+        return HomeQuickActionItem(
+          label: 'P2P',
+          icon: Icons.people_alt_outlined,
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const P2PPage())),
+        );
+      case 'deposit':
+        return HomeQuickActionItem(
+          label: 'Deposit',
+          icon: Icons.download_rounded,
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const DepositPage())),
+        );
+      case 'buy_crypto':
+        return HomeQuickActionItem(
+          label: 'Buy Crypto',
+          icon: Icons.credit_card_outlined,
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const P2PPage())),
+        );
+      case 'convert':
+        return HomeQuickActionItem(
+          label: 'Convert',
+          icon: Icons.swap_horiz_rounded,
+          onTap: _openHotPair,
+        );
+      case 'futures':
+        return HomeQuickActionItem(
+          label: 'Futures',
+          icon: Icons.candlestick_chart_rounded,
+          onTap: () => widget.onNavigateTab(1),
+        );
+      case 'bots':
+        return HomeQuickActionItem(
+          label: 'Bots',
+          icon: Icons.smart_toy_outlined,
+          onTap: () => _showFeaturePending('Bots'),
+        );
+      case 'copy_trading':
+        return HomeQuickActionItem(
+          label: 'Copy',
+          icon: Icons.copy_all_rounded,
+          onTap: () => _showFeaturePending('Copy Trading'),
+        );
+      case 'more':
+      default:
+        return HomeQuickActionItem(
+          label: 'More',
+          icon: Icons.grid_view_rounded,
+          onTap: _openMorePage,
+        );
+    }
+  }
+
+  List<HomeQuickActionItem> _shortcutActionsFor(List<String> ids) {
+    return ids.map(_actionForId).take(4).toList(growable: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final shortcutActions = <HomeQuickActionItem>[
-      HomeQuickActionItem(
-        label: 'Launchpool',
-        icon: Icons.rocket_launch_outlined,
-        badge: 'NEW',
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const RewardsContestOverviewPage(),
-          ),
-        ),
-      ),
-      HomeQuickActionItem(
-        label: 'P2P',
-        icon: Icons.people_alt_outlined,
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const P2PPage()),
-        ),
-      ),
-      HomeQuickActionItem(
-        label: 'Deposit',
-        icon: Icons.download_rounded,
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const DepositPage()),
-        ),
-      ),
-      HomeQuickActionItem(
-        label: 'More',
-        icon: Icons.grid_view_rounded,
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const MoreFeaturesPage()),
-        ),
-      ),
-    ];
-
-    return ValueListenableBuilder<double>(
-      valueListenable: fundingUsdtBalanceNotifier,
-      builder: (context, fundingBalance, __) {
-        return ValueListenableBuilder<double>(
-          valueListenable: spotUsdtBalanceNotifier,
-          builder: (context, spotBalance, _) {
-            final totalAssets = fundingBalance + spotBalance;
-            return Stack(
-              children: [
-                RefreshIndicator(
-                  displacement: 74,
-                  edgeOffset: 8,
-                  color: Colors.transparent,
-                  backgroundColor: Colors.transparent,
-                  onRefresh: _refreshHomeContent,
-                  child: ListView(
-                    controller: _scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(
-                      parent: BouncingScrollPhysics(),
+    return AnimatedBuilder(
+      animation: Listenable.merge(<Listenable>[
+        fundingUsdtBalanceNotifier,
+        spotUsdtBalanceNotifier,
+        portfolioTotalValueNotifier,
+        portfolioBalanceHiddenNotifier,
+        portfolioPnlNotifier,
+        homeQuickActionIdsNotifier,
+      ]),
+      builder: (context, _) {
+        final totalAssets = _currentPortfolioValue();
+        final shortcutActions = _shortcutActionsFor(
+          homeQuickActionIdsNotifier.value,
+        );
+        return Stack(
+          children: [
+            RefreshIndicator(
+              displacement: 74,
+              edgeOffset: 8,
+              color: Colors.transparent,
+              backgroundColor: Colors.transparent,
+              onRefresh: _refreshHomeContent,
+              child: ListView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                cacheExtent: 1800,
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                children: [
+                  GateHomeHeader(
+                    avatarText: _initialsOf(nicknameNotifier.value),
+                    onOpenProfile: widget.onOpenProfile,
+                    onOpenSupport: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SupportHomePage(),
+                      ),
                     ),
-                    cacheExtent: 1800,
-                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
-                    children: [
-                      GateHomeHeader(
-                        avatarText: _initialsOf(nicknameNotifier.value),
-                        onOpenProfile: widget.onOpenProfile,
-                        onOpenSupport: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const SupportHomePage(),
-                          ),
-                        ),
-                        onOpenNotifications: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const SupportAlertsPage(),
-                          ),
-                        ),
+                    onOpenNotifications: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SupportAlertsPage(),
                       ),
-                      const SizedBox(height: 14),
-                      _GatePairSearchBar(
-                        hotPair: '🔥 GT/USDT',
-                        onTapSearch: _openHotPair,
-                        onTapScan: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const ScanPage(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      GateBalanceSection(
-                        totalAssets: totalAssets,
-                        pnlText: _pnlText(totalAssets),
-                        onDeposit: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const DepositPage(),
-                          ),
-                        ),
-                        onP2P: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(builder: (_) => const P2PPage()),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      GateQuickActions(actions: shortcutActions),
-                      const SizedBox(height: 16),
-                      GateEventSlider(key: _eventsKey, onOpenEvent: _openEventDetails),
-                      const SizedBox(height: 12),
-                      GateMarketTickerSection(
-                        key: _tickerKey,
-                        onTapSymbol: _openPairBySymbol,
-                      ),
-                      const SizedBox(height: 12),
-                      _HomePopularPairsSection(
-                        key: _popularPairsKey,
-                        onOpenTradePair: widget.onOpenTradePair,
-                      ),
-                      const SizedBox(height: 12),
-                      _HomeSocialDiscoveryFeed(
-                        key: _socialFeedKey,
-                        accessTokenListenable: authAccessTokenNotifier,
-                      ),
-                      const SizedBox(height: 12),
-                      _GatePairsStrip(onOpenTradePair: widget.onOpenTradePair),
-                      const SizedBox(height: 104),
-                    ],
+                    ),
                   ),
-                ),
-                ScrollLogoOverlay(
-                  visible: _showScrollLogo || _refreshingHome,
-                  child: _RefreshWordmarkBadge(
-                    showLoadingDot: _refreshingHome,
+                  const SizedBox(height: 14),
+                  _GatePairSearchBar(
+                    hotPair: '🔥 GT/USDT',
+                    onTapSearch: _openHotPair,
+                    onTapScan: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const ScanPage()),
+                    ),
                   ),
-                ),
-              ],
-            );
-          },
+                  const SizedBox(height: 14),
+                  GateBalanceSection(
+                    totalAssets: totalAssets,
+                    hiddenAssets: portfolioBalanceHiddenNotifier.value,
+                    pnlText: _formatPortfolioPnlText(
+                      portfolioPnlNotifier.value,
+                    ),
+                    onToggleVisibility: () {
+                      unawaited(
+                        _setPortfolioBalanceHidden(
+                          !portfolioBalanceHiddenNotifier.value,
+                        ),
+                      );
+                    },
+                    onDeposit: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const DepositPage(),
+                      ),
+                    ),
+                    onP2P: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const P2PPage()),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  GateQuickActions(actions: shortcutActions),
+                  const SizedBox(height: 16),
+                  RepaintBoundary(
+                    child: GateEventSlider(
+                      key: _eventsKey,
+                      onOpenEvent: _openEventDetails,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  RepaintBoundary(
+                    child: GateMarketTickerSection(
+                      key: _tickerKey,
+                      onTapSymbol: _openPairBySymbol,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  RepaintBoundary(
+                    child: _HomePopularPairsSection(
+                      key: _popularPairsKey,
+                      onOpenTradePair: widget.onOpenTradePair,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  RepaintBoundary(
+                    child: _HomeSocialDiscoveryFeed(
+                      key: _socialFeedKey,
+                      accessTokenListenable: authAccessTokenNotifier,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _GatePairsStrip(onOpenTradePair: widget.onOpenTradePair),
+                  const SizedBox(height: 104),
+                ],
+              ),
+            ),
+            ScrollLogoOverlay(
+              visible: _showScrollLogo || _refreshingHome,
+              child: _RefreshWordmarkBadge(showLoadingDot: _refreshingHome),
+            ),
+          ],
         );
       },
     );
@@ -3792,7 +4217,11 @@ class _GatePairSearchBar extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.search_rounded, color: Color(0xFF7E879B), size: 34 / 1.2),
+            const Icon(
+              Icons.search_rounded,
+              color: Color(0xFF7E879B),
+              size: 34 / 1.2,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -3825,9 +4254,7 @@ class _RefreshWordmarkBadge extends StatelessWidget {
     final isLight = Theme.of(context).brightness == Brightness.light;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: isLight
-            ? const Color(0xE6FFFFFF)
-            : const Color(0xE60C1018),
+        color: isLight ? const Color(0xE6FFFFFF) : const Color(0xE60C1018),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color: isLight ? const Color(0xFFD6DEEC) : const Color(0xFF263044),
@@ -3890,7 +4317,9 @@ class _GatePairsStrip extends StatelessWidget {
         itemBuilder: (context, index) {
           final pair = rows[index];
           final down = pair.change.startsWith('-');
-          final color = down ? const Color(0xFFFB4E63) : const Color(0xFF37D39A);
+          final color = down
+              ? const Color(0xFFFB4E63)
+              : const Color(0xFF37D39A);
           return InkWell(
             borderRadius: BorderRadius.circular(22),
             onTap: () => onOpenTradePair(pair),
@@ -4135,126 +4564,113 @@ class _HomeDepositBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<double>(
-      valueListenable: fundingUsdtBalanceNotifier,
-      builder: (context, funding, _) {
-        return ValueListenableBuilder<double>(
-          valueListenable: spotUsdtBalanceNotifier,
-          builder: (context, spot, child) {
-            return ValueListenableBuilder<bool>(
-              valueListenable: hasActiveDepositSessionNotifier,
-              builder: (context, hasActiveDeposit, __) {
-                final total = funding + spot;
-                final hasBalance = total > 0.0001;
-                final isLight =
-                    Theme.of(context).brightness == Brightness.light;
-                final cardBg = isLight
-                    ? const Color(0xFFE3E7EF)
-                    : const Color(0xFF161A23);
-                final border = isLight
-                    ? const Color(0xFFD2DAE8)
-                    : const Color(0xFF222A3B);
-                final primary = isLight
-                    ? const Color(0xFF121722)
-                    : Colors.white;
-                final secondary = isLight
-                    ? const Color(0xFF5E6779)
-                    : Colors.white70;
-                final buttonBg = isLight
-                    ? const Color(0xFF11141C)
-                    : Colors.white;
-                final buttonFg = isLight ? Colors.white : Colors.black;
+      valueListenable: portfolioTotalValueNotifier,
+      builder: (context, totalValue, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: hasActiveDepositSessionNotifier,
+          builder: (context, hasActiveDeposit, __) {
+            final total = totalValue > 0
+                ? totalValue
+                : _currentPortfolioValue();
+            final hasBalance = total > 0.0001;
+            final isLight = Theme.of(context).brightness == Brightness.light;
+            final cardBg = isLight
+                ? const Color(0xFFE3E7EF)
+                : const Color(0xFF161A23);
+            final border = isLight
+                ? const Color(0xFFD2DAE8)
+                : const Color(0xFF222A3B);
+            final primary = isLight ? const Color(0xFF121722) : Colors.white;
+            final secondary = isLight
+                ? const Color(0xFF5E6779)
+                : Colors.white70;
+            final buttonBg = isLight ? const Color(0xFF11141C) : Colors.white;
+            final buttonFg = isLight ? Colors.white : Colors.black;
 
-                return Container(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                  decoration: BoxDecoration(
-                    color: cardBg,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: border),
+            return Container(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasBalance
+                        ? 'Total Balance ${_formatWithCommas(total, decimals: 2)} USDT'
+                        : 'Deposit now to enjoy the\nultimate experience',
+                    style: TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w700,
+                      color: primary,
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 6),
+                  Text(
+                    hasActiveDeposit
+                        ? 'One deposit request is pending admin confirmation.'
+                        : (hasBalance
+                              ? 'Portfolio value synced from your live wallet balance.'
+                              : 'All popular trading pairs supported! Enjoy exclusive benefits.'),
+                    style: TextStyle(fontSize: 13.2, color: secondary),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
                     children: [
-                      Text(
-                        hasBalance
-                            ? 'Total Balance ${_formatWithCommas(total, decimals: 2)} USDT'
-                            : 'Deposit now to enjoy the\nultimate experience',
-                        style: TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w700,
-                          color: primary,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        hasActiveDeposit
-                            ? 'One deposit request is pending admin confirmation.'
-                            : (hasBalance
-                                  ? 'Funding ${_formatWithCommas(funding, decimals: 2)} • Spot ${_formatWithCommas(spot, decimals: 2)}'
-                                  : 'All popular trading pairs supported! Enjoy exclusive benefits.'),
-                        style: TextStyle(fontSize: 13.2, color: secondary),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: hasActiveDeposit ? null : onDeposit,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: buttonBg,
-                                foregroundColor: buttonFg,
-                                disabledBackgroundColor: const Color(
-                                  0xFF232323,
-                                ),
-                                disabledForegroundColor: Colors.white54,
-                                minimumSize: const Size.fromHeight(44),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                              ),
-                              child: Text(
-                                hasActiveDeposit
-                                    ? 'Deposit Pending'
-                                    : (hasBalance ? 'Deposit More' : 'Deposit'),
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: hasActiveDeposit ? null : onDeposit,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: buttonBg,
+                            foregroundColor: buttonFg,
+                            disabledBackgroundColor: const Color(0xFF232323),
+                            disabledForegroundColor: Colors.white54,
+                            minimumSize: const Size.fromHeight(44),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
                             ),
                           ),
-                          if (hasBalance) ...[
-                            const SizedBox(width: 8),
-                            SizedBox(
-                              height: 44,
-                              child: OutlinedButton(
-                                onPressed: onOpenAssets,
-                                style: OutlinedButton.styleFrom(
-                                  side: BorderSide(
-                                    color: isLight
-                                        ? const Color(0xFFB9C3D9)
-                                        : const Color(0xFF3A465E),
-                                  ),
-                                  foregroundColor: primary,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                ),
-                                child: Text(
-                                  'Assets',
-                                  style: TextStyle(
-                                    fontSize: 13.4,
-                                    color: primary,
-                                  ),
-                                ),
+                          child: Text(
+                            hasActiveDeposit
+                                ? 'Deposit Pending'
+                                : (hasBalance ? 'Deposit More' : 'Deposit'),
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (hasBalance) ...[
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 44,
+                          child: OutlinedButton(
+                            onPressed: onOpenAssets,
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: isLight
+                                    ? const Color(0xFFB9C3D9)
+                                    : const Color(0xFF3A465E),
+                              ),
+                              foregroundColor: primary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
                               ),
                             ),
-                          ],
-                        ],
-                      ),
+                            child: Text(
+                              'Assets',
+                              style: TextStyle(fontSize: 13.4, color: primary),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
-                );
-              },
+                ],
+              ),
             );
           },
         );
@@ -5623,7 +6039,9 @@ class _HomeSocialDiscoveryFeedState extends State<_HomeSocialDiscoveryFeed> {
       return const <_SocialFeedPost>[];
     }
     return _fallbackPostsForTab('discover')
-        .where((post) => followedNames.contains(post.username.trim().toLowerCase()))
+        .where(
+          (post) => followedNames.contains(post.username.trim().toLowerCase()),
+        )
         .toList(growable: false);
   }
 
@@ -6002,7 +6420,9 @@ class _SocialPostCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: 0.22),
+                backgroundColor: const Color(
+                  0xFFF1CB3E,
+                ).withValues(alpha: 0.22),
                 backgroundImage: post.avatarUrl.isNotEmpty
                     ? NetworkImage(post.avatarUrl)
                     : null,
@@ -6279,7 +6699,9 @@ class _SuggestedCreatorsSection extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: .24),
+                          backgroundColor: const Color(
+                            0xFFF1CB3E,
+                          ).withValues(alpha: .24),
                           backgroundImage: creator.avatarUrl.isNotEmpty
                               ? NetworkImage(creator.avatarUrl)
                               : null,
@@ -6400,7 +6822,9 @@ class _CopyTradingForYouSection extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 17,
-                  backgroundColor: const Color(0xFFF1CB3E).withValues(alpha: .24),
+                  backgroundColor: const Color(
+                    0xFFF1CB3E,
+                  ).withValues(alpha: .24),
                   backgroundImage: trader.avatarUrl.isNotEmpty
                       ? NetworkImage(trader.avatarUrl)
                       : null,
@@ -11237,10 +11661,11 @@ class AssetsPage extends StatefulWidget {
 class _AssetsPageState extends State<AssetsPage> {
   int _tabIndex = 0;
   bool _hideSmallAssets = false;
+  bool _refreshingAssets = false;
   static const _tabs = ['Overview', 'Spot', 'Funding'];
 
   List<Map<String, String>> _assetRows(double funding, double spot) {
-    final total = funding + spot;
+    final total = _currentPortfolioValue();
     return <Map<String, String>>[
       {
         'symbol': 'USDT',
@@ -11284,314 +11709,380 @@ class _AssetsPageState extends State<AssetsPage> {
     ];
   }
 
+  Future<void> _refreshAssetsData() async {
+    if (_refreshingAssets) {
+      return;
+    }
+    setState(() => _refreshingAssets = true);
+    final token = authAccessTokenNotifier.value.trim();
+    try {
+      await Future.wait<void>([
+        _syncWalletFromBackend(accessToken: token),
+        _syncDepositSessionFromBackend(accessToken: token),
+      ]);
+    } finally {
+      if (mounted) {
+        await Future<void>.delayed(const Duration(milliseconds: 220));
+        setState(() => _refreshingAssets = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<double>(
-      valueListenable: fundingUsdtBalanceNotifier,
-      builder: (context, funding, _) {
-        return ValueListenableBuilder<double>(
-          valueListenable: spotUsdtBalanceNotifier,
-          builder: (context, spot, child) {
-            final total = funding + spot;
-            final displayBalance = _tabIndex == 1
-                ? spot
-                : (_tabIndex == 2 ? funding : total);
-            final visibleRows = _assetRows(funding, spot).where((row) {
-              if (!_hideSmallAssets) return true;
-              final value = double.tryParse(row['value'] ?? '0') ?? 0;
-              return value >= 1;
-            }).toList();
-            final bool isLight =
-                Theme.of(context).brightness == Brightness.light;
-            final Color primaryText = isLight
-                ? const Color(0xFF11141B)
-                : Colors.white;
-            final Color secondaryText = isLight
-                ? const Color(0xFF687183)
-                : Colors.white70;
-            final Color lineColor = isLight
-                ? const Color(0xFF1E242F)
-                : Colors.white;
-            final Color vipCardBg = isLight
-                ? Colors.white
-                : const Color(0xFF101319);
-            final Color vipCardBorder = isLight
-                ? const Color(0xFFD8DFEC)
-                : const Color(0xFF242B38);
-            final Color vipIconBg = isLight
-                ? const Color(0xFFE8ECF5)
-                : const Color(0xFF2A303D);
+    return AnimatedBuilder(
+      animation: Listenable.merge(<Listenable>[
+        fundingUsdtBalanceNotifier,
+        spotUsdtBalanceNotifier,
+        portfolioTotalValueNotifier,
+        portfolioBalanceHiddenNotifier,
+        portfolioPnlNotifier,
+      ]),
+      builder: (context, _) {
+        final funding = fundingUsdtBalanceNotifier.value;
+        final spot = spotUsdtBalanceNotifier.value;
+        final total = _currentPortfolioValue();
+        final hidden = portfolioBalanceHiddenNotifier.value;
+        final pnlSnapshot = portfolioPnlNotifier.value;
+        final displayBalance = _tabIndex == 1
+            ? spot
+            : (_tabIndex == 2 ? funding : total);
+        final visibleRows = _assetRows(funding, spot).where((row) {
+          if (!_hideSmallAssets) return true;
+          final value = double.tryParse(row['value'] ?? '0') ?? 0;
+          return value >= 1;
+        }).toList();
+        final bool isLight = Theme.of(context).brightness == Brightness.light;
+        final Color primaryText = isLight
+            ? const Color(0xFF11141B)
+            : Colors.white;
+        final Color secondaryText = isLight
+            ? const Color(0xFF687183)
+            : Colors.white70;
+        final Color lineColor = isLight
+            ? const Color(0xFF1E242F)
+            : Colors.white;
+        final Color vipCardBg = isLight
+            ? Colors.white
+            : const Color(0xFF101319);
+        final Color vipCardBorder = isLight
+            ? const Color(0xFFD8DFEC)
+            : const Color(0xFF242B38);
+        final Color vipIconBg = isLight
+            ? const Color(0xFFE8ECF5)
+            : const Color(0xFF2A303D);
 
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-              children: [
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: List.generate(_tabs.length, (index) {
-                      final active = _tabIndex == index;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 24),
-                        child: InkWell(
-                          onTap: () => setState(() => _tabIndex = index),
-                          child: Column(
-                            children: [
-                              Text(
-                                _tabs[index],
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: active
-                                      ? FontWeight.w700
-                                      : FontWeight.w600,
-                                  color: active ? primaryText : secondaryText,
+        return Stack(
+          children: [
+            RefreshIndicator(
+              displacement: 72,
+              edgeOffset: 8,
+              color: Colors.transparent,
+              backgroundColor: Colors.transparent,
+              onRefresh: _refreshAssetsData,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                children: [
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: List.generate(_tabs.length, (index) {
+                        final active = _tabIndex == index;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 24),
+                          child: InkWell(
+                            onTap: () => setState(() => _tabIndex = index),
+                            child: Column(
+                              children: [
+                                Text(
+                                  _tabs[index],
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: active
+                                        ? FontWeight.w700
+                                        : FontWeight.w600,
+                                    color: active ? primaryText : secondaryText,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                width: 68,
-                                height: 2,
-                                color: active
-                                    ? primaryText
-                                    : Colors.transparent,
-                              ),
-                            ],
+                                const SizedBox(height: 8),
+                                Container(
+                                  width: 68,
+                                  height: 2,
+                                  color: active
+                                      ? primaryText
+                                      : Colors.transparent,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Text(
+                        'Est. balance',
+                        style: TextStyle(fontSize: 14, color: primaryText),
+                      ),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () {
+                          unawaited(
+                            _setPortfolioBalanceHidden(
+                              !portfolioBalanceHiddenNotifier.value,
+                            ),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
+                          child: Icon(
+                            hidden
+                                ? Icons.visibility_off_outlined
+                                : Icons.remove_red_eye_outlined,
+                            size: 22,
+                            color: secondaryText,
                           ),
                         ),
-                      );
-                    }),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      'Est. balance',
-                      style: TextStyle(fontSize: 14, color: primaryText),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.remove_red_eye_outlined,
-                      size: 22,
-                      color: secondaryText,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      _formatWithCommas(displayBalance, decimals: 2),
-                      style: TextStyle(
-                        fontSize: 30,
-                        height: 0.95,
-                        fontWeight: FontWeight.w700,
-                        color: primaryText,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Padding(
-                      padding: EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        'USDT',
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        hidden
+                            ? '******'
+                            : _formatWithCommas(displayBalance, decimals: 2),
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 30,
+                          height: 0.95,
+                          fontWeight: FontWeight.w700,
                           color: primaryText,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                Text(
-                  '≈ \$${_formatWithCommas(displayBalance, decimals: 2)}',
-                  style: TextStyle(fontSize: 13.2, color: secondaryText),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Today\'s PnL ≈ \$0.00 (0.00%)',
-                  style: TextStyle(fontSize: 12, color: secondaryText),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _assetAction(
-                      icon: Icons.download_rounded,
-                      label: 'Add Funds',
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const DepositPage(),
-                        ),
-                      ),
-                    ),
-                    _assetAction(
-                      icon: Icons.upload_rounded,
-                      label: 'Send',
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const WithdrawPage(),
-                        ),
-                      ),
-                    ),
-                    _assetAction(
-                      icon: Icons.swap_horiz_rounded,
-                      label: 'Transfer',
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const TransferPage(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const AssetHistoryPage(),
-                      ),
-                    ),
-                    icon: const Icon(Icons.history_rounded, size: 18),
-                    label: const Text(
-                      'Transaction History',
-                      style: TextStyle(fontSize: 12.4),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: vipCardBg,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: vipCardBorder),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 13,
-                        backgroundColor: vipIconBg,
-                        child: Icon(
-                          Icons.verified_outlined,
-                          size: 14,
-                          color: secondaryText,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
+                      const SizedBox(width: 8),
+                      Padding(
+                        padding: EdgeInsets.only(bottom: 8),
                         child: Text(
-                          'Upgrade to VIP1 to enjoy more perks',
+                          'USDT',
                           style: TextStyle(
-                            fontSize: 13.8,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: primaryText,
                           ),
                         ),
                       ),
-                      Icon(Icons.chevron_right_rounded, color: secondaryText),
                     ],
                   ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Assets',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    color: primaryText,
+                  Text(
+                    hidden
+                        ? '≈ ******'
+                        : '≈ \$${_formatWithCommas(displayBalance, decimals: 2)}',
+                    style: TextStyle(fontSize: 13.2, color: secondaryText),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Container(height: 2, width: 120, color: lineColor),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    InkWell(
-                      onTap: () =>
-                          setState(() => _hideSmallAssets = !_hideSmallAssets),
-                      child: Row(
-                        children: [
-                          Icon(
-                            _hideSmallAssets
-                                ? Icons.check_box_rounded
-                                : Icons.check_box_outline_blank_rounded,
-                            size: 24,
-                            color: _hideSmallAssets
-                                ? const Color(0xFF9DFB3B)
-                                : secondaryText,
+                  const SizedBox(height: 8),
+                  Text(
+                    'Today\'s PnL ${_formatPortfolioPnlText(pnlSnapshot)}',
+                    style: TextStyle(fontSize: 12, color: secondaryText),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      _assetAction(
+                        icon: Icons.download_rounded,
+                        label: 'Add Funds',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const DepositPage(),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Hide assets < 1 USDT',
-                            style: TextStyle(
-                              fontSize: 13.4,
-                              color: secondaryText,
-                            ),
+                        ),
+                      ),
+                      _assetAction(
+                        icon: Icons.upload_rounded,
+                        label: 'Send',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const WithdrawPage(),
                           ),
-                        ],
+                        ),
+                      ),
+                      _assetAction(
+                        icon: Icons.swap_horiz_rounded,
+                        label: 'Transfer',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const TransferPage(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AssetHistoryPage(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.history_rounded, size: 18),
+                      label: const Text(
+                        'Transaction History',
+                        style: TextStyle(fontSize: 12.4),
                       ),
                     ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => widget.onNavigateTab(1),
-                      icon: const Icon(Icons.search_rounded, size: 26),
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ...visibleRows.map((row) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: vipCardBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: vipCardBorder),
+                    ),
                     child: Row(
                       children: [
-                        CoinLogo(
-                          url: row['logo']!,
-                          fallback: row['symbol']!,
-                          size: 48,
+                        CircleAvatar(
+                          radius: 13,
+                          backgroundColor: vipIconBg,
+                          child: Icon(
+                            Icons.verified_outlined,
+                            size: 14,
+                            color: secondaryText,
+                          ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            row['symbol']!,
+                            'Upgrade to VIP1 to enjoy more perks',
                             style: TextStyle(
-                              fontSize: 17.2,
+                              fontSize: 13.8,
                               fontWeight: FontWeight.w600,
                               color: primaryText,
                             ),
                           ),
                         ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                        Icon(Icons.chevron_right_rounded, color: secondaryText),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Assets',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: primaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(height: 2, width: 120, color: lineColor),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      InkWell(
+                        onTap: () => setState(
+                          () => _hideSmallAssets = !_hideSmallAssets,
+                        ),
+                        child: Row(
                           children: [
+                            Icon(
+                              _hideSmallAssets
+                                  ? Icons.check_box_rounded
+                                  : Icons.check_box_outline_blank_rounded,
+                              size: 24,
+                              color: _hideSmallAssets
+                                  ? const Color(0xFF9DFB3B)
+                                  : secondaryText,
+                            ),
+                            const SizedBox(width: 8),
                             Text(
-                              row['value']!,
+                              'Hide assets < 1 USDT',
+                              style: TextStyle(
+                                fontSize: 13.4,
+                                color: secondaryText,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => widget.onNavigateTab(1),
+                        icon: const Icon(Icons.search_rounded, size: 26),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ...visibleRows.map((row) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        children: [
+                          CoinLogo(
+                            url: row['logo']!,
+                            fallback: row['symbol']!,
+                            size: 48,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              row['symbol']!,
                               style: TextStyle(
                                 fontSize: 17.2,
                                 fontWeight: FontWeight.w600,
                                 color: primaryText,
                               ),
                             ),
-                            Text(
-                              '\$${row['usd']}',
-                              style: TextStyle(
-                                fontSize: 13.2,
-                                color: secondaryText,
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                hidden ? '******' : row['value']!,
+                                style: TextStyle(
+                                  fontSize: 17.2,
+                                  fontWeight: FontWeight.w600,
+                                  color: primaryText,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-              ],
-            );
-          },
+                              Text(
+                                hidden ? '******' : '\$${row['usd']}',
+                                style: TextStyle(
+                                  fontSize: 13.2,
+                                  color: secondaryText,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            IgnorePointer(
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 180),
+                opacity: _refreshingAssets ? 1 : 0,
+                child: _refreshingAssets
+                    ? const Center(child: _HomeRefreshLogoLoader())
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ],
         );
       },
     );

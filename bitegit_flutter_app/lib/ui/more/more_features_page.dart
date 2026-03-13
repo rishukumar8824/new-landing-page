@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ExchangeFeatureItem {
   const ExchangeFeatureItem({
@@ -16,14 +15,20 @@ class ExchangeFeatureItem {
 }
 
 class MoreFeaturesPage extends StatefulWidget {
-  const MoreFeaturesPage({super.key});
+  const MoreFeaturesPage({
+    super.key,
+    required this.initialFavoriteIds,
+    required this.onSaveFavoriteIds,
+  });
+
+  final List<String> initialFavoriteIds;
+  final ValueChanged<List<String>> onSaveFavoriteIds;
 
   @override
   State<MoreFeaturesPage> createState() => _MoreFeaturesPageState();
 }
 
 class _MoreFeaturesPageState extends State<MoreFeaturesPage> {
-  static const String _favoritesKey = 'gate_more_favorites_v1';
   static const List<String> _sections = <String>[
     'Quick Access',
     'Popular',
@@ -34,42 +39,135 @@ class _MoreFeaturesPageState extends State<MoreFeaturesPage> {
   ];
 
   static const List<ExchangeFeatureItem> _allItems = <ExchangeFeatureItem>[
-    ExchangeFeatureItem(id: 'launchpool', title: 'Launchpool', icon: Icons.rocket_launch_outlined, section: 'Popular'),
-    ExchangeFeatureItem(id: 'p2p', title: 'P2P', icon: Icons.people_alt_outlined, section: 'Popular'),
-    ExchangeFeatureItem(id: 'deposit', title: 'Deposit', icon: Icons.download_rounded, section: 'Assets'),
-    ExchangeFeatureItem(id: 'buy_crypto', title: 'Buy Crypto', icon: Icons.credit_card_outlined, section: 'Popular'),
-    ExchangeFeatureItem(id: 'convert', title: 'Convert', icon: Icons.swap_horiz_rounded, section: 'Trade'),
-    ExchangeFeatureItem(id: 'futures', title: 'Futures', icon: Icons.candlestick_chart_rounded, section: 'Trade'),
-    ExchangeFeatureItem(id: 'bots', title: 'Bots', icon: Icons.smart_toy_outlined, section: 'Trade'),
-    ExchangeFeatureItem(id: 'copy_trading', title: 'Copy Trading', icon: Icons.copy_all_rounded, section: 'Trade'),
-    ExchangeFeatureItem(id: 'withdraw', title: 'Withdraw', icon: Icons.upload_rounded, section: 'Assets'),
-    ExchangeFeatureItem(id: 'gift', title: 'Gift Coins', icon: Icons.card_giftcard_rounded, section: 'Activities'),
-    ExchangeFeatureItem(id: 'referral', title: 'Referral', icon: Icons.group_add_outlined, section: 'Activities'),
-    ExchangeFeatureItem(id: 'airdrop', title: 'Airdrop', icon: Icons.card_membership_rounded, section: 'Activities'),
-    ExchangeFeatureItem(id: 'simple_earn', title: 'Simple Earn', icon: Icons.account_balance_wallet_outlined, section: 'Earn'),
-    ExchangeFeatureItem(id: 'staking', title: 'Staking', icon: Icons.savings_outlined, section: 'Earn'),
-    ExchangeFeatureItem(id: 'dual_invest', title: 'Dual Invest', icon: Icons.auto_graph_rounded, section: 'Earn'),
+    ExchangeFeatureItem(
+      id: 'launchpool',
+      title: 'Launchpool',
+      icon: Icons.rocket_launch_outlined,
+      section: 'Popular',
+    ),
+    ExchangeFeatureItem(
+      id: 'p2p',
+      title: 'P2P',
+      icon: Icons.people_alt_outlined,
+      section: 'Popular',
+    ),
+    ExchangeFeatureItem(
+      id: 'deposit',
+      title: 'Deposit',
+      icon: Icons.download_rounded,
+      section: 'Assets',
+    ),
+    ExchangeFeatureItem(
+      id: 'more',
+      title: 'More',
+      icon: Icons.grid_view_rounded,
+      section: 'Popular',
+    ),
+    ExchangeFeatureItem(
+      id: 'buy_crypto',
+      title: 'Buy Crypto',
+      icon: Icons.credit_card_outlined,
+      section: 'Popular',
+    ),
+    ExchangeFeatureItem(
+      id: 'convert',
+      title: 'Convert',
+      icon: Icons.swap_horiz_rounded,
+      section: 'Trade',
+    ),
+    ExchangeFeatureItem(
+      id: 'futures',
+      title: 'Futures',
+      icon: Icons.candlestick_chart_rounded,
+      section: 'Trade',
+    ),
+    ExchangeFeatureItem(
+      id: 'bots',
+      title: 'Bots',
+      icon: Icons.smart_toy_outlined,
+      section: 'Trade',
+    ),
+    ExchangeFeatureItem(
+      id: 'copy_trading',
+      title: 'Copy Trading',
+      icon: Icons.copy_all_rounded,
+      section: 'Trade',
+    ),
+    ExchangeFeatureItem(
+      id: 'withdraw',
+      title: 'Withdraw',
+      icon: Icons.upload_rounded,
+      section: 'Assets',
+    ),
+    ExchangeFeatureItem(
+      id: 'gift',
+      title: 'Gift Coins',
+      icon: Icons.card_giftcard_rounded,
+      section: 'Activities',
+    ),
+    ExchangeFeatureItem(
+      id: 'referral',
+      title: 'Referral',
+      icon: Icons.group_add_outlined,
+      section: 'Activities',
+    ),
+    ExchangeFeatureItem(
+      id: 'airdrop',
+      title: 'Airdrop',
+      icon: Icons.card_membership_rounded,
+      section: 'Activities',
+    ),
+    ExchangeFeatureItem(
+      id: 'simple_earn',
+      title: 'Simple Earn',
+      icon: Icons.account_balance_wallet_outlined,
+      section: 'Earn',
+    ),
+    ExchangeFeatureItem(
+      id: 'staking',
+      title: 'Staking',
+      icon: Icons.savings_outlined,
+      section: 'Earn',
+    ),
+    ExchangeFeatureItem(
+      id: 'dual_invest',
+      title: 'Dual Invest',
+      icon: Icons.auto_graph_rounded,
+      section: 'Earn',
+    ),
   ];
 
   String _activeSection = 'Popular';
-  List<String> _favoriteIds = const ['launchpool', 'p2p', 'deposit'];
+  late List<String> _favoriteIds;
+
+  List<String> _normalizeFavorites(Iterable<String> values) {
+    const defaults = <String>['launchpool', 'p2p', 'deposit', 'more'];
+    final normalized = <String>[];
+    for (final value in values) {
+      if (normalized.contains(value)) {
+        continue;
+      }
+      normalized.add(value);
+      if (normalized.length == 4) {
+        return normalized;
+      }
+    }
+    for (final fallback in defaults) {
+      if (normalized.contains(fallback)) {
+        continue;
+      }
+      normalized.add(fallback);
+      if (normalized.length == 4) {
+        break;
+      }
+    }
+    return normalized;
+  }
 
   @override
   void initState() {
     super.initState();
-    _loadFavorites();
-  }
-
-  Future<void> _loadFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getStringList(_favoritesKey);
-    if (!mounted || stored == null || stored.isEmpty) return;
-    setState(() => _favoriteIds = stored);
-  }
-
-  Future<void> _saveFavorites(List<String> values) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_favoritesKey, values);
+    _favoriteIds = _normalizeFavorites(widget.initialFavoriteIds);
   }
 
   Future<void> _openEditFavorites() async {
@@ -105,8 +203,17 @@ class _MoreFeaturesPageState extends State<MoreFeaturesPage> {
                       ),
                       const SizedBox(height: 10),
                       const Text(
-                        'Select shortcuts shown in Quick Access',
+                        'Select up to 4 shortcuts shown on the home screen',
                         style: TextStyle(color: Colors.white54, fontSize: 13),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${temp.length}/4 selected',
+                        style: const TextStyle(
+                          color: Color(0xFF8EB0FF),
+                          fontSize: 12.8,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Expanded(
@@ -120,6 +227,9 @@ class _MoreFeaturesPageState extends State<MoreFeaturesPage> {
                               onChanged: (value) {
                                 setModal(() {
                                   if (value == true) {
+                                    if (temp.length >= 4) {
+                                      return;
+                                    }
                                     temp.add(item.id);
                                   } else {
                                     temp.remove(item.id);
@@ -144,7 +254,8 @@ class _MoreFeaturesPageState extends State<MoreFeaturesPage> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
-                          onPressed: () => Navigator.of(context).pop(temp.toList()),
+                          onPressed: () =>
+                              Navigator.of(context).pop(temp.toList()),
                           style: FilledButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: const Color(0xFF101722),
@@ -164,10 +275,10 @@ class _MoreFeaturesPageState extends State<MoreFeaturesPage> {
     );
 
     if (result == null || result.isEmpty) return;
-    final unique = result.toSet().toList(growable: false);
+    final unique = _normalizeFavorites(result);
     if (!mounted) return;
     setState(() => _favoriteIds = unique);
-    await _saveFavorites(unique);
+    widget.onSaveFavoriteIds(unique);
   }
 
   @override
@@ -208,19 +319,28 @@ class _MoreFeaturesPageState extends State<MoreFeaturesPage> {
                   child: Wrap(
                     spacing: 14,
                     runSpacing: 10,
-                    children: favoriteItems.map((item) {
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(item.icon, color: const Color(0xFF2E7BFF), size: 25),
-                          const SizedBox(height: 4),
-                          Text(
-                            item.title,
-                            style: const TextStyle(color: Colors.white, fontSize: 12),
-                          ),
-                        ],
-                      );
-                    }).toList(growable: false),
+                    children: favoriteItems
+                        .map((item) {
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                item.icon,
+                                color: const Color(0xFF2E7BFF),
+                                size: 25,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                item.title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          );
+                        })
+                        .toList(growable: false),
                   ),
                 ),
                 FilledButton(
@@ -228,7 +348,9 @@ class _MoreFeaturesPageState extends State<MoreFeaturesPage> {
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF111827),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
                   ),
                   child: const Text('Edit'),
                 ),
@@ -241,7 +363,8 @@ class _MoreFeaturesPageState extends State<MoreFeaturesPage> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _sections.length,
-              separatorBuilder: (_, separatorIndex) => const SizedBox(width: 16),
+              separatorBuilder: (_, separatorIndex) =>
+                  const SizedBox(width: 16),
               itemBuilder: (context, index) {
                 final section = _sections[index];
                 final active = section == _activeSection;
@@ -254,7 +377,9 @@ class _MoreFeaturesPageState extends State<MoreFeaturesPage> {
                         style: TextStyle(
                           color: active ? Colors.white : Colors.white54,
                           fontSize: 17,
-                          fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                          fontWeight: active
+                              ? FontWeight.w700
+                              : FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 5),
@@ -330,7 +455,11 @@ class _SectionGrid extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: const Color(0xFF202A3B)),
                     ),
-                    child: Icon(row.icon, color: const Color(0xFF2E7BFF), size: 26),
+                    child: Icon(
+                      row.icon,
+                      color: const Color(0xFF2E7BFF),
+                      size: 26,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
