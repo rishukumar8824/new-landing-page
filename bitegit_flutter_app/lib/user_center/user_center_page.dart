@@ -1,10 +1,9 @@
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use, unnecessary_underscores
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../shared/path_image.dart';
 import 'user_center_api.dart';
 
 class BitegitUserCenterPage extends StatefulWidget {
@@ -2106,11 +2105,14 @@ class _BitegitUserCenterPageState extends State<BitegitUserCenterPage> {
 
     final localPath = (widget.fallbackAvatarPath ?? '').trim();
     if (localPath.isNotEmpty) {
-      final file = File(localPath);
-      if (file.existsSync()) {
-        return ClipOval(
-          child: Image.file(file, width: 42, height: 42, fit: BoxFit.cover),
-        );
+      final localAvatar = imageWidgetForPath(
+        localPath,
+        width: 42,
+        height: 42,
+        fit: BoxFit.cover,
+      );
+      if (localAvatar is! SizedBox) {
+        return ClipOval(child: localAvatar);
       }
     }
 

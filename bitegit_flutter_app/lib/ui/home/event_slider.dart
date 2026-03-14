@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 
 import '../events/event_models.dart';
+import '../events/event_visuals.dart';
 import '../events/events_service.dart';
 
 class GateEventSlider extends StatefulWidget {
@@ -15,12 +17,18 @@ class GateEventSlider extends StatefulWidget {
 }
 
 class GateEventSliderState extends State<GateEventSlider> {
-  static const Duration _autoScrollInterval = Duration(seconds: 4);
+  static const Duration _autoScrollInterval = Duration(seconds: 5);
+  static const Duration _pageAnimationDuration = Duration(milliseconds: 620);
+  static const int _initialPage = 1000;
 
   final EventsService _eventsService = EventsService();
+  final PageController _pageController = PageController(
+    initialPage: _initialPage,
+  );
 
   bool _loading = true;
-  int _cursor = 0;
+  bool _userScrolling = false;
+  int _currentPage = _initialPage;
   List<ExchangeEvent> _events = const <ExchangeEvent>[];
   Timer? _autoScrollTimer;
 
@@ -33,6 +41,7 @@ class GateEventSliderState extends State<GateEventSlider> {
   @override
   void dispose() {
     _autoScrollTimer?.cancel();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -52,9 +61,6 @@ class GateEventSliderState extends State<GateEventSlider> {
     setState(() {
       _events = rows;
       _loading = false;
-      if (_cursor >= _events.length) {
-        _cursor = 0;
-      }
     });
     _restartAutoScroll();
   }
@@ -65,16 +71,19 @@ class GateEventSliderState extends State<GateEventSlider> {
       return;
     }
     _autoScrollTimer = Timer.periodic(_autoScrollInterval, (_) {
-      if (!mounted || _events.length <= 1) {
+      if (!mounted || _userScrolling || !_pageController.hasClients) {
         return;
       }
-      setState(() {
-        _cursor = (_cursor + 1) % _events.length;
-      });
+      final nextPage = _currentPage + 1;
+      _pageController.animateToPage(
+        nextPage,
+        duration: _pageAnimationDuration,
+        curve: Curves.easeOutCubic,
+      );
     });
   }
 
-  ExchangeEvent _eventAt(int offset) {
+  ExchangeEvent _eventAt(int virtualIndex) {
     if (_events.isEmpty) {
       return const ExchangeEvent(
         id: 'event-fallback',
@@ -84,14 +93,29 @@ class GateEventSliderState extends State<GateEventSlider> {
         link: '/events',
       );
     }
-    return _events[(_cursor + offset) % _events.length];
+    return _events[virtualIndex % _events.length];
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollStartNotification) {
+      _userScrolling = true;
+      _autoScrollTimer?.cancel();
+    } else if (notification is ScrollEndNotification) {
+      _userScrolling = false;
+      _restartAutoScroll();
+    } else if (notification is UserScrollNotification &&
+        notification.direction == ScrollDirection.idle) {
+      _userScrolling = false;
+      _restartAutoScroll();
+    }
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const SizedBox(
-        height: 322,
+        height: 398,
         child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2,
@@ -105,95 +129,118 @@ class GateEventSliderState extends State<GateEventSlider> {
       return const SizedBox.shrink();
     }
 
-    final lead = _eventAt(0);
-    final topRight = _eventAt(1);
-    final bottomRight = _eventAt(2);
+    if (_events.length == 1) {
+      final event = _events.first;
+      return SizedBox(
+        height: 382,
+        child: _LeadEventCard(
+          event: event,
+          rank: '1/1',
+          onTap: () => widget.onOpenEvent(event),
+          fullWidth: true,
+        ),
+      );
+    }
 
-    return SizedBox(
-      height: 322,
-      child: Row(
-        children: [
-          Expanded(
-            flex: 11,
-            child: _AnimatedEventCard(
-              event: lead,
-              child: _LeadEventCard(
-                event: lead,
-                rank: '${(_cursor % _events.length) + 1}/${_events.length}',
-                onTap: () => widget.onOpenEvent(lead),
+    final visiblePage = _currentPage % _events.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 382,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _handleScrollNotification,
+            child: PageView.builder(
+              controller: _pageController,
+              physics: const BouncingScrollPhysics(),
+              onPageChanged: (value) {
+                if (!mounted) {
+                  return;
+                }
+                setState(() => _currentPage = value);
+              },
+              itemBuilder: (context, virtualIndex) {
+                final lead = _eventAt(virtualIndex);
+                final topRight = _eventAt(virtualIndex + 1);
+                final bottomRight = _eventAt(virtualIndex + 2);
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 11,
+                        child: _LeadEventCard(
+                          event: lead,
+                          rank:
+                              '${(virtualIndex % _events.length) + 1}/${_events.length}',
+                          onTap: () => widget.onOpenEvent(lead),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 9,
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: _SideEventCard(
+                                event: topRight,
+                                rank:
+                                    '${((virtualIndex + 1) % _events.length) + 1}/${_events.length}',
+                                onTap: () => widget.onOpenEvent(topRight),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: _SideEventCard(
+                                event: bottomRight,
+                                rank:
+                                    '${((virtualIndex + 2) % _events.length) + 1}/${_events.length}',
+                                onTap: () => widget.onOpenEvent(bottomRight),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            const Text(
+              'Swipe left or right to browse promotions',
+              style: TextStyle(
+                color: Color(0xFF8F9BB1),
+                fontSize: 12.4,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 10,
-            child: Column(
-              children: [
-                Expanded(
-                  child: _AnimatedEventCard(
-                    event: topRight,
-                    child: _SideEventCard(
-                      event: topRight,
-                      rank:
-                          '${((_cursor + 1) % _events.length) + 1}/${_events.length}',
-                      onTap: () => widget.onOpenEvent(topRight),
-                    ),
-                  ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0E141E),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: const Color(0xFF1E293B)),
+              ),
+              child: Text(
+                '${visiblePage + 1}/${_events.length}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: _AnimatedEventCard(
-                    event: bottomRight,
-                    child: _SideEventCard(
-                      event: bottomRight,
-                      rank:
-                          '${((_cursor + 2) % _events.length) + 1}/${_events.length}',
-                      onTap: () => widget.onOpenEvent(bottomRight),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AnimatedEventCard extends StatelessWidget {
-  const _AnimatedEventCard({required this.event, required this.child});
-
-  final ExchangeEvent event;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 560),
-      reverseDuration: const Duration(milliseconds: 360),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      layoutBuilder: (currentChild, previousChildren) {
-        return Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            ...previousChildren,
-            if (currentChild != null) currentChild,
           ],
-        );
-      },
-      transitionBuilder: (child, animation) {
-        final slide = Tween<Offset>(
-          begin: const Offset(0.08, 0),
-          end: Offset.zero,
-        ).animate(animation);
-        return FadeTransition(
-          opacity: animation,
-          child: SlideTransition(position: slide, child: child),
-        );
-      },
-      child: KeyedSubtree(key: ValueKey<String>(event.id), child: child),
+        ),
+      ],
     );
   }
 }
@@ -203,111 +250,167 @@ class _LeadEventCard extends StatelessWidget {
     required this.event,
     required this.rank,
     required this.onTap,
+    this.fullWidth = false,
   });
 
   final ExchangeEvent event;
   final String rank;
   final VoidCallback onTap;
+  final bool fullWidth;
 
   @override
   Widget build(BuildContext context) {
-    final palette = _paletteFor(event.title);
+    final spec = eventVisualSpecFor(event);
     return InkWell(
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(26),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
         decoration: BoxDecoration(
           color: const Color(0xFF080C12),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFF1E2638)),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: const Color(0xFF1B2434)),
           boxShadow: const <BoxShadow>[
             BoxShadow(
-              color: Color(0x2C04070E),
-              blurRadius: 22,
+              color: Color(0x22050911),
+              blurRadius: 24,
               spreadRadius: 1,
-              offset: Offset(0, 10),
+              offset: Offset(0, 14),
             ),
           ],
         ),
         child: Stack(
           children: [
             Positioned(
-              right: -16,
-              bottom: -16,
+              left: -42,
+              top: -56,
+              child: _GlowBlob(color: spec.palette.first),
+            ),
+            Positioned(
+              right: -34,
+              bottom: -28,
               child: _EventArtwork(
                 event: event,
-                size: 122,
-                borderRadius: BorderRadius.circular(26),
-                iconSize: 48,
-                palette: palette,
+                spec: spec,
+                size: fullWidth ? 160 : 136,
+                borderRadius: BorderRadius.circular(30),
+                iconSize: 54,
               ),
             ),
-            Positioned(right: 0, top: 0, child: _RankPill(rank: rank)),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0x141E80FF),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: const Color(0x221E80FF)),
-                  ),
-                  child: const Text(
-                    'Featured Event',
-                    style: TextStyle(
-                      color: Color(0xFFB8C4D9),
-                      fontSize: 11.4,
-                      fontWeight: FontWeight.w700,
+                Row(
+                  children: [
+                    _AccentPill(
+                      label: spec.label,
+                      icon: spec.icon,
+                      colors: spec.palette,
                     ),
-                  ),
+                    const Spacer(),
+                    _RankPill(rank: rank),
+                  ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Text(
                   event.title,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 21,
+                    fontSize: 25,
                     fontWeight: FontWeight.w800,
-                    height: 1.14,
+                    height: 1.1,
                   ),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   event.description,
-                  maxLines: 3,
+                  maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFFAAB4C8),
-                    fontSize: 13.2,
+                    color: Color(0xFF9DA8BC),
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    height: 1.28,
+                    height: 1.35,
                   ),
                 ),
                 const Spacer(),
+                _MessageStrip(
+                  icon: spec.icon,
+                  label: spec.banner,
+                  colors: spec.palette,
+                ),
+                const SizedBox(height: 12),
                 Row(
-                  children: const [
-                    Text(
-                      'Tap to view details',
-                      style: TextStyle(
-                        color: Color(0xFF8EB0FF),
-                        fontSize: 12.2,
-                        fontWeight: FontWeight.w700,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: _MetricPanel(
+                        value: spec.metric,
+                        caption: spec.metricCaption,
+                        emphasized: true,
                       ),
                     ),
-                    SizedBox(width: 6),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      color: Color(0xFF8EB0FF),
-                      size: 16,
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            spec.action,
+                            style: const TextStyle(
+                              color: Color(0xFF0B1018),
+                              fontSize: 13.2,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.arrow_outward_rounded,
+                            color: Color(0xFF0B1018),
+                            size: 18,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: spec.tags
+                      .map(
+                        (tag) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0E151F),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: const Color(0xFF243041)),
+                          ),
+                          child: Text(
+                            tag,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.4,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
                 ),
               ],
             ),
@@ -331,69 +434,225 @@ class _SideEventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _paletteFor(event.title);
+    final spec = eventVisualSpecFor(event);
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(22),
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         decoration: BoxDecoration(
           color: const Color(0xFF080C12),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFF1E2638)),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFF1B2434)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            Row(
+            Positioned(
+              right: -18,
+              bottom: -14,
+              child: _EventArtwork(
+                event: event,
+                spec: spec,
+                size: 82,
+                borderRadius: BorderRadius.circular(22),
+                iconSize: 30,
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _EventArtwork(
-                  event: event,
-                  size: 34,
-                  borderRadius: BorderRadius.circular(12),
-                  iconSize: 18,
-                  palette: palette,
+                Row(
+                  children: [
+                    _AccentPill(
+                      label: spec.label,
+                      icon: spec.icon,
+                      colors: spec.palette,
+                      compact: true,
+                    ),
+                    const Spacer(),
+                    _RankPill(rank: rank, compact: true),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  event.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.8,
+                    fontWeight: FontWeight.w800,
+                    height: 1.16,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  event.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF9DA8BC),
+                    fontSize: 12.4,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
                 ),
                 const Spacer(),
-                _RankPill(rank: rank, compact: true),
+                _MetricPanel(value: spec.metric, caption: spec.metricCaption),
               ],
-            ),
-            const SizedBox(height: 9),
-            Text(
-              event.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                height: 1.16,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              event.description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFFAAB4C8),
-                fontSize: 11.8,
-                fontWeight: FontWeight.w600,
-                height: 1.24,
-              ),
-            ),
-            const Spacer(),
-            const Text(
-              'Tap to view details',
-              style: TextStyle(
-                color: Color(0xFF8EB0FF),
-                fontSize: 11.3,
-                fontWeight: FontWeight.w700,
-              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MetricPanel extends StatelessWidget {
+  const _MetricPanel({
+    required this.value,
+    required this.caption,
+    this.emphasized = false,
+  });
+
+  final String value;
+  final String caption;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: emphasized ? 12 : 0,
+        vertical: emphasized ? 10 : 0,
+      ),
+      decoration: emphasized
+          ? BoxDecoration(
+              color: const Color(0xFF0E151F),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFF243041)),
+            )
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: emphasized ? 20 : 18,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF8A95A9),
+              fontSize: 11.6,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageStrip extends StatelessWidget {
+  const _MessageStrip({
+    required this.icon,
+    required this.label,
+    required this.colors,
+  });
+
+  final IconData icon;
+  final String label;
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E151F),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF243041)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: colors),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: Colors.white, size: 15),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFFC8D2E5),
+                fontSize: 12.2,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccentPill extends StatelessWidget {
+  const _AccentPill({
+    required this.label,
+    required this.icon,
+    required this.colors,
+    this.compact = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final List<Color> colors;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 5 : 6,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: colors),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: compact ? 12 : 14),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: compact ? 10.8 : 11.8,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -413,9 +672,9 @@ class _RankPill extends StatelessWidget {
         vertical: compact ? 4 : 5,
       ),
       decoration: BoxDecoration(
-        color: const Color(0x141E80FF),
+        color: const Color(0xFF0E151F),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0x221E80FF)),
+        border: Border.all(color: const Color(0xFF243041)),
       ),
       child: Text(
         rank,
@@ -429,20 +688,44 @@ class _RankPill extends StatelessWidget {
   }
 }
 
+class _GlowBlob extends StatelessWidget {
+  const _GlowBlob({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 150,
+      height: 150,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: <Color>[
+            color.withOpacity(0.28),
+            color.withOpacity(0.05),
+            Colors.transparent,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _EventArtwork extends StatelessWidget {
   const _EventArtwork({
     required this.event,
+    required this.spec,
     required this.size,
     required this.borderRadius,
     required this.iconSize,
-    required this.palette,
   });
 
   final ExchangeEvent event;
+  final EventVisualSpec spec;
   final double size;
   final BorderRadius borderRadius;
   final double iconSize;
-  final List<Color> palette;
 
   @override
   Widget build(BuildContext context) {
@@ -458,7 +741,7 @@ class _EventArtwork extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: palette,
+          colors: spec.palette,
         ),
       ),
       child: ClipRRect(
@@ -475,53 +758,84 @@ class _EventArtwork extends StatelessWidget {
             if (hasRemoteImage)
               DecoratedBox(
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.24),
+                  color: Colors.black.withOpacity(0.28),
+                ),
+              )
+            else ...[
+              Positioned(
+                left: size * 0.18,
+                top: size * 0.16,
+                child: Container(
+                  width: size * 0.56,
+                  height: size * 0.56,
+                  decoration: const BoxDecoration(
+                    color: Color(0x22000000),
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
-            if (!hasRemoteImage)
-              Align(
-                alignment: Alignment.center,
-                child: Icon(
-                  _iconFor(event.title),
-                  color: Colors.white,
-                  size: iconSize,
+              Positioned(
+                right: size * 0.12,
+                top: size * 0.12,
+                child: Container(
+                  width: size * 0.16,
+                  height: size * 0.16,
+                  decoration: const BoxDecoration(
+                    color: Color(0xBFF6FF8B),
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
+              Positioned(
+                left: size * 0.1,
+                bottom: size * 0.12,
+                child: Container(
+                  width: size * 0.24,
+                  height: size * 0.24,
+                  decoration: const BoxDecoration(
+                    color: Color(0x40FFFFFF),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ],
+            Center(
+              child: Container(
+                width: size * 0.38,
+                height: size * 0.38,
+                decoration: BoxDecoration(
+                  color: const Color(0x1AFFFFFF),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0x38FFFFFF)),
+                ),
+                child: Icon(spec.icon, color: Colors.white, size: iconSize),
+              ),
+            ),
+            Positioned(
+              right: size * 0.08,
+              bottom: size * 0.08,
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: size * 0.08,
+                  vertical: size * 0.05,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xE6070A11),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  spec.tags.first,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: size * 0.09,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
-}
-
-IconData _iconFor(String title) {
-  final lower = title.toLowerCase();
-  if (lower.contains('doge')) {
-    return Icons.pets_rounded;
-  }
-  if (lower.contains('vip')) {
-    return Icons.workspace_premium_rounded;
-  }
-  if (lower.contains('futures')) {
-    return Icons.candlestick_chart_rounded;
-  }
-  if (lower.contains('airdrop')) {
-    return Icons.card_giftcard_rounded;
-  }
-  if (lower.contains('alpha')) {
-    return Icons.auto_awesome_rounded;
-  }
-  return Icons.bolt_rounded;
-}
-
-List<Color> _paletteFor(String seed) {
-  final hash = seed.codeUnits.fold<int>(0, (prev, e) => prev + e);
-  const palettes = <List<Color>>[
-    [Color(0xFF2368FF), Color(0xFF2EC5FF)],
-    [Color(0xFF13A76A), Color(0xFF5ED98A)],
-    [Color(0xFF7E3AF2), Color(0xFFB46BFF)],
-    [Color(0xFFDC2626), Color(0xFFFB7185)],
-    [Color(0xFFF59E0B), Color(0xFFFDE047)],
-  ];
-  return palettes[hash % palettes.length];
 }

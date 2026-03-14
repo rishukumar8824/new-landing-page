@@ -17,3 +17,16 @@ services:
         sync: false
       - key: PORT
         value: 5000
+  - type: static_site
+    name: bitegit-exchange-web
+    rootDir: bitegit_flutter_app
+    branch: main
+    buildCommand: bash ./scripts/render-build.sh
+    publishDir: build/web
+    envVars:
+      - key: BITEGIT_API_BASE
+        value: https://new-landing-page-rlv6.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

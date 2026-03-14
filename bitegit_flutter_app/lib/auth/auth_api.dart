@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
+
+import 'package:http/http.dart' as http;
 
 class GeetestValidatePayload {
   const GeetestValidatePayload.geetest({
@@ -448,14 +449,9 @@ class AuthApiService {
   }
 
   static Future<_HttpJsonResponse> _getJson(Uri uri) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 12);
-
     try {
-      final req = await client.getUrl(uri);
-      req.followRedirects = false;
-      final resp = await req.close();
-      final body = await resp.transform(utf8.decoder).join();
+      final resp = await http.get(uri).timeout(const Duration(seconds: 12));
+      final body = resp.body;
 
       Map<String, dynamic>? decodedMap;
       try {
@@ -480,8 +476,6 @@ class AuthApiService {
           'error': error.toString(),
         },
       );
-    } finally {
-      client.close(force: true);
     }
   }
 
@@ -489,16 +483,15 @@ class AuthApiService {
     Uri uri,
     Map<String, dynamic> payload,
   ) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 12);
-
     try {
-      final req = await client.postUrl(uri);
-      req.followRedirects = false;
-      req.headers.contentType = ContentType.json;
-      req.add(utf8.encode(jsonEncode(payload)));
-      final resp = await req.close();
-      final body = await resp.transform(utf8.decoder).join();
+      final resp = await http
+          .post(
+            uri,
+            headers: const <String, String>{'Content-Type': 'application/json'},
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 12));
+      final body = resp.body;
 
       Map<String, dynamic>? decodedMap;
       try {
@@ -523,8 +516,6 @@ class AuthApiService {
           'error': error.toString(),
         },
       );
-    } finally {
-      client.close(force: true);
     }
   }
 }

@@ -1,18 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'auth/auth_screens.dart';
+import 'shared/path_image.dart';
 import 'ui/events/event_detail_page.dart';
 import 'ui/events/event_models.dart';
 import 'ui/home/balance_section.dart';
@@ -343,19 +345,20 @@ class PortfolioPnlSnapshot {
 }
 
 Future<_ApiHttpResponse> _getJsonFromApi(Uri uri, {String? accessToken}) async {
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
   try {
-    final req = await client.getUrl(uri);
-    req.followRedirects = false;
-    req.headers.set(HttpHeaders.acceptHeader, 'application/json');
-    req.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
-    req.headers.set(HttpHeaders.pragmaHeader, 'no-cache');
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+    };
     final token = (accessToken ?? '').trim();
     if (token.isNotEmpty) {
-      req.headers.set('Authorization', 'Bearer $token');
+      headers['Authorization'] = 'Bearer $token';
     }
-    final resp = await req.close();
-    final body = await resp.transform(utf8.decoder).join();
+    final resp = await http
+        .get(uri, headers: headers)
+        .timeout(const Duration(seconds: 12));
+    final body = resp.body;
     Map<String, dynamic>? decodedMap;
     try {
       final decoded = jsonDecode(body);
@@ -368,8 +371,6 @@ Future<_ApiHttpResponse> _getJsonFromApi(Uri uri, {String? accessToken}) async {
     return _ApiHttpResponse(statusCode: resp.statusCode, bodyMap: decodedMap);
   } catch (_) {
     return const _ApiHttpResponse(statusCode: 0, bodyMap: null);
-  } finally {
-    client.close(force: true);
   }
 }
 
@@ -378,20 +379,20 @@ Future<_ApiHttpResponse> _postJsonToApi(
   Map<String, dynamic> payload, {
   String? accessToken,
 }) async {
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
   try {
-    final req = await client.postUrl(uri);
-    req.followRedirects = false;
-    req.headers.contentType = ContentType.json;
-    req.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
-    req.headers.set(HttpHeaders.pragmaHeader, 'no-cache');
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+    };
     final token = (accessToken ?? '').trim();
     if (token.isNotEmpty) {
-      req.headers.set('Authorization', 'Bearer $token');
+      headers['Authorization'] = 'Bearer $token';
     }
-    req.add(utf8.encode(jsonEncode(payload)));
-    final resp = await req.close();
-    final body = await resp.transform(utf8.decoder).join();
+    final resp = await http
+        .post(uri, headers: headers, body: jsonEncode(payload))
+        .timeout(const Duration(seconds: 12));
+    final body = resp.body;
     Map<String, dynamic>? decodedMap;
     try {
       final decoded = jsonDecode(body);
@@ -404,8 +405,6 @@ Future<_ApiHttpResponse> _postJsonToApi(
     return _ApiHttpResponse(statusCode: resp.statusCode, bodyMap: decodedMap);
   } catch (_) {
     return const _ApiHttpResponse(statusCode: 0, bodyMap: null);
-  } finally {
-    client.close(force: true);
   }
 }
 
@@ -2371,14 +2370,15 @@ class AuthOtpService {
     required Uri uri,
     required Map<String, dynamic> payload,
   }) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 10);
     try {
-      final req = await client.postUrl(uri);
-      req.headers.contentType = ContentType.json;
-      req.add(utf8.encode(jsonEncode(payload)));
-      final resp = await req.close();
-      final body = await resp.transform(utf8.decoder).join();
+      final resp = await http
+          .post(
+            uri,
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 10));
+      final body = resp.body;
       Map<String, dynamic>? bodyMap;
       try {
         final decoded = jsonDecode(body);
@@ -2402,8 +2402,6 @@ class AuthOtpService {
       );
     } catch (_) {
       return const _HttpJsonResponse(ok: false, statusCode: 0, bodyMap: null);
-    } finally {
-      client.close(force: true);
     }
   }
 }
@@ -2458,16 +2456,14 @@ class LiveMarketService {
   );
 
   Future<List<MarketPair>> fetchPairs() async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
     try {
-      final request = await client.getUrl(_marketsUri);
-      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
-      final response = await request.close();
+      final response = await http
+          .get(_marketsUri, headers: const {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 8));
       if (response.statusCode != 200) {
         throw Exception('Market API status ${response.statusCode}');
       }
-      final body = await response.transform(utf8.decoder).join();
-      final decoded = jsonDecode(body);
+      final decoded = jsonDecode(response.body);
       if (decoded is! List) throw Exception('Invalid market response');
       final pairs = <MarketPair>[];
       for (final item in decoded) {
@@ -2497,8 +2493,8 @@ class LiveMarketService {
         );
       }
       return pairs.where((pair) => pair.symbol != '/USDT').toList();
-    } finally {
-      client.close(force: true);
+    } catch (_) {
+      return List<MarketPair>.from(kMarketPairs);
     }
   }
 }
@@ -2514,11 +2510,14 @@ class UserAvatar extends StatelessWidget {
       valueListenable: profileImagePathNotifier,
       builder: (context, imagePath, child) {
         if (imagePath != null && imagePath.isNotEmpty) {
-          return CircleAvatar(
-            radius: radius,
-            backgroundColor: const Color(0xFF1B273D),
-            backgroundImage: FileImage(File(imagePath)),
-          );
+          final imageProvider = imageProviderForPath(imagePath);
+          if (imageProvider != null) {
+            return CircleAvatar(
+              radius: radius,
+              backgroundColor: const Color(0xFF1B273D),
+              backgroundImage: imageProvider,
+            );
+          }
         }
 
         return ValueListenableBuilder<String>(
@@ -12803,6 +12802,10 @@ class _KycVerificationPageState extends State<KycVerificationPage> {
   }
 
   Future<int> _detectFacesInImage(String imagePath) async {
+    if (kIsWeb) {
+      return 1;
+    }
+
     final FaceDetector detector = FaceDetector(
       options: FaceDetectorOptions(
         performanceMode: FaceDetectorMode.accurate,
@@ -15417,19 +15420,19 @@ class _SupportBotPageState extends State<SupportBotPage> {
     String path,
     Map<String, dynamic> payload,
   ) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 12);
     try {
-      final req = await client.postUrl(
-        Uri.parse('${_normalizedApiBase()}$path'),
-      );
-      req.headers.contentType = ContentType.json;
+      final headers = <String, String>{'Content-Type': 'application/json'};
       if (_supportApiBearer.trim().isNotEmpty) {
-        req.headers.set('Authorization', 'Bearer ${_supportApiBearer.trim()}');
+        headers['Authorization'] = 'Bearer ${_supportApiBearer.trim()}';
       }
-      req.add(utf8.encode(jsonEncode(payload)));
-      final resp = await req.close();
-      final raw = await resp.transform(utf8.decoder).join();
+      final resp = await http
+          .post(
+            Uri.parse('${_normalizedApiBase()}$path'),
+            headers: headers,
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 12));
+      final raw = resp.body;
 
       Map<String, dynamic>? map;
       try {
@@ -15453,23 +15456,19 @@ class _SupportBotPageState extends State<SupportBotPage> {
       );
     } catch (_) {
       return const _HttpJsonResponse(ok: false, statusCode: 0, bodyMap: null);
-    } finally {
-      client.close(force: true);
     }
   }
 
   Future<_HttpJsonResponse> _supportGet(String path) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 12);
     try {
-      final req = await client.getUrl(
-        Uri.parse('${_normalizedApiBase()}$path'),
-      );
+      final headers = <String, String>{};
       if (_supportApiBearer.trim().isNotEmpty) {
-        req.headers.set('Authorization', 'Bearer ${_supportApiBearer.trim()}');
+        headers['Authorization'] = 'Bearer ${_supportApiBearer.trim()}';
       }
-      final resp = await req.close();
-      final raw = await resp.transform(utf8.decoder).join();
+      final resp = await http
+          .get(Uri.parse('${_normalizedApiBase()}$path'), headers: headers)
+          .timeout(const Duration(seconds: 12));
+      final raw = resp.body;
 
       Map<String, dynamic>? map;
       try {
@@ -15493,8 +15492,6 @@ class _SupportBotPageState extends State<SupportBotPage> {
       );
     } catch (_) {
       return const _HttpJsonResponse(ok: false, statusCode: 0, bodyMap: null);
-    } finally {
-      client.close(force: true);
     }
   }
 
@@ -21137,11 +21134,26 @@ class _P2POrderChatPageState extends State<P2POrderChatPage> {
                             msg.imagePath != null)
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: Image.file(
-                              File(msg.imagePath!),
+                            child: imageWidgetForPath(
+                              msg.imagePath!,
                               height: 140,
                               width: 140,
                               fit: BoxFit.cover,
+                              fallback: Container(
+                                height: 64,
+                                width: 140,
+                                alignment: Alignment.center,
+                                color: const Color(0xFF131D31),
+                                child: Text(
+                                  'Image unavailable',
+                                  style: TextStyle(
+                                    fontSize: 10.8,
+                                    color: msg.mine
+                                        ? Colors.black
+                                        : Colors.white70,
+                                  ),
+                                ),
+                              ),
                             ),
                           )
                         else
@@ -22116,10 +22128,21 @@ class _P2PPaymentPageState extends State<P2PPaymentPage> {
             const SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.file(
-                File(_order.paymentProofPath!),
+              child: imageWidgetForPath(
+                _order.paymentProofPath!,
                 height: 180,
                 fit: BoxFit.cover,
+                fallback: Container(
+                  height: 64,
+                  alignment: Alignment.centerLeft,
+                  color: const Color(0xFF131D31),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    'Proof path: ${_order.paymentProofPath!}',
+                    style: const TextStyle(fontSize: 10, color: Colors.white60),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
             ),
           ],
@@ -22461,12 +22484,12 @@ class _P2PAdminPanelPageState extends State<P2PAdminPanelPage> {
                     const SizedBox(height: 6),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        File(appeal.paymentProofPath),
+                      child: imageWidgetForPath(
+                        appeal.paymentProofPath,
                         height: 96,
                         width: double.infinity,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, error, stackTrace) => Container(
+                        fallback: Container(
                           height: 64,
                           alignment: Alignment.centerLeft,
                           color: const Color(0xFF131D31),

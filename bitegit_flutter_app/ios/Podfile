@@ -1,0 +1,61 @@
+# iOS deployment target required by MLKit/image processing plugins.
+platform :ios, '15.5'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.5'
+    end
+  end
+
+  # Xcode 15+ no longer allows DT_TOOLCHAIN_DIR in LIBRARY_SEARCH_PATHS.
+  # Some pods still generate it, so replace with TOOLCHAIN_DIR after install.
+  pods_root = File.join(__dir__, 'Pods')
+  Dir.glob(File.join(pods_root, 'Target Support Files', '**', '*.xcconfig')).each do |config_file|
+    content = File.read(config_file)
+    next unless content.include?('DT_TOOLCHAIN_DIR')
+    File.write(config_file, content.gsub('DT_TOOLCHAIN_DIR', 'TOOLCHAIN_DIR'))
+  end
+
+  Dir.glob(File.join(pods_root, 'Target Support Files', '**', '*-frameworks.sh')).each do |script_file|
+    content = File.read(script_file)
+    next unless content.include?('DT_TOOLCHAIN_DIR')
+    File.write(script_file, content.gsub('DT_TOOLCHAIN_DIR', 'TOOLCHAIN_DIR'))
+  end
+end

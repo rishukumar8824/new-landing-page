@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
+
+import 'package:http/http.dart' as http;
 
 import 'event_models.dart';
 
@@ -19,44 +20,38 @@ class EventsService {
       return List<ExchangeEvent>.from(_memoryCache!);
     }
 
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
-    try {
-      for (final base in _baseUrls) {
-        final uri = Uri.parse('$base/api/events');
-        try {
-          final request = await client.getUrl(uri);
-          request.headers.set(HttpHeaders.acceptHeader, 'application/json');
-          final response = await request.close();
-          if (response.statusCode < 200 || response.statusCode >= 300) {
-            continue;
-          }
-
-          final body = await response.transform(utf8.decoder).join();
-          final parsed = jsonDecode(body);
-          if (parsed is List) {
-            final events = <ExchangeEvent>[];
-            for (var i = 0; i < parsed.length; i++) {
-              final item = parsed[i];
-              if (item is! Map) continue;
-              events.add(
-                ExchangeEvent.fromMap(
-                  Map<String, dynamic>.from(item),
-                  index: i,
-                ),
-              );
-            }
-            if (events.isNotEmpty) {
-              _memoryCache = events;
-              _cacheAt = now;
-              return List<ExchangeEvent>.from(events);
-            }
-          }
-        } catch (_) {
+    for (final base in _baseUrls) {
+      final uri = Uri.parse('$base/api/events');
+      try {
+        final response = await http
+            .get(
+              uri,
+              headers: const <String, String>{'Accept': 'application/json'},
+            )
+            .timeout(const Duration(seconds: 10));
+        if (response.statusCode < 200 || response.statusCode >= 300) {
           continue;
         }
+
+        final parsed = jsonDecode(response.body);
+        if (parsed is List) {
+          final events = <ExchangeEvent>[];
+          for (var i = 0; i < parsed.length; i++) {
+            final item = parsed[i];
+            if (item is! Map) continue;
+            events.add(
+              ExchangeEvent.fromMap(Map<String, dynamic>.from(item), index: i),
+            );
+          }
+          if (events.isNotEmpty) {
+            _memoryCache = events;
+            _cacheAt = now;
+            return List<ExchangeEvent>.from(events);
+          }
+        }
+      } catch (_) {
+        continue;
       }
-    } finally {
-      client.close(force: true);
     }
 
     final fallback = _fallbackEvents();

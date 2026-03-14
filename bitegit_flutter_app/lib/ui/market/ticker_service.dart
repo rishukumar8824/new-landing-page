@@ -1,6 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
+
+import 'package:http/http.dart' as http;
 
 import 'ticker_models.dart';
 
@@ -11,7 +12,9 @@ class MarketTickerService {
   static List<MarketTickerItem>? _cache;
   static DateTime? _cacheAt;
 
-  Future<List<MarketTickerItem>> fetchTickers({bool forceRefresh = false}) async {
+  Future<List<MarketTickerItem>> fetchTickers({
+    bool forceRefresh = false,
+  }) async {
     final now = DateTime.now();
     if (!forceRefresh &&
         _cache != null &&
@@ -20,39 +23,38 @@ class MarketTickerService {
       return List<MarketTickerItem>.from(_cache!);
     }
 
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
-    try {
-      for (final base in _baseUrls) {
-        final uri = Uri.parse('$base/api/market/tickers');
-        try {
-          final request = await client.getUrl(uri);
-          request.headers.set(HttpHeaders.acceptHeader, 'application/json');
-          final response = await request.close();
-          if (response.statusCode < 200 || response.statusCode >= 300) {
-            continue;
-          }
-
-          final body = await response.transform(utf8.decoder).join();
-          final parsed = jsonDecode(body);
-          if (parsed is List) {
-            final rows = <MarketTickerItem>[];
-            for (final item in parsed) {
-              if (item is! Map) continue;
-              rows.add(MarketTickerItem.fromMap(Map<String, dynamic>.from(item)));
-            }
-            if (rows.isNotEmpty) {
-              final normalized = rows.map(_withSyntheticSparkline).toList(growable: false);
-              _cache = normalized;
-              _cacheAt = now;
-              return List<MarketTickerItem>.from(normalized);
-            }
-          }
-        } catch (_) {
+    for (final base in _baseUrls) {
+      final uri = Uri.parse('$base/api/market/tickers');
+      try {
+        final response = await http
+            .get(
+              uri,
+              headers: const <String, String>{'Accept': 'application/json'},
+            )
+            .timeout(const Duration(seconds: 10));
+        if (response.statusCode < 200 || response.statusCode >= 300) {
           continue;
         }
+
+        final parsed = jsonDecode(response.body);
+        if (parsed is List) {
+          final rows = <MarketTickerItem>[];
+          for (final item in parsed) {
+            if (item is! Map) continue;
+            rows.add(MarketTickerItem.fromMap(Map<String, dynamic>.from(item)));
+          }
+          if (rows.isNotEmpty) {
+            final normalized = rows
+                .map(_withSyntheticSparkline)
+                .toList(growable: false);
+            _cache = normalized;
+            _cacheAt = now;
+            return List<MarketTickerItem>.from(normalized);
+          }
+        }
+      } catch (_) {
+        continue;
       }
-    } finally {
-      client.close(force: true);
     }
 
     final fallback = _fallback();

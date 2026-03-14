@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
+
+import 'package:http/http.dart' as http;
 
 class UserCenterApiService {
   UserCenterApiService({required this.accessToken});
@@ -107,22 +108,42 @@ class UserCenterApiService {
     Map<String, dynamic>? body,
     Map<String, String>? query,
   }) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 12);
-
     try {
-      final req = await client.openUrl(method, _uri(path, query));
-      req.headers.contentType = ContentType.json;
+      final headers = <String, String>{'Content-Type': 'application/json'};
       final token = accessToken.trim();
       if (token.isNotEmpty) {
-        req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-      }
-      if (body != null) {
-        req.add(utf8.encode(jsonEncode(body)));
+        headers['Authorization'] = 'Bearer $token';
       }
 
-      final resp = await req.close();
-      final text = await resp.transform(utf8.decoder).join();
+      final uri = _uri(path, query);
+      late final http.Response resp;
+      final encodedBody = body == null ? null : jsonEncode(body);
+      switch (method.toUpperCase()) {
+        case 'GET':
+          resp = await http
+              .get(uri, headers: headers)
+              .timeout(const Duration(seconds: 12));
+          break;
+        case 'POST':
+          resp = await http
+              .post(uri, headers: headers, body: encodedBody)
+              .timeout(const Duration(seconds: 12));
+          break;
+        case 'PUT':
+          resp = await http
+              .put(uri, headers: headers, body: encodedBody)
+              .timeout(const Duration(seconds: 12));
+          break;
+        case 'DELETE':
+          resp = await http
+              .delete(uri, headers: headers, body: encodedBody)
+              .timeout(const Duration(seconds: 12));
+          break;
+        default:
+          throw Exception('Unsupported request method: $method');
+      }
+
+      final text = resp.body;
 
       Map<String, dynamic> decoded = <String, dynamic>{};
       try {
@@ -143,8 +164,11 @@ class UserCenterApiService {
       }
 
       return decoded;
-    } finally {
-      client.close(force: true);
+    } catch (error) {
+      if (error is Exception) {
+        rethrow;
+      }
+      throw Exception('Network error while reaching user center API.');
     }
   }
 }
