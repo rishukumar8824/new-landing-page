@@ -1005,6 +1005,19 @@ async function handleLegacyAdminLogin(req, res) {
     httpOnly: true
   });
 
+  return res.json({
+    message: 'Admin login successful.',
+    admin: {
+      id: 'admin_legacy',
+      username: ADMIN_SEED_USERNAME,
+      email: ADMIN_SEED_EMAIL,
+      role: ADMIN_SEED_ROLE,
+      status: 'ACTIVE'
+    },
+    legacySession: true
+  });
+}
+
 const P2P_OFFER_SUMMARY_PROJECTION = {
   _id: 0,
   id: 1,
@@ -1059,19 +1072,6 @@ function writeP2POffersCache(cacheKey, payload) {
 
 function invalidateP2POffersCache() {
   p2pOffersResponseCache.clear();
-}
-
-  return res.json({
-    message: 'Admin login successful.',
-    admin: {
-      id: 'admin_legacy',
-      username: ADMIN_SEED_USERNAME,
-      email: ADMIN_SEED_EMAIL,
-      role: ADMIN_SEED_ROLE,
-      status: 'ACTIVE'
-    },
-    legacySession: true
-  });
 }
 
 // Keep admin login available even if modular admin routes are delayed (e.g. external DB module timeouts).
