@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bitegit — Admin Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: '#00E5C4',
+              shell: '#000000',
+              panel: '#0d0d0d',
+            }
+          }
+        }
+      };
+    </script>
+    <style>
+      body { background: #000; }
+      .input-field {
+        width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);
+        background: #111; color: #f0f6ff; padding: 12px 16px; font-size: 0.9rem;
+        outline: none; transition: border-color 0.2s;
+      }
+      .input-field:focus { border-color: rgba(0,229,196,0.5); }
+      .input-field::placeholder { color: #4a5568; }
+      .btn-signin {
+        width: 100%; padding: 13px; border-radius: 12px; border: none;
+        background: linear-gradient(135deg, #00E5C4, #00b0ff);
+        color: #000; font-weight: 700; font-size: 0.95rem; cursor: pointer;
+        transition: opacity 0.2s, transform 0.1s;
+      }
+      .btn-signin:hover { opacity: 0.9; }
+      .btn-signin:active { transform: scale(0.99); }
+    </style>
+  </head>
+  <body class="min-h-screen flex items-center justify-center px-4 py-8" style="background:#000">
+    <div class="w-full max-w-md">
+
+      <!-- Logo -->
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center gap-3 mb-4">
+          <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#00E5C4,#00b0ff);display:flex;align-items:center;justify-content:center;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="4" fill="#000"/>
+              <circle cx="12" cy="12" r="9" stroke="#000" stroke-width="2.5"/>
+            </svg>
+          </div>
+          <span style="font-size:1.5rem;font-weight:800;color:#fff;letter-spacing:-0.02em;">Bitegit</span>
+        </div>
+        <p style="font-size:0.75rem;letter-spacing:0.18em;text-transform:uppercase;color:#4a5568;">Exchange Admin Panel</p>
+      </div>
+
+      <!-- Card -->
+      <div style="background:#0d0d0d;border:1px solid rgba(255,255,255,0.06);border-radius:20px;padding:32px;">
+        <h1 style="font-size:1.2rem;font-weight:700;color:#fff;margin-bottom:4px;">Sign In</h1>
+        <p style="font-size:0.82rem;color:#6b7a99;margin-bottom:24px;">Restricted access — authorised admins only.</p>
+
+        <form id="adminLoginForm" class="space-y-4" novalidate>
+          <div>
+            <label style="display:block;font-size:0.8rem;color:#94a3b8;margin-bottom:6px;">Email or Username</label>
+            <input id="identifier" name="identifier" type="text" class="input-field"
+              placeholder="admin or admin@bitegit.com" autocomplete="username" required />
+          </div>
+
+          <div>
+            <label style="display:block;font-size:0.8rem;color:#94a3b8;margin-bottom:6px;">Password</label>
+            <input id="password" name="password" type="password" class="input-field"
+              placeholder="Enter admin password" autocomplete="current-password" required />
+          </div>
+
+          <div>
+            <label style="display:block;font-size:0.8rem;color:#94a3b8;margin-bottom:6px;">2FA Code <span style="color:#4a5568;">(optional)</span></label>
+            <input id="otpCode" name="otpCode" type="text" class="input-field"
+              placeholder="6-digit code if enabled" inputmode="numeric" maxlength="6" />
+          </div>
+
+          <button id="submitBtn" type="submit" class="btn-signin" style="margin-top:8px;">
+            Sign In to Admin Panel
+          </button>
+
+          <p id="loginMessage" class="min-h-[18px] text-sm text-center" style="color:#ef4444;"></p>
+        </form>
+      </div>
+
+      <p style="text-align:center;font-size:0.75rem;color:#2d3748;margin-top:20px;">
+        © 2026 Bitegit Exchange · All rights reserved
+      </p>
+    </div>
+
+    <script src="/admin-login.js"></script>
+  </body>
+</html>

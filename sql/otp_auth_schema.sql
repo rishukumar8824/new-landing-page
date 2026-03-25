@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS email_otps (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  email VARCHAR(255) NOT NULL,
+  otp_hash VARCHAR(255) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_email_otps_email_created (email, created_at),
+  KEY idx_email_otps_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  email VARCHAR(255) NOT NULL,
+  password VARCHAR(255) NULL,
+  kyc_status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY ux_users_email_auth (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

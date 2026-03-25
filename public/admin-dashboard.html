@@ -1,863 +1,1057 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bitegit Admin Panel</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="/admin-dashboard.css" />
-</head>
-<body>
-
-<!-- Sidebar Overlay (mobile) -->
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-<div class="admin-layout">
-
-  <!-- ══════════ SIDEBAR ══════════ -->
-  <aside class="admin-sidebar" id="adminSidebar">
-    <div class="sidebar-logo">
-      <div class="sidebar-logo-icon">₿</div>
-      <div>
-        <div class="sidebar-logo-text">Bitegit</div>
-        <div class="sidebar-logo-sub">Admin Panel</div>
-      </div>
-    </div>
-
-    <nav class="sidebar-nav" id="sidebarNav">
-      <div class="sidebar-section-title">Main</div>
-
-      <button class="admin-nav-btn active" data-view="overview">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        Overview
-      </button>
-
-      <button class="admin-nav-btn" data-view="kyc">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        KYC Management
-        <span class="nav-badge" id="kycPendingBadge" style="display:none">0</span>
-      </button>
-
-      <button class="admin-nav-btn" data-view="users">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Users
-      </button>
-
-      <button class="admin-nav-btn" data-view="wallet">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>
-        Wallet
-      </button>
-
-      <button class="admin-nav-btn" data-view="support">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        Support
-        <span class="nav-badge" id="supportBadge" style="display:none">0</span>
-      </button>
-
-      <div class="sidebar-section-title">Trading</div>
-
-      <button class="admin-nav-btn" data-view="spot">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-        Spot Trading
-      </button>
-
-      <button class="admin-nav-btn" data-view="p2p">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-        P2P Control
-      </button>
-
-      <div class="sidebar-section-title">Operations</div>
-
-      <button class="admin-nav-btn" data-view="revenue">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        Revenue
-      </button>
-
-      <button class="admin-nav-btn" data-view="risk">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        Risk Management
-      </button>
-
-      <button class="admin-nav-btn" data-view="features">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M5.34 18.66l-1.41 1.41M4.93 4.93l1.41 1.41M18.66 18.66l1.41 1.41M1 12h2M21 12h2M12 1v2M12 21v2"/></svg>
-        Feature Flags
-      </button>
-
-      <button class="admin-nav-btn" data-view="notifications">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        Notifications
-      </button>
-
-      <button class="admin-nav-btn" data-view="blockchain">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="6" height="6"/><rect x="16" y="7" width="6" height="6"/><path d="M8 10h8"/><rect x="9" y="14" width="6" height="6"/><path d="M5 13v1M19 13v1M12 13v1"/></svg>
-        Blockchain
-      </button>
-
-      <div class="sidebar-section-title">System</div>
-
-      <button class="admin-nav-btn" data-view="compliance">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Compliance
-      </button>
-
-      <button class="admin-nav-btn" data-view="settings">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Settings
-      </button>
-
-      <button class="admin-nav-btn" data-view="monitoring">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        Monitoring
-      </button>
-
-      <button class="admin-nav-btn" data-view="audit">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        Audit Logs
-      </button>
-
-      <button class="admin-nav-btn" data-view="adminusers">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-        Admin Users
-      </button>
-    </nav>
-
-    <div class="sidebar-footer">
-      <button class="admin-nav-btn btn-ghost" id="logoutBtnSide" style="width:100%;color:var(--red);">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Logout
-      </button>
-    </div>
-  </aside>
-
-  <!-- ══════════ MAIN ══════════ -->
-  <div class="admin-main">
-
-    <!-- Topbar -->
-    <header class="admin-topbar">
-      <div class="topbar-left">
-        <button class="menu-toggle-btn" id="menuToggleBtn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-        </button>
-        <div>
-          <div class="topbar-title" id="pageTitle">Overview</div>
-          <div class="topbar-sub" id="adminIdentity">Loading...</div>
+<html lang="en" class="h-full bg-slate-950">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bitegit Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/admin-dashboard.css" />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              shell: '#0b0f17',
+              panel: '#111827',
+              muted: '#94a3b8',
+              brand: '#22c55e',
+              danger: '#ef4444',
+              warning: '#f59e0b'
+            },
+            boxShadow: {
+              panel: '0 20px 60px rgba(2, 6, 23, 0.45)'
+            }
+          }
+        }
+      };
+    </script>
+  </head>
+  <body class="min-h-full bg-shell text-slate-100 antialiased">
+    <div class="flex min-h-screen">
+      <aside
+        id="adminSidebar"
+        class="admin-sidebar fixed inset-y-0 left-0 z-40 w-72 -translate-x-full border-r border-slate-800 bg-slate-900/95 px-4 py-5 shadow-panel transition-transform duration-300 lg:static lg:translate-x-0 overflow-y-auto"
+      >
+        <div class="mb-6 flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Bitegit</p>
+            <h1 class="text-lg font-semibold">Admin Panel</h1>
+          </div>
+          <button id="sidebarCloseBtn" class="rounded-lg border border-slate-700 px-2 py-1 text-xs lg:hidden">Close</button>
         </div>
-      </div>
-      <div class="topbar-right">
-        <div class="topbar-pill">
-          <span class="dot"></span>
-          <span id="liveTime">--:--</span>
-        </div>
-        <button class="topbar-btn" id="refreshCurrentBtn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          Refresh
-        </button>
-        <button class="topbar-btn danger" id="logoutBtn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
-        </button>
-      </div>
-    </header>
 
-    <!-- Page Body -->
-    <div class="admin-body">
-      <div id="globalMessage" class="hidden"></div>
+        <nav class="space-y-0.5" id="sidebarNav">
+          <p class="px-3 pt-2 pb-1 text-[10px] uppercase tracking-widest text-slate-500">Main</p>
+          <button class="admin-nav-btn active" data-view="overview">Overview</button>
+          <button class="admin-nav-btn" data-view="kyc">KYC Management</button>
+          <button class="admin-nav-btn" data-view="users">User Management</button>
+          <button class="admin-nav-btn" data-view="wallet">Wallet</button>
+          <button class="admin-nav-btn" data-view="spot">Spot Trading</button>
+          <button class="admin-nav-btn" data-view="p2p">P2P Control</button>
+          <button class="admin-nav-btn" data-view="support">Support Tickets</button>
+          <p class="px-3 pt-3 pb-1 text-[10px] uppercase tracking-widest text-slate-500">Operations</p>
+          <button class="admin-nav-btn" data-view="revenue">Revenue</button>
+          <button class="admin-nav-btn" data-view="risk">Risk Management</button>
+          <button class="admin-nav-btn" data-view="features">Feature Flags</button>
+          <button class="admin-nav-btn" data-view="notifications">Notifications</button>
+          <button class="admin-nav-btn" data-view="blockchain">Blockchain</button>
+          <p class="px-3 pt-3 pb-1 text-[10px] uppercase tracking-widest text-slate-500">System</p>
+          <button class="admin-nav-btn" data-view="compliance">Compliance</button>
+          <button class="admin-nav-btn" data-view="settings">Settings</button>
+          <button class="admin-nav-btn" data-view="monitoring">Monitoring</button>
+          <button class="admin-nav-btn" data-view="audit">Audit Logs</button>
+          <button class="admin-nav-btn" data-view="adminusers">Admin Users</button>
+        </nav>
+      </aside>
 
-      <!-- ── OVERVIEW ── -->
-      <section class="admin-panel" data-panel="overview">
-        <div class="stat-grid" id="overviewCards"></div>
-        <div style="display:grid;gap:16px;grid-template-columns:2fr 1fr;">
-          <div class="panel-card">
-            <div class="panel-card-header">
-              <span class="panel-card-title">Revenue Trend (14 Days)</span>
-              <span style="font-size:11px;color:var(--text-2);">Auto-refresh 30s</span>
+      <div id="sidebarBackdrop" class="fixed inset-0 z-30 hidden bg-slate-950/70 backdrop-blur-sm lg:hidden"></div>
+
+      <main class="flex-1 overflow-x-hidden">
+        <header class="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+          <div class="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+            <div class="flex items-center gap-3">
+              <button id="sidebarOpenBtn" class="rounded-lg border border-slate-700 px-2 py-1 text-xs lg:hidden">Menu</button>
+              <div>
+                <h2 id="pageTitle" class="text-base font-semibold sm:text-lg">Overview</h2>
+                <p id="adminIdentity" class="text-xs text-slate-400">Loading admin profile...</p>
+              </div>
             </div>
-            <div class="panel-card-body" style="height:200px;">
-              <canvas id="overviewRevenueChart"></canvas>
+            <div class="flex items-center gap-2">
+              <button id="refreshCurrentBtn" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium hover:border-slate-500">Refresh</button>
+              <button id="logoutBtn" class="rounded-lg border border-rose-500/50 px-3 py-1.5 text-xs font-medium text-rose-300 hover:border-rose-400 hover:text-rose-200">Logout</button>
             </div>
           </div>
-          <div class="panel-card">
-            <div class="panel-card-header"><span class="panel-card-title">System Health</span></div>
-            <div class="panel-card-body">
-              <dl class="space-y-0" id="overviewHealth" style="display:flex;flex-direction:column;gap:10px;"></dl>
-            </div>
-          </div>
-        </div>
-      </section>
+        </header>
 
-      <!-- ── KYC MANAGEMENT ── -->
-      <section class="admin-panel hidden" data-panel="kyc">
-        <div class="panel-card">
-          <div class="panel-card-header">
-            <span class="panel-card-title">KYC Submissions</span>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <select id="kycStatusFilter" class="input-dark" style="width:160px;height:34px;padding:4px 10px;">
+        <div class="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6">
+          <p id="globalMessage" class="mb-4 hidden rounded-lg border px-3 py-2 text-sm"></p>
+
+          <!-- Overview Panel -->
+          <section class="admin-panel" data-panel="overview">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" id="overviewCards"></div>
+            <div class="mt-4">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">System Health</h3>
+                <dl class="grid sm:grid-cols-2 xl:grid-cols-5 gap-3 text-sm" id="overviewHealth"></dl>
+              </article>
+            </div>
+
+            <!-- Platform Stats Row -->
+            <div class="mt-4 grid gap-4 xl:grid-cols-3">
+
+              <!-- Donut Chart — User Distribution -->
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel flex flex-col items-center">
+                <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300 self-start">User Distribution</h3>
+                <div class="relative flex items-center justify-center" style="width:180px;height:180px">
+                  <canvas id="userDonutChart" width="180" height="180"></canvas>
+                  <div class="absolute text-center pointer-events-none">
+                    <p class="text-2xl font-bold text-white" id="donutTotalUsers">0</p>
+                    <p class="text-xs text-slate-400">Total Users</p>
+                  </div>
+                </div>
+                <div class="mt-4 w-full space-y-2 text-xs" id="userDonutLegend"></div>
+              </article>
+
+              <!-- Live Activity Ring -->
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel flex flex-col items-center">
+                <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300 self-start">Platform Activity</h3>
+                <div class="relative flex items-center justify-center" style="width:180px;height:180px">
+                  <svg width="180" height="180" viewBox="0 0 180 180">
+                    <!-- bg ring -->
+                    <circle cx="90" cy="90" r="75" fill="none" stroke="rgba(30,41,59,0.9)" stroke-width="14"/>
+                    <!-- KYC ring -->
+                    <circle id="actRingKyc" cx="90" cy="90" r="75" fill="none" stroke="#22c55e" stroke-width="14"
+                      stroke-dasharray="0 471" stroke-dashoffset="118" stroke-linecap="round"
+                      style="transition:stroke-dasharray 1s ease"/>
+                    <!-- bg ring 2 -->
+                    <circle cx="90" cy="90" r="58" fill="none" stroke="rgba(30,41,59,0.9)" stroke-width="12"/>
+                    <!-- Trade ring -->
+                    <circle id="actRingTrade" cx="90" cy="90" r="58" fill="none" stroke="#3b82f6" stroke-width="12"
+                      stroke-dasharray="0 364" stroke-dashoffset="91" stroke-linecap="round"
+                      style="transition:stroke-dasharray 1s ease"/>
+                    <!-- bg ring 3 -->
+                    <circle cx="90" cy="90" r="43" fill="none" stroke="rgba(30,41,59,0.9)" stroke-width="10"/>
+                    <!-- P2P ring -->
+                    <circle id="actRingP2p" cx="90" cy="90" r="43" fill="none" stroke="#f59e0b" stroke-width="10"
+                      stroke-dasharray="0 270" stroke-dashoffset="67" stroke-linecap="round"
+                      style="transition:stroke-dasharray 1s ease"/>
+                  </svg>
+                  <div class="absolute text-center pointer-events-none">
+                    <p class="text-lg font-bold text-white" id="actRingLabel">Live</p>
+                  </div>
+                </div>
+                <div class="mt-4 w-full space-y-2 text-xs" id="actRingLegend">
+                  <div class="flex justify-between"><span class="flex items-center gap-1"><span class="inline-block w-2.5 h-2.5 rounded-full bg-green-500"></span>KYC Approved</span><span id="legKyc" class="font-semibold">-</span></div>
+                  <div class="flex justify-between"><span class="flex items-center gap-1"><span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-500"></span>Active Trades</span><span id="legTrade" class="font-semibold">-</span></div>
+                  <div class="flex justify-between"><span class="flex items-center gap-1"><span class="inline-block w-2.5 h-2.5 rounded-full bg-yellow-500"></span>P2P Orders</span><span id="legP2p" class="font-semibold">-</span></div>
+                </div>
+              </article>
+
+              <!-- Quick Stats -->
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">Quick Stats</h3>
+                <div class="space-y-3" id="quickStatsList">
+                  <div class="flex items-center justify-between rounded-xl bg-slate-950/60 px-4 py-3">
+                    <span class="text-xs text-slate-400">Pending KYC</span>
+                    <span class="text-lg font-bold text-yellow-400" id="qs-pendingKyc">-</span>
+                  </div>
+                  <div class="flex items-center justify-between rounded-xl bg-slate-950/60 px-4 py-3">
+                    <span class="text-xs text-slate-400">Pending Withdrawals</span>
+                    <span class="text-lg font-bold text-blue-400" id="qs-pendingWd">-</span>
+                  </div>
+                  <div class="flex items-center justify-between rounded-xl bg-slate-950/60 px-4 py-3">
+                    <span class="text-xs text-slate-400">Open P2P Disputes</span>
+                    <span class="text-lg font-bold text-red-400" id="qs-disputes">-</span>
+                  </div>
+                  <div class="flex items-center justify-between rounded-xl bg-slate-950/60 px-4 py-3">
+                    <span class="text-xs text-slate-400">Support Tickets</span>
+                    <span class="text-lg font-bold text-purple-400" id="qs-tickets">-</span>
+                  </div>
+                  <div class="flex items-center justify-between rounded-xl bg-slate-950/60 px-4 py-3">
+                    <span class="text-xs text-slate-400">Total Revenue (All)</span>
+                    <span class="text-lg font-bold text-green-400" id="qs-totalRevenue">-</span>
+                  </div>
+                </div>
+              </article>
+
+            </div>
+          </section>
+
+          <!-- KYC Management Panel -->
+          <section class="admin-panel hidden" data-panel="kyc">
+            <div class="mb-4 flex flex-wrap items-center gap-3">
+              <select id="kycStatusFilter" class="input-dark !h-9 !py-1 text-xs min-w-[140px]">
                 <option value="">All Statuses</option>
                 <option value="PENDING_REVIEW" selected>Pending Review</option>
                 <option value="VERIFIED">Verified</option>
                 <option value="REJECTED">Rejected</option>
               </select>
-              <button id="kycReloadBtn" class="btn-primary btn-sm">Reload</button>
-              <span style="font-size:11px;color:var(--text-2);" id="kycCount"></span>
+              <button id="kycReloadBtn" class="btn-primary">Reload</button>
+              <span class="ml-auto text-xs text-slate-500" id="kycCount"></span>
             </div>
-          </div>
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr>
-                <th class="admin-th">User ID</th>
-                <th class="admin-th">Email</th>
-                <th class="admin-th">Aadhaar</th>
-                <th class="admin-th">Status</th>
-                <th class="admin-th">Submitted</th>
-                <th class="admin-th">Actions</th>
-              </tr></thead>
-              <tbody id="kycTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── USER MANAGEMENT ── -->
-      <section class="admin-panel hidden" data-panel="users">
-        <div class="panel-card" style="margin-bottom:16px;">
-          <div class="panel-card-body" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-            <input id="userSearchInput" class="input-dark" style="flex:1;min-width:200px;max-width:340px;" type="text" placeholder="Search by email or user ID..." />
-            <button id="userSearchBtn" class="btn-secondary btn-sm">Search</button>
-            <button id="userSearchResetBtn" class="btn-ghost btn-sm">Reset</button>
-            <button id="usersReloadBtn" class="btn-primary btn-sm" style="margin-left:auto;">Reload</button>
-          </div>
-        </div>
-        <div class="panel-card">
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr>
-                <th class="admin-th">User ID</th>
-                <th class="admin-th">Email</th>
-                <th class="admin-th">Role</th>
-                <th class="admin-th">Status</th>
-                <th class="admin-th">KYC</th>
-                <th class="admin-th" style="text-align:right;">Balance</th>
-                <th class="admin-th">Actions</th>
-              </tr></thead>
-              <tbody id="usersTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── WALLET ── -->
-      <section class="admin-panel hidden" data-panel="wallet">
-        <div class="stat-grid" id="walletCards"></div>
-        <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));">
-
-          <div class="panel-card">
-            <div class="panel-card-header">
-              <span class="panel-card-title">Deposits</span>
-              <div style="display:flex;gap:6px;">
-                <select id="walletDepositStatusFilter" class="input-dark" style="width:120px;height:32px;padding:4px 8px;font-size:12px;">
-                  <option value="">All</option><option value="PENDING">Pending</option><option value="COMPLETED">Completed</option><option value="REJECTED">Rejected</option>
-                </select>
-                <button id="walletDepositsReloadBtn" class="btn-secondary btn-sm">↻</button>
+            <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 shadow-panel">
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-950/80 text-slate-400">
+                    <tr>
+                      <th class="admin-th">User ID</th>
+                      <th class="admin-th">Email</th>
+                      <th class="admin-th">Aadhaar Last 4</th>
+                      <th class="admin-th">KYC Status</th>
+                      <th class="admin-th">Submitted</th>
+                      <th class="admin-th">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="kycTableBody"></tbody>
+                </table>
               </div>
             </div>
-            <div id="depositsList" style="max-height:340px;overflow-y:auto;padding:8px 16px;display:flex;flex-direction:column;gap:8px;"></div>
-          </div>
+          </section>
 
-          <div class="panel-card">
-            <div class="panel-card-header">
-              <span class="panel-card-title">Withdrawals</span>
-              <div style="display:flex;gap:6px;">
-                <select id="walletWithdrawalStatusFilter" class="input-dark" style="width:120px;height:32px;padding:4px 8px;font-size:12px;">
-                  <option value="">All</option><option value="PENDING" selected>Pending</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option>
-                </select>
-                <button id="walletWithdrawalsReloadBtn" class="btn-secondary btn-sm">↻</button>
+          <!-- User Management Panel -->
+          <section class="admin-panel hidden" data-panel="users">
+            <div class="mb-4 grid gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel sm:grid-cols-[1fr_auto]">
+              <div class="flex flex-wrap gap-2">
+                <input id="userSearchInput" class="input-dark min-w-[220px] flex-1" type="text" placeholder="Search by email" />
+                <button id="userSearchBtn" class="btn-secondary">Search</button>
+                <button id="userSearchResetBtn" class="btn-secondary">Reset</button>
+              </div>
+              <button id="usersReloadBtn" class="btn-primary">Reload Users</button>
+            </div>
+
+            <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 shadow-panel">
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-950/80 text-slate-400">
+                    <tr>
+                      <th class="admin-th">UID</th>
+                      <th class="admin-th">Email</th>
+                      <th class="admin-th">Role</th>
+                      <th class="admin-th">Status</th>
+                      <th class="admin-th">KYC</th>
+                      <th class="admin-th text-right">Balance</th>
+                      <th class="admin-th text-right">Locked</th>
+                      <th class="admin-th">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usersTableBody"></tbody>
+                </table>
               </div>
             </div>
-            <div id="withdrawalsList" style="max-height:340px;overflow-y:auto;padding:8px 16px;display:flex;flex-direction:column;gap:8px;"></div>
-          </div>
+          </section>
 
-          <div class="panel-card">
-            <div class="panel-card-header"><span class="panel-card-title">Coin Wallet Config</span></div>
-            <div class="panel-card-body">
-              <form id="coinConfigForm" style="display:grid;gap:10px;grid-template-columns:1fr 1fr;">
-                <input name="coin" class="input-dark" placeholder="Coin (USDT)" required />
-                <select name="defaultNetwork" class="input-dark"><option value="TRC20">TRC20</option><option value="ERC20">ERC20</option><option value="BEP20">BEP20</option></select>
-                <input name="networkFee" type="number" step="0.00000001" class="input-dark" placeholder="Network Fee" />
-                <input name="minWithdrawal" type="number" step="0.01" class="input-dark" placeholder="Min Withdrawal" />
-                <input name="maxWithdrawal" type="number" step="0.01" class="input-dark" placeholder="Max Withdrawal" />
-                <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-1);"><input name="withdrawalsEnabled" type="checkbox" checked /> Withdrawals On</label>
-                <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-1);"><input name="depositsEnabled" type="checkbox" checked /> Deposits On</label>
-                <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:8px;">
-                  <input name="trc20Address" class="input-dark" placeholder="TRC20 Address (T...)" />
-                  <input name="erc20Address" class="input-dark" placeholder="ERC20 Address (0x...)" />
-                  <input name="bep20Address" class="input-dark" placeholder="BEP20 Address (0x...)" />
-                </div>
-                <input name="trc20Confirmations" type="number" class="input-dark" placeholder="TRC20 Confirms" />
-                <input name="erc20Confirmations" type="number" class="input-dark" placeholder="ERC20 Confirms" />
-                <input name="bep20Confirmations" type="number" class="input-dark" placeholder="BEP20 Confirms" style="grid-column:1/-1;" />
-                <button type="submit" class="btn-primary" style="grid-column:1/-1;">Save Config</button>
-              </form>
-              <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
-                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);margin-bottom:8px;">Hot Wallet Balances</div>
-                <div id="hotWalletList" style="display:flex;flex-direction:column;gap:6px;"></div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      <!-- ── SUPPORT TICKETS ── -->
-      <section class="admin-panel hidden" data-panel="support">
-        <div class="support-layout">
-          <!-- ── LEFT: Ticket list ── -->
-          <div class="panel-card support-list-col">
-            <div class="panel-card-header" style="flex-shrink:0;">
-              <span class="panel-card-title">🎧 Live Support</span>
-              <div style="display:flex;gap:6px;align-items:center;">
-                <span id="supportOpenCount" style="font-size:11px;color:var(--text-2);"></span>
-                <select id="supportStatusFilter" class="input-dark" style="width:100px;height:28px;padding:2px 6px;font-size:11px;">
-                  <option value="">All</option>
-                  <option value="OPEN">Open</option>
-                  <option value="IN_PROGRESS">Active</option>
-                  <option value="CLOSED">Closed</option>
-                </select>
-                <button id="supportReloadBtn" class="btn-secondary btn-sm">↻</button>
-              </div>
-            </div>
-            <div id="supportTicketsList" style="flex:1;overflow-y:auto;padding:8px 6px;"></div>
-          </div>
-
-          <!-- ── RIGHT: Chat window ── -->
-          <div class="panel-card support-chat-col">
-
-            <!-- Empty state -->
-            <div id="supportChatEmpty" class="support-chat-empty">
-              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity=".4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              <p style="font-size:14px;font-weight:600;color:var(--text-2);">Select a ticket</p>
-              <p style="font-size:12px;color:var(--text-2);opacity:.6;">Click any ticket on the left to start chatting</p>
-            </div>
-
-            <!-- Active chat -->
-            <div id="supportChatActive" class="support-chat-active" style="display:none;">
-
-              <!-- Chat header with user info -->
-              <div class="panel-card-header" style="flex-shrink:0;gap:10px;">
-                <div style="width:36px;height:36px;border-radius:50%;background:var(--accent-dim);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">👤</div>
-                <div style="min-width:0;flex:1;">
-                  <div style="font-size:13px;font-weight:700;color:var(--text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="chatUserName">-</div>
-                  <div style="font-size:11px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="chatTicketSubject">-</div>
-                  <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
-                    <span id="chatTicketStatusBadge"></span>
-                    <span style="font-size:10px;color:var(--text-2);" id="chatTicketMeta"></span>
+          <!-- Wallet Panel -->
+          <section class="admin-panel hidden" data-panel="wallet">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" id="walletCards"></div>
+            <div class="mt-4 grid gap-4 2xl:grid-cols-3">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Deposits</h3>
+                  <div class="flex items-center gap-2">
+                    <select id="walletDepositStatusFilter" class="input-dark !h-9 !py-1 text-xs">
+                      <option value="">All</option>
+                      <option value="PENDING">Pending</option>
+                      <option value="COMPLETED">Completed</option>
+                      <option value="REJECTED">Rejected</option>
+                    </select>
+                    <button id="walletDepositsReloadBtn" class="btn-secondary">Reload</button>
                   </div>
                 </div>
-                <div style="display:flex;gap:6px;flex-shrink:0;">
-                  <button id="chatResolveBtn" class="btn-secondary btn-sm" title="Mark as Resolved">✓ Resolve</button>
-                  <button id="chatCloseTicketBtn" class="btn-danger btn-sm" title="Close Ticket">✕ Close</button>
+                <div class="max-h-[380px] overflow-auto" id="depositsList"></div>
+              </article>
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Withdrawals</h3>
+                  <div class="flex items-center gap-2">
+                    <select id="walletWithdrawalStatusFilter" class="input-dark !h-9 !py-1 text-xs">
+                      <option value="">All</option>
+                      <option value="PENDING" selected>Pending</option>
+                      <option value="APPROVED">Approved</option>
+                      <option value="REJECTED">Rejected</option>
+                    </select>
+                    <button id="walletWithdrawalsReloadBtn" class="btn-secondary">Reload</button>
+                  </div>
                 </div>
-              </div>
-
-              <!-- Messages area -->
-              <div id="supportChatMessages" class="support-messages-area"></div>
-
-              <!-- Quick reply templates -->
-              <div id="quickRepliesBar" class="quick-replies-bar">
-                <span style="font-size:10px;color:var(--text-2);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;flex-shrink:0;">Quick:</span>
-                <button class="quick-reply-btn" onclick="useQuickReply('Hi! Thank you for contacting support. We are reviewing your issue and will respond shortly.')">👋 Greeting</button>
-                <button class="quick-reply-btn" onclick="useQuickReply('We have reviewed your issue and it has been resolved. Please let us know if you need further assistance.')">✅ Resolved</button>
-                <button class="quick-reply-btn" onclick="useQuickReply('Could you please provide more details about the issue you are facing? This will help us resolve it faster.')">🔍 Need Info</button>
-                <button class="quick-reply-btn" onclick="useQuickReply('We apologize for the inconvenience. Our technical team is working on this issue. You will be notified once it is fixed.')">🔧 Escalated</button>
-                <button class="quick-reply-btn" onclick="useQuickReply('Your P2P order has been reviewed. Please check your account for the updated status.')">📦 P2P Update</button>
-                <button class="quick-reply-btn" onclick="useQuickReply('Your KYC documents have been reviewed. Please check the KYC section in your account for the result.')">🪪 KYC Update</button>
-                <button class="quick-reply-btn" onclick="useQuickReply('Your withdrawal request is being processed. It usually takes 24-48 hours. Thank you for your patience.')">💸 Withdrawal</button>
-                <button class="quick-reply-btn" onclick="useQuickReply('If you have any other questions, please do not hesitate to contact us again. Have a great day!')">👋 Closing</button>
-              </div>
-
-              <!-- Input area -->
-              <div class="support-input-area">
-                <textarea id="supportChatInput" class="input-dark support-textarea"
-                  placeholder="Type your reply… (Ctrl+Enter to send)"
-                  onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))sendAdminReply()"></textarea>
-                <button id="sendReplyBtn" class="btn-primary support-send-btn" onclick="sendAdminReply()">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                  Send
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── SPOT TRADING ── -->
-      <section class="admin-panel hidden" data-panel="spot">
-        <div class="panel-card">
-          <div class="panel-card-header">
-            <span class="panel-card-title">Spot Trading Pairs</span>
-            <button id="spotReloadBtn" class="btn-secondary btn-sm">Reload</button>
-          </div>
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr>
-                <th class="admin-th">Pair</th><th class="admin-th">Status</th>
-                <th class="admin-th">Maker Fee</th><th class="admin-th">Taker Fee</th>
-                <th class="admin-th">Precision</th><th class="admin-th">Actions</th>
-              </tr></thead>
-              <tbody id="spotPairsTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── P2P CONTROL ── -->
-      <section class="admin-panel hidden" data-panel="p2p">
-        <div style="display:grid;gap:16px;grid-template-columns:2fr 1fr;">
-          <div class="panel-card">
-            <div class="panel-card-header">
-              <span class="panel-card-title">P2P Ads</span>
-              <button id="p2pReloadBtn" class="btn-secondary btn-sm">Reload</button>
-            </div>
-            <div id="p2pAdsList" style="padding:8px 16px;display:flex;flex-direction:column;gap:8px;"></div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:16px;">
-            <div class="panel-card">
-              <div class="panel-card-header"><span class="panel-card-title">P2P Settings</span></div>
-              <div class="panel-card-body">
-                <form id="p2pSettingsForm" style="display:flex;flex-direction:column;gap:10px;">
-                  <input name="p2pFeePercent" type="number" step="0.01" class="input-dark" placeholder="P2P Fee (%)" />
-                  <input name="minOrderLimit" type="number" class="input-dark" placeholder="Min Order Limit" />
-                  <input name="maxOrderLimit" type="number" class="input-dark" placeholder="Max Order Limit" />
-                  <input name="autoExpiryMinutes" type="number" class="input-dark" placeholder="Auto Expiry (min)" />
-                  <button type="submit" class="btn-primary">Save P2P Settings</button>
+                <div class="max-h-[380px] overflow-auto" id="withdrawalsList"></div>
+              </article>
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Coin Wallet Config</h3>
+                <form id="coinConfigForm" class="grid gap-3 sm:grid-cols-2">
+                  <input name="coin" class="input-dark" placeholder="Coin (e.g. USDT)" required />
+                  <select name="defaultNetwork" class="input-dark" aria-label="Default USDT network">
+                    <option value="TRC20">TRC20</option>
+                    <option value="ERC20">ERC20</option>
+                    <option value="BEP20">BEP20</option>
+                  </select>
+                  <input name="networkFee" type="number" step="0.00000001" class="input-dark" placeholder="Network Fee" required />
+                  <input name="minWithdrawal" type="number" step="0.00000001" class="input-dark" placeholder="Min Withdrawal" required />
+                  <input name="maxWithdrawal" type="number" step="0.00000001" class="input-dark" placeholder="Max Withdrawal" required />
+                  <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                    <input name="withdrawalsEnabled" type="checkbox" class="h-4 w-4" checked />
+                    Withdrawals Enabled
+                  </label>
+                  <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                    <input name="depositsEnabled" type="checkbox" class="h-4 w-4" checked />
+                    Deposits Enabled
+                  </label>
+                  <input name="trc20Address" class="input-dark sm:col-span-2" placeholder="USDT TRC20 Deposit Address (T...)" />
+                  <input name="erc20Address" class="input-dark sm:col-span-2" placeholder="USDT ERC20 Deposit Address (0x...)" />
+                  <input name="bep20Address" class="input-dark sm:col-span-2" placeholder="USDT BEP20 Deposit Address (0x...)" />
+                  <input name="trc20Confirmations" type="number" min="1" step="1" class="input-dark" placeholder="TRC20 Confirmations" />
+                  <input name="erc20Confirmations" type="number" min="1" step="1" class="input-dark" placeholder="ERC20 Confirmations" />
+                  <input name="bep20Confirmations" type="number" min="1" step="1" class="input-dark sm:col-span-2" placeholder="BEP20 Confirmations" />
+                  <button type="submit" class="btn-primary sm:col-span-2">Save Config</button>
                 </form>
+                <h4 class="mt-6 mb-2 text-sm font-semibold text-slate-300">Hot Wallet Balances</h4>
+                <div id="hotWalletList" class="space-y-2"></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Spot Trading Panel -->
+          <section class="admin-panel hidden" data-panel="spot">
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Spot Trading Pairs</h3>
+                <button id="spotReloadBtn" class="btn-secondary">Reload</button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-950/80 text-slate-400">
+                    <tr>
+                      <th class="admin-th">Pair</th>
+                      <th class="admin-th">Enabled</th>
+                      <th class="admin-th">Maker Fee</th>
+                      <th class="admin-th">Taker Fee</th>
+                      <th class="admin-th">Precision</th>
+                      <th class="admin-th">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="spotPairsTableBody"></tbody>
+                </table>
               </div>
             </div>
-            <div class="panel-card">
-              <div class="panel-card-header"><span class="panel-card-title">Open Disputes</span></div>
-              <div id="p2pDisputesList" style="padding:8px 16px;display:flex;flex-direction:column;gap:8px;"></div>
+          </section>
+
+          <!-- P2P Control Panel -->
+          <section class="admin-panel hidden" data-panel="p2p">
+            <div class="grid gap-4 xl:grid-cols-[2fr_1fr]">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">P2P Ads</h3>
+                  <button id="p2pReloadBtn" class="btn-secondary">Reload</button>
+                </div>
+                <div id="p2pAdsList" class="space-y-2"></div>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">P2P Settings</h3>
+                <form id="p2pSettingsForm" class="space-y-3">
+                  <input name="p2pFeePercent" type="number" step="0.01" class="input-dark" placeholder="P2P Fee (%)" required />
+                  <input name="minOrderLimit" type="number" step="1" class="input-dark" placeholder="Min Order Limit" required />
+                  <input name="maxOrderLimit" type="number" step="1" class="input-dark" placeholder="Max Order Limit" required />
+                  <input name="autoExpiryMinutes" type="number" step="1" class="input-dark" placeholder="Auto Expiry (min)" required />
+                  <button type="submit" class="btn-primary w-full">Save P2P Settings</button>
+                </form>
+
+                <h4 class="mt-6 mb-2 text-sm font-semibold text-slate-300">Open Disputes</h4>
+                <div id="p2pDisputesList" class="space-y-2"></div>
+              </article>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <!-- ── REVENUE ── -->
-      <section class="admin-panel hidden" data-panel="revenue">
-        <div class="stat-grid" id="revenueCards"></div>
-        <div class="panel-card">
-          <div class="panel-card-header"><span class="panel-card-title">Revenue Chart</span></div>
-          <div class="panel-card-body" style="height:220px;"><canvas id="revenueChart"></canvas></div>
-        </div>
-      </section>
+          <!-- Support Tickets Panel — full chat interface -->
+          <section class="admin-panel hidden" data-panel="support">
+            <div class="grid gap-4 xl:grid-cols-[380px_1fr]" style="height: calc(100vh - 180px); min-height: 600px;">
+              <!-- Left: Ticket List -->
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 shadow-panel flex flex-col overflow-hidden">
+                <div class="flex items-center justify-between gap-2 px-4 pt-4 pb-3 border-b border-slate-800 flex-shrink-0">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Tickets</h3>
+                  <div class="flex gap-2">
+                    <select id="supportStatusFilter" class="input-dark !h-8 !py-0.5 text-xs">
+                      <option value="">All</option>
+                      <option value="OPEN">Open</option>
+                      <option value="IN_PROGRESS">In Progress</option>
+                      <option value="CLOSED">Closed</option>
+                    </select>
+                    <button id="supportReloadBtn" class="btn-secondary !py-1">Reload</button>
+                  </div>
+                </div>
+                <div id="supportTicketsList" class="flex-1 overflow-y-auto divide-y divide-slate-800/60 p-2 space-y-1"></div>
+              </article>
 
-      <!-- ── RISK MANAGEMENT ── -->
-      <section class="admin-panel hidden" data-panel="risk">
-        <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
-          <div class="panel-card">
-            <div class="panel-card-header"><span class="panel-card-title">Risk Configuration</span></div>
-            <div class="panel-card-body">
-              <form id="riskConfigForm" style="display:flex;flex-direction:column;gap:10px;">
-                <div><label class="input-label">Max Leverage</label><input name="maxLeverage" type="number" class="input-dark" placeholder="100" /></div>
-                <div><label class="input-label">Max Daily Withdrawal (USDT)</label><input name="maxWithdrawalAmount" type="number" class="input-dark" placeholder="50000" /></div>
-                <div><label class="input-label">Min Withdrawal (USDT)</label><input name="minWithdrawalAmount" type="number" class="input-dark" placeholder="10" /></div>
-                <div><label class="input-label">AML Risk Threshold (%)</label><input name="amlRiskThreshold" type="number" min="0" max="100" class="input-dark" placeholder="75" /></div>
-                <button type="submit" class="btn-primary">Save Risk Config</button>
+              <!-- Right: Chat Interface -->
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 shadow-panel flex flex-col overflow-hidden">
+                <!-- Empty state -->
+                <div id="supportChatEmpty" class="flex flex-1 flex-col items-center justify-center gap-3 text-slate-500 p-8">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  <p class="text-sm">Select a ticket to view conversation</p>
+                </div>
+
+                <!-- Active Ticket Chat -->
+                <div id="supportChatActive" class="hidden flex flex-col h-full">
+                  <!-- Ticket Header -->
+                  <div class="flex items-start justify-between gap-3 px-4 py-3 border-b border-slate-800 flex-shrink-0">
+                    <div class="min-w-0">
+                      <p class="text-sm font-semibold text-slate-100 truncate" id="chatTicketSubject">-</p>
+                      <div class="flex items-center gap-2 mt-0.5">
+                        <span class="text-xs text-slate-400" id="chatTicketMeta">-</span>
+                        <span id="chatTicketStatusBadge"></span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                      <button id="chatCloseTicketBtn" class="btn-danger !py-1 !text-xs">Close Ticket</button>
+                      <button id="chatResolveBtn" class="btn-secondary !py-1 !text-xs">Resolve</button>
+                    </div>
+                  </div>
+
+                  <!-- Messages -->
+                  <div id="supportChatMessages" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+
+                  <!-- Reply Input -->
+                  <div class="px-4 py-3 border-t border-slate-800 flex-shrink-0">
+                    <div class="flex gap-2">
+                      <textarea
+                        id="supportChatInput"
+                        class="input-dark flex-1 min-h-[68px] resize-none !py-2"
+                        placeholder="Type a reply..."
+                        onkeydown="if(event.key==='Enter' && (event.ctrlKey || event.metaKey)) sendAdminReply()"
+                      ></textarea>
+                      <div class="flex flex-col gap-1.5">
+                        <button id="sendReplyBtn" class="btn-primary !py-2 !px-4">Send</button>
+                        <span class="text-[10px] text-slate-600 text-center">Ctrl+Enter</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Revenue Panel -->
+          <section class="admin-panel hidden" data-panel="revenue">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" id="revenueCards"></div>
+            <div class="mt-4 grid gap-4 xl:grid-cols-2">
+              <!-- Donut Chart -->
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-panel flex flex-col items-center justify-center">
+                <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300 self-start">Revenue Breakdown</h3>
+                <div class="relative flex items-center justify-center" style="width:200px;height:200px">
+                  <canvas id="revenueDonutChart" width="200" height="200"></canvas>
+                  <div class="absolute text-center pointer-events-none">
+                    <div class="text-xs text-slate-400">Total</div>
+                    <div class="text-lg font-bold text-white" id="revDonutCenter">₹0</div>
+                  </div>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-3 justify-center text-xs" id="revDonutLegend"></div>
+              </article>
+
+              <!-- Ring Activity Chart -->
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-panel flex flex-col items-center justify-center">
+                <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300 self-start">Fee Sources</h3>
+                <div class="relative flex items-center justify-center" style="width:200px;height:200px">
+                  <canvas id="revFeeRingChart" width="200" height="200"></canvas>
+                  <div class="absolute text-center pointer-events-none">
+                    <div class="text-xs text-slate-400">Fees</div>
+                    <div class="text-lg font-bold text-white" id="revRingCenter">₹0</div>
+                  </div>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-3 justify-center text-xs" id="revRingLegend"></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Risk Management Panel -->
+          <section class="admin-panel hidden" data-panel="risk">
+            <div class="grid gap-4 xl:grid-cols-3">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Risk Config</h3>
+                <form id="riskConfigForm" class="space-y-3">
+                  <div>
+                    <label class="block text-xs text-slate-400 mb-1">Max Leverage</label>
+                    <input name="maxLeverage" type="number" step="1" class="input-dark" placeholder="Max Leverage (e.g. 100)" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-slate-400 mb-1">Max Withdrawal (USDT)</label>
+                    <input name="maxWithdrawalAmount" type="number" step="0.01" class="input-dark" placeholder="Max single withdrawal" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-slate-400 mb-1">Min Withdrawal (USDT)</label>
+                    <input name="minWithdrawalAmount" type="number" step="0.01" class="input-dark" placeholder="Min single withdrawal" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-slate-400 mb-1">AML Risk Threshold (%)</label>
+                    <input name="amlRiskThreshold" type="number" step="1" min="0" max="100" class="input-dark" placeholder="Risk threshold 0-100" />
+                  </div>
+                  <button type="submit" class="btn-primary w-full">Save Risk Config</button>
+                </form>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Blocked IPs</h3>
+                  <button id="riskReloadBtn" class="btn-secondary">Reload</button>
+                </div>
+                <div class="mb-3 flex gap-2">
+                  <input id="blockIpInput" class="input-dark flex-1" placeholder="IP to block (e.g. 1.2.3.4)" />
+                  <input id="blockIpReason" class="input-dark flex-1" placeholder="Reason" />
+                  <button id="blockIpBtn" class="btn-danger">Block</button>
+                </div>
+                <div id="blockedIpsList" class="space-y-2 max-h-64 overflow-y-auto"></div>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Suspicious Activity</h3>
+                <div id="suspiciousAlertsList" class="space-y-2 max-h-72 overflow-y-auto"></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Feature Flags Panel -->
+          <section class="admin-panel hidden" data-panel="features">
+            <div class="grid gap-4 xl:grid-cols-2">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-4 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Platform Features</h3>
+                  <button id="featuresReloadBtn" class="btn-secondary">Reload</button>
+                </div>
+                <div id="featureTogglesList" class="space-y-3"></div>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">Network Status</h3>
+                <div id="networkStatusList" class="space-y-3"></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Notifications Panel -->
+          <section class="admin-panel hidden" data-panel="notifications">
+            <div class="grid gap-4 xl:grid-cols-[1fr_1fr_1fr]">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Broadcast Notification</h3>
+                <form id="broadcastNotifForm" class="space-y-3">
+                  <input name="title" class="input-dark" placeholder="Title" required />
+                  <textarea name="message" class="input-dark min-h-[100px]" placeholder="Message body" required></textarea>
+                  <select name="priority" class="input-dark">
+                    <option value="LOW">Low Priority</option>
+                    <option value="NORMAL" selected>Normal</option>
+                    <option value="HIGH">High Priority</option>
+                    <option value="CRITICAL">Critical</option>
+                  </select>
+                  <select name="type" class="input-dark">
+                    <option value="SYSTEM">System</option>
+                    <option value="PROMO">Promotional</option>
+                    <option value="MAINTENANCE">Maintenance</option>
+                    <option value="SECURITY">Security</option>
+                  </select>
+                  <button type="submit" class="btn-primary w-full">Broadcast to All Users</button>
+                </form>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">User-Specific Notification</h3>
+                <form id="userNotifForm" class="space-y-3">
+                  <input name="userId" class="input-dark" placeholder="User ID" required />
+                  <input name="title" class="input-dark" placeholder="Title" required />
+                  <textarea name="message" class="input-dark min-h-[100px]" placeholder="Message" required></textarea>
+                  <select name="priority" class="input-dark">
+                    <option value="LOW">Low</option>
+                    <option value="NORMAL" selected>Normal</option>
+                    <option value="HIGH">High</option>
+                  </select>
+                  <button type="submit" class="btn-primary w-full">Send Notification</button>
+                </form>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Recent Notifications</h3>
+                  <button id="notifReloadBtn" class="btn-secondary">Reload</button>
+                </div>
+                <div id="notificationsList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Blockchain Panel -->
+          <section class="admin-panel hidden" data-panel="blockchain">
+            <div class="mb-4 flex items-center gap-3">
+              <button id="blockchainReloadBtn" class="btn-secondary">Reload</button>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-3 mb-4" id="blockchainScannerCards"></div>
+            <div class="grid gap-4 xl:grid-cols-2">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Withdrawal Queue</h3>
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-sm">
+                    <thead class="bg-slate-950/80 text-slate-400">
+                      <tr>
+                        <th class="admin-th">ID</th>
+                        <th class="admin-th">Amount</th>
+                        <th class="admin-th">Network</th>
+                        <th class="admin-th">Status</th>
+                        <th class="admin-th">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="withdrawalQueueBody"></tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Recent Transactions</h3>
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-sm">
+                    <thead class="bg-slate-950/80 text-slate-400">
+                      <tr>
+                        <th class="admin-th">TX Hash</th>
+                        <th class="admin-th">Amount</th>
+                        <th class="admin-th">Network</th>
+                        <th class="admin-th">Status</th>
+                        <th class="admin-th">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="blockchainTxBody"></tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Compliance Panel -->
+          <section class="admin-panel hidden" data-panel="compliance">
+            <div class="grid gap-4 xl:grid-cols-[1fr_2fr]">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Create Compliance Flag</h3>
+                <form id="complianceFlagForm" class="space-y-3">
+                  <input name="userId" class="input-dark" placeholder="User ID" required />
+                  <select name="type" class="input-dark">
+                    <option value="SUSPICIOUS_ACTIVITY">SUSPICIOUS_ACTIVITY</option>
+                    <option value="AML_REVIEW">AML_REVIEW</option>
+                    <option value="KYC_MISMATCH">KYC_MISMATCH</option>
+                  </select>
+                  <select name="severity" class="input-dark">
+                    <option value="LOW">LOW</option>
+                    <option value="MEDIUM" selected>MEDIUM</option>
+                    <option value="HIGH">HIGH</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                  </select>
+                  <textarea name="reason" class="input-dark min-h-[110px]" placeholder="Reason" required></textarea>
+                  <button type="submit" class="btn-danger w-full">Create Flag</button>
+                </form>
+                <button id="exportCsvBtn" class="btn-secondary mt-3 w-full">Export Transaction CSV</button>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Compliance Flags</h3>
+                  <button id="complianceReloadBtn" class="btn-secondary">Reload</button>
+                </div>
+                <div id="complianceFlagsList" class="space-y-2"></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Platform Settings Panel -->
+          <section class="admin-panel hidden" data-panel="settings">
+            <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+              <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Platform Settings</h3>
+              <form id="platformSettingsForm" class="grid gap-3 md:grid-cols-2">
+                <input class="input-dark" name="siteName" placeholder="Site Name" />
+                <input class="input-dark" name="logoUrl" placeholder="Logo URL" />
+                <input class="input-dark" name="announcementBanner" placeholder="Announcement Banner" />
+                <input class="input-dark" name="referralCommissionPercent" type="number" step="0.01" placeholder="Referral Commission %" />
+                <input class="input-dark" name="signupBonusUsdt" type="number" step="0.01" placeholder="Signup Bonus (USDT)" />
+                <input class="input-dark" name="smtpHost" placeholder="SMTP Host" />
+                <input class="input-dark" name="smtpPort" type="number" placeholder="SMTP Port" />
+                <input class="input-dark" name="smtpUser" placeholder="SMTP Username" />
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="smtpSecure" class="h-4 w-4" /> SMTP Secure</label>
+                <input class="input-dark" name="makerFee" type="number" step="0.0001" placeholder="Global Maker Fee" />
+                <input class="input-dark" name="takerFee" type="number" step="0.0001" placeholder="Global Taker Fee" />
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="maintenanceMode" class="h-4 w-4" /> Maintenance Mode</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="requireKycBeforeWithdrawal" class="h-4 w-4" /> Require KYC before Withdrawal</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="spotEnabled" class="h-4 w-4" /> Spot Feature Enabled</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="p2pEnabled" class="h-4 w-4" /> P2P Feature Enabled</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="walletEnabled" class="h-4 w-4" /> Wallet Feature Enabled</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="referralsEnabled" class="h-4 w-4" /> Referral Feature Enabled</label>
+                <label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="supportEnabled" class="h-4 w-4" /> Support Feature Enabled</label>
+                <button type="submit" class="btn-primary md:col-span-2">Save Platform Settings</button>
               </form>
-            </div>
-          </div>
-          <div class="panel-card">
-            <div class="panel-card-header">
-              <span class="panel-card-title">Blocked IPs / Countries</span>
-              <button id="riskReloadBtn" class="btn-secondary btn-sm">Reload</button>
-            </div>
-            <div class="panel-card-body">
-              <div style="display:flex;gap:6px;margin-bottom:10px;">
-                <input id="blockIpInput" class="input-dark" style="flex:1;" placeholder="IP address" />
-                <input id="blockIpReason" class="input-dark" style="flex:1;" placeholder="Reason" />
-                <button id="blockIpBtn" class="btn-danger btn-sm">Block</button>
+            </article>
+          </section>
+
+          <!-- Monitoring Panel -->
+          <section class="admin-panel hidden" data-panel="monitoring">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" id="monitoringCards"></div>
+            <article class="mt-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">API Request Logs</h3>
+                <button id="monitoringReloadBtn" class="btn-secondary">Reload</button>
               </div>
-              <div id="blockedIpsList" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;"></div>
-            </div>
-          </div>
-          <div class="panel-card">
-            <div class="panel-card-header"><span class="panel-card-title">Suspicious Activity</span></div>
-            <div id="suspiciousAlertsList" style="padding:8px 16px;display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto;"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── FEATURE FLAGS ── -->
-      <section class="admin-panel hidden" data-panel="features">
-        <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));">
-          <div class="panel-card">
-            <div class="panel-card-header">
-              <span class="panel-card-title">Platform Features</span>
-              <button id="featuresReloadBtn" class="btn-secondary btn-sm">Reload</button>
-            </div>
-            <div class="panel-card-body" id="featureTogglesList"></div>
-          </div>
-          <div class="panel-card">
-            <div class="panel-card-header"><span class="panel-card-title">Network Status</span></div>
-            <div class="panel-card-body" id="networkStatusList"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── NOTIFICATIONS ── -->
-      <section class="admin-panel hidden" data-panel="notifications">
-        <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
-          <div class="panel-card">
-            <div class="panel-card-header"><span class="panel-card-title">📢 Broadcast to All Users</span></div>
-            <div class="panel-card-body">
-              <form id="broadcastNotifForm" style="display:flex;flex-direction:column;gap:10px;">
-                <input name="title" class="input-dark" placeholder="Notification title" required />
-                <textarea name="message" class="input-dark" style="min-height:90px;" placeholder="Message body..." required></textarea>
-                <select name="priority" class="input-dark">
-                  <option value="LOW">Low Priority</option><option value="NORMAL" selected>Normal</option>
-                  <option value="HIGH">High Priority</option><option value="CRITICAL">🚨 Critical</option>
-                </select>
-                <button type="submit" class="btn-primary">Broadcast Now</button>
-              </form>
-            </div>
-          </div>
-          <div class="panel-card">
-            <div class="panel-card-header"><span class="panel-card-title">👤 User Notification</span></div>
-            <div class="panel-card-body">
-              <form id="userNotifForm" style="display:flex;flex-direction:column;gap:10px;">
-                <input name="userId" class="input-dark" placeholder="User ID" required />
-                <input name="title" class="input-dark" placeholder="Title" required />
-                <textarea name="message" class="input-dark" style="min-height:90px;" placeholder="Message" required></textarea>
-                <select name="priority" class="input-dark"><option value="LOW">Low</option><option value="NORMAL" selected>Normal</option><option value="HIGH">High</option></select>
-                <button type="submit" class="btn-primary">Send Notification</button>
-              </form>
-            </div>
-          </div>
-          <div class="panel-card">
-            <div class="panel-card-header">
-              <span class="panel-card-title">Recent Notifications</span>
-              <button id="notifReloadBtn" class="btn-secondary btn-sm">Reload</button>
-            </div>
-            <div id="notificationsList" style="padding:8px 16px;display:flex;flex-direction:column;gap:6px;max-height:380px;overflow-y:auto;"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── BLOCKCHAIN ── -->
-      <section class="admin-panel hidden" data-panel="blockchain">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-          <div style="font-size:15px;font-weight:700;color:var(--text-1);">Blockchain Monitor</div>
-          <button id="blockchainReloadBtn" class="btn-secondary btn-sm">Reload</button>
-        </div>
-        <div class="stat-grid" id="blockchainScannerCards" style="grid-template-columns:repeat(3,1fr);"></div>
-        <div style="display:grid;gap:16px;grid-template-columns:1fr 1fr;">
-          <div class="panel-card">
-            <div class="panel-card-header"><span class="panel-card-title">Withdrawal Queue</span></div>
-            <div class="admin-table-wrap">
-              <table class="admin-table">
-                <thead><tr>
-                  <th class="admin-th">ID</th><th class="admin-th">Amount</th>
-                  <th class="admin-th">Network</th><th class="admin-th">Status</th><th class="admin-th">Action</th>
-                </tr></thead>
-                <tbody id="withdrawalQueueBody"></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="panel-card">
-            <div class="panel-card-header"><span class="panel-card-title">Recent Transactions</span></div>
-            <div class="admin-table-wrap">
-              <table class="admin-table">
-                <thead><tr>
-                  <th class="admin-th">Tx Hash</th><th class="admin-th">Amount</th>
-                  <th class="admin-th">Network</th><th class="admin-th">Status</th><th class="admin-th">Action</th>
-                </tr></thead>
-                <tbody id="blockchainTxBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── COMPLIANCE ── -->
-      <section class="admin-panel hidden" data-panel="compliance">
-        <div style="display:grid;gap:16px;grid-template-columns:360px 1fr;">
-          <div class="panel-card">
-            <div class="panel-card-header"><span class="panel-card-title">Create Compliance Flag</span></div>
-            <div class="panel-card-body">
-              <form id="complianceFlagForm" style="display:flex;flex-direction:column;gap:10px;">
-                <input name="userId" class="input-dark" placeholder="User ID" required />
-                <select name="type" class="input-dark">
-                  <option value="SUSPICIOUS_ACTIVITY">Suspicious Activity</option>
-                  <option value="AML_REVIEW">AML Review</option>
-                  <option value="KYC_MISMATCH">KYC Mismatch</option>
-                </select>
-                <select name="severity" class="input-dark">
-                  <option value="LOW">Low</option><option value="MEDIUM" selected>Medium</option>
-                  <option value="HIGH">High</option><option value="CRITICAL">Critical</option>
-                </select>
-                <textarea name="reason" class="input-dark" style="min-height:100px;" placeholder="Reason for flag..." required></textarea>
-                <button type="submit" class="btn-danger">Create Flag</button>
-              </form>
-              <button id="exportCsvBtn" class="btn-secondary" style="width:100%;margin-top:10px;">↓ Export Transaction CSV</button>
-            </div>
-          </div>
-          <div class="panel-card">
-            <div class="panel-card-header">
-              <span class="panel-card-title">Compliance Flags</span>
-              <button id="complianceReloadBtn" class="btn-secondary btn-sm">Reload</button>
-            </div>
-            <div id="complianceFlagsList" style="padding:8px 16px;display:flex;flex-direction:column;gap:8px;"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── SETTINGS ── -->
-      <section class="admin-panel hidden" data-panel="settings">
-        <div class="panel-card">
-          <div class="panel-card-header"><span class="panel-card-title">Platform Settings</span></div>
-          <div class="panel-card-body">
-            <form id="platformSettingsForm" style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
-              <div><label class="input-label">Site Name</label><input name="siteName" class="input-dark" placeholder="Bitegit" /></div>
-              <div><label class="input-label">Logo URL</label><input name="logoUrl" class="input-dark" placeholder="https://..." /></div>
-              <div><label class="input-label">Announcement Banner</label><input name="announcementBanner" class="input-dark" placeholder="Banner text..." /></div>
-              <div><label class="input-label">Referral Commission %</label><input name="referralCommissionPercent" type="number" step="0.01" class="input-dark" placeholder="5" /></div>
-              <div><label class="input-label">Signup Bonus (USDT)</label><input name="signupBonusUsdt" type="number" step="0.01" class="input-dark" placeholder="0" /></div>
-              <div><label class="input-label">SMTP Host</label><input name="smtpHost" class="input-dark" placeholder="smtp.gmail.com" /></div>
-              <div><label class="input-label">SMTP Port</label><input name="smtpPort" type="number" class="input-dark" placeholder="587" /></div>
-              <div><label class="input-label">SMTP Username</label><input name="smtpUser" class="input-dark" placeholder="user@gmail.com" /></div>
-              <div><label class="input-label">Maker Fee</label><input name="makerFee" type="number" step="0.0001" class="input-dark" placeholder="0.001" /></div>
-              <div><label class="input-label">Taker Fee</label><input name="takerFee" type="number" step="0.0001" class="input-dark" placeholder="0.001" /></div>
-              <div style="display:flex;flex-direction:column;gap:8px;">
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-1);cursor:pointer;"><input type="checkbox" name="maintenanceMode" /> Maintenance Mode</label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-1);cursor:pointer;"><input type="checkbox" name="spotEnabled" checked /> Spot Enabled</label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-1);cursor:pointer;"><input type="checkbox" name="p2pEnabled" checked /> P2P Enabled</label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-1);cursor:pointer;"><input type="checkbox" name="walletEnabled" checked /> Wallet Enabled</label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-1);cursor:pointer;"><input type="checkbox" name="referralsEnabled" checked /> Referrals Enabled</label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-1);cursor:pointer;"><input type="checkbox" name="supportEnabled" checked /> Support Enabled</label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-1);cursor:pointer;"><input type="checkbox" name="smtpSecure" /> SMTP Secure</label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-1);cursor:pointer;"><input type="checkbox" name="requireKycBeforeWithdrawal" checked /> KYC Required for Withdrawal</label>
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-950/80 text-slate-400">
+                    <tr>
+                      <th class="admin-th">Time</th>
+                      <th class="admin-th">Module</th>
+                      <th class="admin-th">Action</th>
+                      <th class="admin-th">Method</th>
+                      <th class="admin-th">Status</th>
+                      <th class="admin-th">Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody id="monitoringApiLogsBody"></tbody>
+                </table>
               </div>
-              <button type="submit" class="btn-primary" style="grid-column:1/-1;max-width:240px;">Save Settings</button>
-            </form>
-          </div>
-        </div>
-      </section>
+            </article>
+          </section>
 
-      <!-- ── MONITORING ── -->
-      <section class="admin-panel hidden" data-panel="monitoring">
-        <div class="stat-grid" id="monitoringCards"></div>
-        <div class="panel-card">
-          <div class="panel-card-header">
-            <span class="panel-card-title">API Request Logs</span>
-            <button id="monitoringReloadBtn" class="btn-secondary btn-sm">Reload</button>
-          </div>
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr>
-                <th class="admin-th">Time</th><th class="admin-th">Module</th>
-                <th class="admin-th">Action</th><th class="admin-th">Method</th>
-                <th class="admin-th">Status</th><th class="admin-th">Duration</th>
-              </tr></thead>
-              <tbody id="monitoringApiLogsBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+          <!-- Audit Logs Panel -->
+          <section class="admin-panel hidden" data-panel="audit">
+            <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Audit Logs</h3>
+                <button id="auditReloadBtn" class="btn-secondary">Reload</button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-950/80 text-slate-400">
+                    <tr>
+                      <th class="admin-th">Time</th>
+                      <th class="admin-th">Admin</th>
+                      <th class="admin-th">Module</th>
+                      <th class="admin-th">Action</th>
+                      <th class="admin-th">Status</th>
+                      <th class="admin-th">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody id="auditLogsBody"></tbody>
+                </table>
+              </div>
+            </article>
+          </section>
 
-      <!-- ── AUDIT LOGS ── -->
-      <section class="admin-panel hidden" data-panel="audit">
-        <div class="panel-card">
-          <div class="panel-card-header">
-            <span class="panel-card-title">Audit Logs</span>
-            <button id="auditReloadBtn" class="btn-secondary btn-sm">Reload</button>
-          </div>
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr>
-                <th class="admin-th">Time</th><th class="admin-th">Admin</th>
-                <th class="admin-th">Module</th><th class="admin-th">Action</th>
-                <th class="admin-th">Status</th><th class="admin-th">Reason</th>
-              </tr></thead>
-              <tbody id="auditLogsBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── ADMIN USERS ── -->
-      <section class="admin-panel hidden" data-panel="adminusers">
-        <div style="display:grid;gap:16px;grid-template-columns:340px 1fr;">
-          <div class="panel-card">
-            <div class="panel-card-header"><span class="panel-card-title">Create Admin</span></div>
-            <div class="panel-card-body">
-              <form id="createAdminForm" style="display:flex;flex-direction:column;gap:10px;">
-                <div><label class="input-label">Email</label><input name="email" type="email" class="input-dark" placeholder="admin@example.com" required /></div>
-                <div><label class="input-label">Username</label><input name="username" class="input-dark" placeholder="adminuser" required /></div>
-                <div><label class="input-label">Password</label><input name="password" type="password" class="input-dark" placeholder="Min 10 characters" required /></div>
-                <div><label class="input-label">Role</label>
+          <!-- Admin Users Panel (SUPER_ADMIN only) -->
+          <section class="admin-panel hidden" data-panel="adminusers">
+            <div class="grid gap-4 xl:grid-cols-[360px_1fr]">
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Create Admin Account</h3>
+                <form id="createAdminForm" class="space-y-3">
+                  <input name="email" type="email" class="input-dark" placeholder="Email address" required />
+                  <input name="username" class="input-dark" placeholder="Username" required />
+                  <input name="password" type="password" class="input-dark" placeholder="Password (min 10 chars)" required />
                   <select name="role" class="input-dark">
                     <option value="SUPPORT_ADMIN">Support Admin</option>
                     <option value="FINANCE_ADMIN">Finance Admin</option>
                     <option value="COMPLIANCE_ADMIN">Compliance Admin</option>
                     <option value="SUPER_ADMIN">Super Admin</option>
                   </select>
+                  <button type="submit" class="btn-primary w-full">Create Admin</button>
+                </form>
+              </article>
+
+              <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-panel">
+                <div class="mb-3 flex items-center justify-between">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Admin Accounts</h3>
+                  <button id="adminUsersReloadBtn" class="btn-secondary">Reload</button>
                 </div>
-                <button type="submit" class="btn-primary">Create Admin Account</button>
-              </form>
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-sm">
+                    <thead class="bg-slate-950/80 text-slate-400">
+                      <tr>
+                        <th class="admin-th">Email</th>
+                        <th class="admin-th">Username</th>
+                        <th class="admin-th">Role</th>
+                        <th class="admin-th">Status</th>
+                        <th class="admin-th">Last Login</th>
+                        <th class="admin-th">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="adminUsersTableBody"></tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <!-- User Profile Panel -->
+          <section class="admin-panel hidden" data-panel="user-profile">
+            <div class="mb-4 flex items-center gap-3">
+              <button id="userProfileBackBtn" class="btn-secondary flex items-center gap-1">
+                ← Back to Users
+              </button>
+              <h2 class="text-lg font-semibold" id="userProfileTitle">User Profile</h2>
+            </div>
+
+            <!-- Top Info Cards -->
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-4" id="userProfileCards"></div>
+
+            <!-- Tabs -->
+            <div class="flex gap-1 flex-wrap mb-4 border-b border-slate-800 pb-2" id="userProfileTabs">
+              <button class="profile-tab active" data-tab="overview">Overview</button>
+              <button class="profile-tab" data-tab="wallet">Wallet</button>
+              <button class="profile-tab" data-tab="kyc">KYC</button>
+              <button class="profile-tab" data-tab="trades">Trades</button>
+              <button class="profile-tab" data-tab="deposits">Deposits</button>
+              <button class="profile-tab" data-tab="withdrawals">Withdrawals</button>
+              <button class="profile-tab" data-tab="p2p">P2P Orders</button>
+              <button class="profile-tab" data-tab="actions">Actions</button>
+            </div>
+
+            <!-- Tab Content -->
+            <div id="userProfileContent">
+              <!-- Overview Tab -->
+              <div class="profile-tab-content" data-content="overview">
+                <div class="grid gap-4 xl:grid-cols-2">
+                  <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                    <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">Account Info</h3>
+                    <dl class="space-y-3 text-sm" id="profileAccountInfo"></dl>
+                  </article>
+                  <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                    <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">Security & Activity</h3>
+                    <dl class="space-y-3 text-sm" id="profileSecurityInfo"></dl>
+                  </article>
+                </div>
+              </div>
+
+              <!-- Wallet Tab -->
+              <div class="profile-tab-content hidden" data-content="wallet">
+                <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                  <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">Wallet Balances</h3>
+                  <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                      <thead class="bg-slate-950/80 text-slate-400">
+                        <tr>
+                          <th class="admin-th">Coin</th>
+                          <th class="admin-th text-right">Available Balance</th>
+                          <th class="admin-th text-right">Locked Balance</th>
+                          <th class="admin-th text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody id="profileWalletTable"></tbody>
+                    </table>
+                  </div>
+                </article>
+              </div>
+
+              <!-- KYC Tab -->
+              <div class="profile-tab-content hidden" data-content="kyc">
+                <div class="grid gap-4 xl:grid-cols-2">
+                  <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                    <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">KYC Status</h3>
+                    <dl class="space-y-3 text-sm" id="profileKycInfo"></dl>
+                  </article>
+                  <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                    <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">KYC Actions</h3>
+                    <div class="space-y-3">
+                      <select id="profileKycAction" class="input-dark">
+                        <option value="APPROVED">Approve KYC</option>
+                        <option value="REJECTED">Reject KYC</option>
+                        <option value="PENDING">Set Pending</option>
+                      </select>
+                      <textarea id="profileKycNote" class="input-dark" rows="3" placeholder="Review note (optional)"></textarea>
+                      <button id="profileKycSubmit" class="btn-primary w-full">Submit KYC Review</button>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <!-- Trades Tab -->
+              <div class="profile-tab-content hidden" data-content="trades">
+                <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                  <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">Trade History</h3>
+                  <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                      <thead class="bg-slate-950/80 text-slate-400">
+                        <tr>
+                          <th class="admin-th">Order ID</th>
+                          <th class="admin-th">Pair</th>
+                          <th class="admin-th">Side</th>
+                          <th class="admin-th">Type</th>
+                          <th class="admin-th text-right">Amount</th>
+                          <th class="admin-th text-right">Price</th>
+                          <th class="admin-th">Status</th>
+                          <th class="admin-th">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody id="profileTradesTable"></tbody>
+                    </table>
+                  </div>
+                </article>
+              </div>
+
+              <!-- Deposits Tab -->
+              <div class="profile-tab-content hidden" data-content="deposits">
+                <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                  <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">Deposit History</h3>
+                  <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                      <thead class="bg-slate-950/80 text-slate-400">
+                        <tr>
+                          <th class="admin-th">ID</th>
+                          <th class="admin-th">Coin</th>
+                          <th class="admin-th">Network</th>
+                          <th class="admin-th text-right">Amount</th>
+                          <th class="admin-th">Status</th>
+                          <th class="admin-th">TxHash</th>
+                          <th class="admin-th">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody id="profileDepositsTable"></tbody>
+                    </table>
+                  </div>
+                </article>
+              </div>
+
+              <!-- Withdrawals Tab -->
+              <div class="profile-tab-content hidden" data-content="withdrawals">
+                <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                  <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">Withdrawal History</h3>
+                  <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                      <thead class="bg-slate-950/80 text-slate-400">
+                        <tr>
+                          <th class="admin-th">ID</th>
+                          <th class="admin-th">Coin</th>
+                          <th class="admin-th">Network</th>
+                          <th class="admin-th text-right">Amount</th>
+                          <th class="admin-th">Address</th>
+                          <th class="admin-th">Status</th>
+                          <th class="admin-th">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody id="profileWithdrawalsTable"></tbody>
+                    </table>
+                  </div>
+                </article>
+              </div>
+
+              <!-- P2P Tab -->
+              <div class="profile-tab-content hidden" data-content="p2p">
+                <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                  <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">P2P Orders</h3>
+                  <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                      <thead class="bg-slate-950/80 text-slate-400">
+                        <tr>
+                          <th class="admin-th">Order ID</th>
+                          <th class="admin-th">Type</th>
+                          <th class="admin-th">Coin</th>
+                          <th class="admin-th text-right">Amount</th>
+                          <th class="admin-th text-right">Price</th>
+                          <th class="admin-th">Status</th>
+                          <th class="admin-th">Counterparty</th>
+                          <th class="admin-th">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody id="profileP2PTable"></tbody>
+                    </table>
+                  </div>
+                </article>
+              </div>
+
+              <!-- Actions Tab -->
+              <div class="profile-tab-content hidden" data-content="actions">
+                <div class="grid gap-4 xl:grid-cols-3">
+                  <!-- Adjust Balance -->
+                  <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                    <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">Adjust Balance</h3>
+                    <form id="profileAdjustForm" class="space-y-3">
+                      <select name="coin" class="input-dark">
+                        <option value="USDT">USDT</option>
+                        <option value="BTC">BTC</option>
+                        <option value="ETH">ETH</option>
+                        <option value="BNB">BNB</option>
+                        <option value="SOL">SOL</option>
+                      </select>
+                      <input name="amount" type="number" step="any" class="input-dark" placeholder="Amount (negative to deduct)" required />
+                      <input name="reason" class="input-dark" placeholder="Reason" required />
+                      <button type="submit" class="btn-primary w-full">Adjust Balance</button>
+                    </form>
+                  </article>
+                  <!-- Reset Password -->
+                  <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                    <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">Reset Password</h3>
+                    <form id="profileResetPassForm" class="space-y-3">
+                      <input name="newPassword" type="password" class="input-dark" placeholder="New password (min 8 chars)" required />
+                      <button type="submit" class="btn-danger w-full">Reset Password</button>
+                    </form>
+                  </article>
+                  <!-- Account Status -->
+                  <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-panel">
+                    <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-300">Account Status</h3>
+                    <div class="space-y-3">
+                      <p class="text-xs text-slate-400">Current: <span id="profileCurrentStatus" class="font-semibold text-slate-200">-</span></p>
+                      <input id="profileStatusReason" class="input-dark" placeholder="Reason (optional)" />
+                      <button id="profileFreezeBtn" class="btn-secondary w-full">Freeze Account</button>
+                      <button id="profileUnfreezeBtn" class="btn-secondary w-full">Unfreeze Account</button>
+                      <button id="profileBanBtn" class="btn-danger w-full">Ban Account</button>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </main>
+    </div>
+
+    <!-- KYC Documents Modal -->
+    <div id="kycDocModal" style="display:none;position:fixed;inset:0;z-index:9000;align-items:center;justify-content:center;background:rgba(2,6,23,0.85);backdrop-filter:blur(4px);padding:1rem">
+      <div class="w-full max-w-4xl rounded-2xl border border-slate-700 bg-slate-900 shadow-panel overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+          <div>
+            <h3 class="font-semibold text-slate-100">KYC Documents</h3>
+            <p class="text-xs text-slate-400 mt-0.5" id="kycDocModalMeta">-</p>
+          </div>
+          <button id="kycDocModalClose" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs hover:border-slate-500">Close</button>
+        </div>
+        <div class="p-5">
+          <div class="grid gap-4 sm:grid-cols-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Aadhaar Front</p>
+              <div id="kycDocAadhaarContainer" class="rounded-lg border border-slate-700 bg-slate-950 overflow-hidden min-h-[240px] flex items-center justify-center">
+                <p class="text-sm text-slate-500">Loading...</p>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Aadhaar Back</p>
+              <div id="kycDocAadhaarBackContainer" class="rounded-lg border border-slate-700 bg-slate-950 overflow-hidden min-h-[240px] flex items-center justify-center">
+                <p class="text-sm text-slate-500">Loading...</p>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Selfie with Document</p>
+              <div id="kycDocSelfieContainer" class="rounded-lg border border-slate-700 bg-slate-950 overflow-hidden min-h-[240px] flex items-center justify-center">
+                <p class="text-sm text-slate-500">Loading...</p>
+              </div>
             </div>
           </div>
-          <div class="panel-card">
-            <div class="panel-card-header">
-              <span class="panel-card-title">Admin Accounts</span>
-              <button id="adminUsersReloadBtn" class="btn-secondary btn-sm">Reload</button>
-            </div>
-            <div class="admin-table-wrap">
-              <table class="admin-table">
-                <thead><tr>
-                  <th class="admin-th">Email</th><th class="admin-th">Username</th>
-                  <th class="admin-th">Role</th><th class="admin-th">Status</th>
-                  <th class="admin-th">2FA</th><th class="admin-th">Last Login</th>
-                  <th class="admin-th">Actions</th>
-                </tr></thead>
-                <tbody id="adminUsersTableBody"></tbody>
-              </table>
-            </div>
+          <div class="mt-4 flex items-center gap-3">
+            <span class="text-xs text-slate-400">Status: <span id="kycDocStatus" class="font-semibold">-</span></span>
+            <span class="text-xs text-slate-400">|</span>
+            <span class="text-xs text-slate-400">Aadhaar: <span id="kycDocAadhaar" class="font-semibold">-</span></span>
           </div>
-        </div>
-      </section>
-
-    </div><!-- /admin-body -->
-  </div><!-- /admin-main -->
-</div><!-- /admin-layout -->
-
-<!-- ══════════ KYC DOCUMENT MODAL ══════════ -->
-<div id="kycDocModal" class="modal-overlay hidden">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div>
-        <div class="modal-title">KYC Documents</div>
-        <div id="kycDocModalMeta" style="font-size:12px;color:var(--text-2);margin-top:3px;"></div>
-      </div>
-      <button id="kycDocModalClose" class="btn-secondary btn-sm">✕ Close</button>
-    </div>
-    <div class="modal-body">
-      <div style="display:grid;gap:16px;grid-template-columns:1fr 1fr;">
-        <div>
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);margin-bottom:8px;">Aadhaar Front</div>
-          <div id="kycDocAadhaarContainer" style="border-radius:10px;border:1px solid var(--border);background:var(--bg-input);min-height:220px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>
-        </div>
-        <div>
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-2);margin-bottom:8px;">Selfie with Document</div>
-          <div id="kycDocSelfieContainer" style="border-radius:10px;border:1px solid var(--border);background:var(--bg-input);min-height:220px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>
+          <div class="mt-4 flex gap-3" id="kycDocActions"></div>
         </div>
       </div>
-      <div style="margin-top:14px;padding:12px;background:var(--bg-card2);border-radius:8px;display:flex;gap:20px;flex-wrap:wrap;">
-        <span style="font-size:12px;color:var(--text-2);">Status: <strong id="kycDocStatus" style="color:var(--text-1);">-</strong></span>
-        <span style="font-size:12px;color:var(--text-2);">Aadhaar: <strong id="kycDocAadhaar" style="color:var(--text-1);font-family:monospace;">-</strong></span>
-      </div>
-      <div id="kycDocActions" style="display:flex;gap:8px;margin-top:14px;"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════
-     USER PROFILE DRAWER
-     ═══════════════════════════════════════════ -->
-<div id="userProfileOverlay" class="hidden" style="position:fixed;top:0;left:0;right:560px;bottom:0;background:rgba(0,0,0,0.65);z-index:10000;"></div>
-
-<aside id="userProfileDrawer" style="position:fixed;top:0;right:-580px;width:560px;max-width:100vw;height:100vh;background:var(--bg-sidebar);border-left:1px solid var(--border);z-index:10001;display:flex;flex-direction:column;transition:right 0.3s cubic-bezier(.4,0,.2,1);overflow:hidden;">
-
-  <!-- Drawer Header -->
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg-card);">
-    <div>
-      <div style="font-size:15px;font-weight:700;color:var(--text-1);" id="upEmail">User Profile</div>
-      <div style="font-size:11px;color:var(--accent);font-family:monospace;margin-top:3px;" id="upUserId">-</div>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <span id="upStatusBadge"></span>
-      <button id="upCloseBtn" style="background:none;border:none;color:var(--text-2);cursor:pointer;font-size:22px;line-height:1;padding:4px 8px;">✕</button>
-    </div>
-  </div>
-
-  <!-- Tabs -->
-  <div id="upTabBar" style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg-card);overflow-x:auto;">
-    <button class="up-tab active" data-up-tab="overview">Overview</button>
-    <button class="up-tab" data-up-tab="balance">Balance</button>
-    <button class="up-tab" data-up-tab="kyc">KYC</button>
-    <button class="up-tab" data-up-tab="logins">Login History</button>
-    <button class="up-tab" data-up-tab="devices">Devices</button>
-    <button class="up-tab" data-up-tab="actions" style="color:var(--red);">Actions</button>
-  </div>
-
-  <!-- Tab Body -->
-  <div style="flex:1;overflow-y:auto;padding:16px 18px;">
-
-    <!-- OVERVIEW -->
-    <div id="upTab-overview" class="up-tab-panel">
-      <div id="upOverviewContent"><div style="color:var(--text-2);text-align:center;padding:30px;">Loading…</div></div>
     </div>
 
-    <!-- BALANCE -->
-    <div id="upTab-balance" class="up-tab-panel hidden">
-      <div id="upBalanceContent"><div style="color:var(--text-2);text-align:center;padding:30px;">Loading…</div></div>
-    </div>
-
-    <!-- KYC -->
-    <div id="upTab-kyc" class="up-tab-panel hidden">
-      <div id="upKycContent"><div style="color:var(--text-2);text-align:center;padding:30px;">Loading…</div></div>
-    </div>
-
-    <!-- LOGIN HISTORY -->
-    <div id="upTab-logins" class="up-tab-panel hidden">
-      <div id="upLoginsContent"><div style="color:var(--text-2);text-align:center;padding:30px;">Loading…</div></div>
-    </div>
-
-    <!-- DEVICES -->
-    <div id="upTab-devices" class="up-tab-panel hidden">
-      <div id="upDevicesContent"><div style="color:var(--text-2);text-align:center;padding:30px;">Loading…</div></div>
-    </div>
-
-    <!-- ACTIONS -->
-    <div id="upTab-actions" class="up-tab-panel hidden">
-      <div style="display:flex;flex-direction:column;gap:14px;">
-
-        <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:1px;">Account Control</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <button class="btn-secondary" onclick="upAction('freeze')" style="padding:11px;gap:6px;display:flex;align-items:center;justify-content:center;">🔒 Freeze Account</button>
-          <button class="btn-secondary" onclick="upAction('unfreeze')" style="padding:11px;gap:6px;display:flex;align-items:center;justify-content:center;">🔓 Unfreeze Account</button>
-          <button class="btn-danger"    onclick="upAction('ban')"     style="padding:11px;gap:6px;display:flex;align-items:center;justify-content:center;">🚫 Ban User</button>
-          <button class="btn-secondary" onclick="upAction('force-logout')" style="padding:11px;gap:6px;display:flex;align-items:center;justify-content:center;">↩ Force Logout</button>
+    <!-- Inline Remarks Modal (replaces window.prompt) -->
+    <div id="remarksModal" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:rgba(2,6,23,0.85);backdrop-filter:blur(4px);padding:1rem">
+      <div class="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 shadow-panel p-5">
+        <h3 class="font-semibold text-slate-100 mb-1" id="remarksModalTitle">Add Remarks</h3>
+        <p class="text-xs text-slate-400 mb-3" id="remarksModalDesc">Optional</p>
+        <input id="remarksModalInput" class="input-dark mb-4" placeholder="Enter remarks (optional)" />
+        <div class="flex gap-2 justify-end">
+          <button id="remarksModalCancel" class="btn-secondary">Cancel</button>
+          <button id="remarksModalOk" class="btn-primary">Confirm</button>
         </div>
-
-        <div style="border-top:1px solid var(--border);padding-top:14px;">
-          <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Balance Adjustment</div>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <div style="display:flex;gap:8px;">
-              <select id="upAdjustType" class="input-dark" style="width:130px;height:36px;padding:4px 10px;font-size:12px;">
-                <option value="ADD">➕ Add</option>
-                <option value="SUBTRACT">➖ Subtract</option>
-              </select>
-              <input id="upAdjustAmount" class="input-dark" type="number" min="0" step="0.0001" placeholder="Amount (USDT)" style="flex:1;height:36px;" />
-            </div>
-            <input id="upAdjustReason" class="input-dark" placeholder="Reason for adjustment…" style="height:36px;" />
-            <button class="btn-primary" onclick="upAction('adjust')" style="padding:11px;">✅ Apply Adjustment</button>
-          </div>
-        </div>
-
-        <div style="border-top:1px solid var(--border);padding-top:14px;">
-          <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Reset Password</div>
-          <div style="display:flex;gap:8px;">
-            <input id="upNewPassword" class="input-dark" type="text" placeholder="New password (min 8 chars)" style="flex:1;height:36px;" />
-            <button class="btn-danger" onclick="upAction('reset')" style="padding:10px 16px;">Reset</button>
-          </div>
-        </div>
-
       </div>
     </div>
 
-  </div>
-</aside>
-
-<script src="/admin-dashboard.js"></script>
-</body>
+    <script src="/admin-dashboard.js?v=2026032301"></script>
+  </body>
 </html>

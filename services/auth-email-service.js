@@ -107,19 +107,21 @@ function resolveTransportConfig() {
     });
   }
 
+  const providers = [];
+
   if (resendApiKey && resendFromEmail) {
-    return {
+    providers.push({
       provider: 'resend',
       resendApiKey,
       fromEmail: resendFromEmail
-    };
+    });
   }
 
   if (smtpHost && smtpUser && smtpPass) {
     const parsedPort = Number.parseInt(smtpPortRaw || '587', 10);
     const smtpPort = Number.isFinite(parsedPort) ? parsedPort : 587;
     const secure = smtpSecureRaw ? smtpSecureRaw === 'true' : smtpPort === 465;
-    return {
+    providers.push({
       provider: 'smtp',
       transporter: nodemailer.createTransport({
         host: smtpHost,
@@ -131,11 +133,11 @@ function resolveTransportConfig() {
         }
       }),
       fromEmail: smtpFromEmail || smtpUser
-    };
+    });
   }
 
   if (gmailUser && gmailAppPassword) {
-    return {
+    providers.push({
       provider: 'gmail',
       transporter: nodemailer.createTransport({
         service: 'gmail',
@@ -145,57 +147,70 @@ function resolveTransportConfig() {
         }
       }),
       fromEmail: gmailUser
-    };
+    });
   }
 
-  return { provider: 'none', fromEmail: '' };
+  return { providers };
 }
 
 async function sendViaProvider({ to, subject, text, html }) {
   const cfg = resolveTransportConfig();
-  if (cfg.provider === 'none' || !cfg.fromEmail) {
+  if (!cfg.providers || cfg.providers.length === 0) {
     return { delivered: false, reason: 'missing_email_provider_config' };
   }
 
-  if (cfg.provider === 'resend') {
-    try {
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${cfg.resendApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: cfg.fromEmail,
-          to: [to],
-          subject,
-          html,
-          text
-        })
-      });
+  let lastReason = 'delivery_failed';
+  for (const provider of cfg.providers) {
+    if (!provider || !provider.fromEmail) {
+      lastReason = 'missing_email_provider_config';
+      continue;
+    }
 
-      if (response.ok) {
-        return { delivered: true, reason: 'sent_via_resend' };
+    if (provider.provider === 'resend') {
+      try {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${provider.resendApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: provider.fromEmail,
+            to: [to],
+            subject,
+            html,
+            text
+          })
+        });
+
+        if (response.ok) {
+          return { delivered: true, reason: 'sent_via_resend' };
+        }
+        const errorText = await response.text();
+        lastReason = `resend_error:${errorText}`;
+        continue;
+      } catch (error) {
+        lastReason = `resend_error:${error.message}`;
+        continue;
       }
-      const errorText = await response.text();
-      return { delivered: false, reason: `resend_error:${errorText}` };
+    }
+
+    try {
+      await provider.transporter.sendMail({
+        from: provider.fromEmail,
+        to,
+        subject,
+        text,
+        html
+      });
+      return { delivered: true, reason: `sent_via_${provider.provider}` };
     } catch (error) {
-      return { delivered: false, reason: `resend_error:${error.message}` };
+      lastReason = `smtp_error:${error.message}`;
+      continue;
     }
   }
 
-  try {
-    await cfg.transporter.sendMail({
-      from: cfg.fromEmail,
-      to,
-      subject,
-      text,
-      html
-    });
-    return { delivered: true, reason: `sent_via_${cfg.provider}` };
-  } catch (error) {
-    return { delivered: false, reason: `smtp_error:${error.message}` };
-  }
+  return { delivered: false, reason: lastReason };
 }
 
 function createOtpTemplate({ title, code, expiresInMinutes, note }) {
@@ -349,6 +364,11 @@ function createAuthEmailService() {
   };
 }
 
+async function sendRawEmail({ to, subject, html, text }) {
+  return sendViaProvider({ to, subject, html, text: text || subject });
+}
+
 module.exports = {
-  createAuthEmailService
+  createAuthEmailService,
+  sendRawEmail
 };

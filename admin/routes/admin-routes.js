@@ -172,55 +172,9 @@ function registerAdminRoutes(app, deps) {
         return res.status(400).json({ message: 'userId is required' });
       }
       const data = await adminStore.getKycDocuments(userId);
-      // Return metadata only (no base64 blobs) — images served via /kyc/image/:type
-      return res.json({
-        userId: data.userId,
-        status: data.status,
-        aadhaarLast4: data.aadhaarLast4,
-        aadhaarMasked: data.aadhaarMasked,
-        submittedAt: data.submittedAt,
-        hasAadhaarFront: !!data.aadhaarFront,
-        hasSelfie: !!data.selfie,
-        // Include actual data for backward-compat (admin may use it)
-        aadhaarFront: data.aadhaarFront || null,
-        selfie: data.selfie || null
-      });
+      return res.json(data);
     })
   );
-
-  // Serve KYC images as binary — more reliable than base64 in JSON
-  router.get(
-    '/users/:userId/kyc/image/:type',
-    protect(ROLE_GROUPS.COMPLIANCE),
-    async (req, res) => {
-      const userId = safeString(req.params.userId);
-      const type   = safeString(req.params.type); // 'aadhaar' | 'selfie'
-      if (!userId || !['aadhaar','selfie'].includes(type)) {
-        return res.status(400).json({ message: 'Invalid request' });
-      }
-      try {
-        const data = await adminStore.getKycDocuments(userId);
-        const raw = type === 'aadhaar' ? data.aadhaarFront : data.selfie;
-        if (!raw) return res.status(404).json({ message: 'Image not found' });
-
-        // raw is a data URL: "data:image/jpeg;base64,..."
-        const match = String(raw).match(/^data:([^;]+);base64,(.+)$/s);
-        if (match) {
-          const mimeType = match[1] || 'image/jpeg';
-          const buffer   = Buffer.from(match[2], 'base64');
-          res.setHeader('Content-Type', mimeType);
-          res.setHeader('Cache-Control', 'private, max-age=300');
-          return res.send(buffer);
-        }
-        // Fallback: send as-is
-        res.setHeader('Content-Type', 'text/plain');
-        return res.send(raw);
-      } catch (err) {
-        return res.status(500).json({ message: 'Failed to load image: ' + (err.message || 'Unknown') });
-      }
-    }
-  );
-
   router.post('/users/:userId/kyc/review', protect(ROLE_GROUPS.COMPLIANCE), withLogging({ module: 'users', action: 'review_user_kyc' }, adminControllers.reviewUserKyc));
 
   // -------------------------
@@ -251,6 +205,7 @@ function registerAdminRoutes(app, deps) {
   router.post('/p2p/ads/:offerId/review', protect(ROLE_GROUPS.OPS), withLogging({ module: 'p2p', action: 'review_ad' }, adminControllers.reviewP2PAd));
   router.get('/p2p/disputes', protect(ROLE_GROUPS.COMPLIANCE), withLogging({ module: 'p2p', action: 'list_disputes' }, adminControllers.listP2PDisputes));
   router.post('/p2p/orders/:orderId/release', protect(ROLE_GROUPS.OPS), withLogging({ module: 'p2p', action: 'manual_release_escrow' }, adminControllers.manualReleaseP2POrder));
+  router.post('/p2p/orders/:orderId/cancel', protect(ROLE_GROUPS.OPS), withLogging({ module: 'p2p', action: 'manual_cancel_order' }, adminControllers.manualCancelP2POrder));
   router.post('/p2p/orders/:orderId/freeze', protect(ROLE_GROUPS.COMPLIANCE), withLogging({ module: 'p2p', action: 'freeze_escrow' }, adminControllers.freezeEscrow));
   router.get('/p2p/settings', protect(ROLE_GROUPS.OPS), withLogging({ module: 'p2p', action: 'get_p2p_settings' }, adminControllers.getP2PSettings));
   router.put('/p2p/settings', protect(ROLE_GROUPS.OPS), withLogging({ module: 'p2p', action: 'update_p2p_settings' }, adminControllers.updateP2PSettings));
@@ -278,7 +233,6 @@ function registerAdminRoutes(app, deps) {
   // Support System
   // -------------------------
   router.get('/support/tickets', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'list_tickets' }, adminControllers.listSupportTickets));
-  router.get('/support/tickets/:ticketId', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'get_ticket', audit: false }, adminControllers.getSupportTicket));
   router.post('/support/tickets/:ticketId/reply', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'reply_ticket' }, adminControllers.replySupportTicket));
   router.patch('/support/tickets/:ticketId/status', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'update_ticket_status' }, adminControllers.updateSupportTicketStatus));
   router.patch('/support/tickets/:ticketId/assign', protect(ROLE_GROUPS.SUPER), withLogging({ module: 'support', action: 'assign_ticket' }, adminControllers.assignSupportTicket));

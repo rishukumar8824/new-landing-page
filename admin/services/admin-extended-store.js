@@ -288,9 +288,8 @@ function createAdminExtendedStore({ collections }) {
       return { history: items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
     }
 
-    // Fallback to audit logs (safeCol only — no throw)
-    const auditColl = safeCol('audit_logs') || safeCol('admin_audit_logs');
-    if (!auditColl) return { history: [], pagination: { page, limit, total: 0, pages: 0 } };
+    // Fallback to audit logs
+    const auditColl = safeCol('audit_logs') || col('admin_audit_logs');
     const filter = { 'metadata.userId': userId };
     const [items, total] = await Promise.all([
       auditColl.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),

@@ -1,22 +1,64 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --cf-bg: #05080d;
-  --cf-bg-soft: #0b1019;
-  --cf-panel: #101722;
-  --cf-panel-2: #111b2a;
-  --cf-line: rgba(201, 220, 255, 0.16);
-  --cf-text: #f4f8ff;
-  --cf-muted: #95a3bc;
-  --cf-brand: #8bf300;
-  --cf-brand-soft: rgba(139, 243, 0, 0.15);
-  --cf-green: #19d27f;
-  --cf-red: #ff5f82;
-  --cf-shadow: 0 20px 56px rgba(0, 0, 0, 0.38);
+  /* ── Core Palette ── */
+  --cf-bg:         #000000;
+  --cf-bg-soft:    #000000;
+  --cf-panel:      #000000;
+  --cf-panel-2:    #000000;
+  --cf-panel-glass: #0d0d0d;
+
+  /* ── Brand / Accent ── */
+  --cf-brand:      #00FFD6;
+  --cf-brand-2:    #00D4FF;
+  --cf-brand-glow: rgba(0, 255, 214, 0.40);
+  --cf-brand-soft: rgba(0, 255, 214, 0.15);
+  --cf-brand-grad: linear-gradient(135deg, #00FFD6 0%, #00D4FF 100%);
+
+  /* ── Text ── */
+  --cf-text:       #FFFFFF;
+  --cf-text-2:     #E8F0FA;
+  --cf-muted:      #7A8BA8;
+
+  /* ── Borders ── */
+  --cf-line:       transparent;
+  --cf-line-soft:  transparent;
+
+  /* ── Status ── */
+  --cf-green:      #00E887;
+  --cf-red:        #FF4D6D;
+
+  /* ── Shadows ── */
+  --cf-shadow:     0 16px 48px rgba(0, 0, 0, 0.55);
+  --cf-glow:       0 0 20px rgba(0, 255, 214, 0.22), 0 0 40px rgba(0, 255, 214, 0.08);
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* ── Global gradient button override ── */
+.coinflare-page button[class*="active"],
+.coinflare-page .cf-hot-market-tabs button.active,
+.coinflare-page .cf-market-tabs button.active,
+.coinflare-page .cf-gate-market-tabs button.active,
+.coinflare-page .cf-mode-switch button.active,
+.coinflare-page .cf-fullmkt-subtabs button.active {
+  background: linear-gradient(135deg, #00FFD6 0%, #00D4FF 100%) !important;
+  color: #000 !important;
+  border-color: transparent !important;
+  box-shadow: 0 0 12px rgba(0,255,214,0.4), 0 2px 8px rgba(0,0,0,0.25) !important;
+  font-weight: 800 !important;
+}
+
+.coinflare-page .cf-fullmkt-viewall {
+  background: linear-gradient(135deg, #00FFD6 0%, #00D4FF 100%) !important;
+  color: #000 !important;
+  border-color: transparent !important;
+  box-shadow: 0 0 12px rgba(0,255,214,0.35) !important;
+  font-weight: 800 !important;
+  border-radius: 999px !important;
+  padding: 0.5rem 1.5rem !important;
 }
 
 html,
@@ -26,14 +68,16 @@ body {
   width: 100%;
   overflow-x: hidden;
   overscroll-behavior-x: none;
+  background: #000000;
 }
 
 body.coinflare-page {
   min-height: 100vh;
   font-family: 'Manrope', 'Segoe UI', sans-serif;
   color: var(--cf-text);
-  background: #000;
+  background: #000000;
   position: relative;
+  padding-top: 38px;
 }
 
 body.coinflare-page.cf-nav-open {
@@ -81,40 +125,82 @@ a {
 }
 
 .cf-bg-grid {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: -1;
-  background-image: linear-gradient(rgba(139, 243, 0, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(139, 243, 0, 0.06) 1px, transparent 1px);
-  background-size: 84px 84px;
-  opacity: 0;
+  display: none;
 }
 
 .cf-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 60;
-  border-bottom: 1px solid var(--cf-line);
-  backdrop-filter: blur(14px);
-  background: rgba(6, 10, 15, 0.92);
+  border-bottom: none;
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: rgba(11, 15, 20, 0.82);
+  box-shadow: 0 1px 0 rgba(0,255,214,0.08), 0 4px 24px rgba(0,0,0,0.4);
 }
 
 .cf-header-inner {
   width: min(1280px, 100% - 1rem);
   margin: 0 auto;
-  min-height: 64px;
+  min-height: 38px;
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
 .cf-brand {
-  font-size: clamp(1.05rem, 2vw, 1.45rem);
-  font-weight: 800;
-  color: var(--cf-brand);
   text-decoration: none;
-  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.cf-brand-mark {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.45rem;
+  background: linear-gradient(135deg, #00FFD6 0%, #00D4FF 100%);
+  box-shadow: 0 0 12px rgba(0,255,214,0.5), 0 0 24px rgba(0,255,214,0.2);
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.cf-brand-mark::before,
+.cf-brand-mark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border-radius: 999px;
+}
+
+.cf-brand-mark::before {
+  width: 0.88rem;
+  height: 0.88rem;
+  background: rgba(6, 11, 18, 0.92);
+}
+
+.cf-brand-mark::after {
+  width: 0.4rem;
+  height: 0.4rem;
+  background: #00FFD6;
+  transform: translate(0.46rem, -0.44rem);
+}
+
+.cf-brand-word,
+.cf-drawer-brand span:last-child {
+  font-size: clamp(0.9rem, 2vw, 1.2rem);
+  font-weight: 800;
+  color: var(--cf-text);
+  letter-spacing: -0.03em;
+}
+
+.cf-drawer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
 }
 
 .cf-nav {
@@ -147,14 +233,14 @@ a {
 .cf-signup,
 .cf-signup-link,
 .cf-apk-cta {
-  min-height: 36px;
+  min-height: 30px;
   border-radius: 999px;
-  padding: 0 0.85rem;
+  padding: 0 0.7rem;
   border: 1px solid var(--cf-line);
   background: transparent;
   color: var(--cf-text);
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -166,9 +252,24 @@ a {
 .cf-signup,
 .cf-signup-link,
 .cf-apk-cta {
-  background: var(--cf-brand);
-  border-color: transparent;
-  color: #091108;
+  background: linear-gradient(135deg, #00FFD6 0%, #00D4FF 100%) !important;
+  border-color: transparent !important;
+  color: #000 !important;
+  font-weight: 800 !important;
+  margin-top: 4px;
+  box-shadow: 0 0 14px rgba(0,255,214,0.45), 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+
+.cf-user-logout {
+  min-height: 36px;
+  border-radius: 999px;
+  padding: 0 0.95rem;
+  border: none;
+  background: rgba(255, 109, 134, 0.08);
+  color: #ffd4dc;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
 }
 
 .cf-login:hover,
@@ -184,21 +285,21 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-nav-toggle {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
   border: 1px solid var(--cf-line);
-  background: #0f1622;
+  background: #0d0d0d;
   display: inline-flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
-  padding: 0 10px;
+  gap: 3px;
+  padding: 0 5px;
   cursor: pointer;
 }
 
 .cf-nav-toggle span {
-  height: 2px;
+  height: 1.5px;
   border-radius: 999px;
   background: #d7e0ef;
 }
@@ -219,7 +320,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   height: 100dvh;
   padding: 1rem;
   border-left: 1px solid var(--cf-line);
-  background: #0d141f;
+  background: #0d0d0d;
   transform: translateX(102%);
   transition: transform 0.24s ease;
   display: grid;
@@ -273,7 +374,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 
 .cf-nav-drawer-links a:hover {
   border-color: var(--cf-line);
-  background: #121a27;
+  background: #000;
 }
 
 .cf-nav-drawer-actions {
@@ -302,7 +403,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   width: min(430px, calc(100% - 1.1rem));
   border-radius: 16px;
   border: 1px solid var(--cf-line);
-  background: linear-gradient(180deg, #101925, #0b121c);
+  background: linear-gradient(180deg, #0d0d0d, #080808);
   box-shadow: 0 22px 54px rgba(0, 0, 0, 0.5);
   padding: 1rem;
   display: grid;
@@ -324,11 +425,18 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   width: 100%;
   min-height: 46px;
   border-radius: 11px;
-  border: 1px solid var(--cf-line);
-  background: #0a111a;
+  border: none;
+  outline: none;
+  background: #111;
   color: #f0f6ff;
   padding: 0 0.84rem;
   font-size: 0.94rem;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.cf-signup-modal-card input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 229, 196, 0.4);
 }
 
 .cf-signup-modal-message {
@@ -360,40 +468,47 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-signup-modal-actions button:first-child {
-  background: var(--cf-brand);
-  color: #071004;
+  background: linear-gradient(135deg, #00FFD6 0%, #00D4FF 100%);
+  color: #000;
+  box-shadow: 0 0 14px rgba(0,255,214,0.45), 0 2px 8px rgba(0,0,0,0.3);
 }
 
 .cf-signup-modal-actions button.secondary {
   border: 1px solid var(--cf-line);
-  background: #0f1623;
+  background: #0d0d0d;
   color: #edf5ff;
 }
 
 .cf-main {
-  width: min(1280px, 100% - 1rem);
-  margin: 1rem auto 0;
+  width: 100%;
+  margin: 0 auto;
   display: grid;
-  gap: clamp(2rem, 5vw, 4rem);
-  overflow-x: clip;
+  gap: 0;
+  overflow-x: hidden;
 }
 
 .cf-main section,
 .cf-footer {
-  border: 1px solid var(--cf-line);
-  background: #000;
-  border-radius: 20px;
-  box-shadow: var(--cf-shadow);
+  border: none;
+  background: #000000;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .cf-hero-video-section {
   position: relative;
+  width: 100%;
   min-height: 54vh;
   overflow: hidden;
   isolation: isolate;
   display: grid;
   place-items: center;
   padding: 0;
+  margin: 0;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent;
 }
 
 .cf-hero-video {
@@ -402,8 +517,9 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: brightness(1.15) contrast(1.05);
-  transform: scale(1.02);
+  object-position: center center;
+  filter: brightness(1.2) contrast(1.1);
+  transform: scale(1.0);
   z-index: 1;
   border: 0;
   outline: 0;
@@ -440,12 +556,12 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   border-radius: 999px;
   padding: 0.75rem 1.35rem;
   background: var(--cf-brand);
-  color: #081005;
+  color: #fff;
   font-weight: 800;
   text-decoration: none;
   border: 1px solid transparent;
   transition: transform 0.25s ease, filter 0.25s ease, box-shadow 0.25s ease;
-  box-shadow: 0 10px 24px rgba(139, 243, 0, 0.24);
+  box-shadow: 0 10px 24px rgba(0, 255, 214, 0.24);
 }
 
 .cf-hero-video-cta:hover {
@@ -454,14 +570,62 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-hero {
-  padding: clamp(1rem, 3.5vw, 2.4rem);
+  padding: clamp(1rem, 4vw, 2rem) clamp(1.2rem, 5vw, 2.5rem);
   display: grid;
-  gap: 1.5rem;
+  gap: 0.75rem;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .cf-hero-left,
 .cf-hero-right {
   min-width: 0;
+}
+
+.cf-user-panel {
+  border: none;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 85% 0%, rgba(198, 255, 0, 0.18), transparent 34%),
+    linear-gradient(145deg, rgba(10, 16, 26, 0.96), rgba(9, 13, 20, 0.98));
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.32);
+  padding: 1.2rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.cf-user-badge {
+  width: fit-content;
+  min-height: 1.9rem;
+  border-radius: 999px;
+  background: rgba(198, 255, 0, 0.14);
+  color: var(--cf-brand);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cf-user-panel h2 {
+  margin: 0;
+  font-size: clamp(1.9rem, 5vw, 2.6rem);
+  letter-spacing: -0.05em;
+}
+
+.cf-user-panel p {
+  margin: 0;
+  color: var(--cf-muted);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.cf-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
 }
 
 .cf-hero-kicker {
@@ -511,33 +675,46 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 .cf-lead-form input,
 .cf-otp-row input {
   width: 100%;
-  min-height: 50px;
-  border-radius: 12px;
-  border: 1px solid var(--cf-line);
-  background: #0b121d;
+  min-height: 52px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255,255,255,0.08);
+  outline: none;
+  background: #0d0d0d;
   color: #eff5ff;
-  padding: 0 0.9rem;
+  padding: 0 1.2rem;
   font-size: 0.96rem;
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  display: block;
+}
+
+.cf-lead-form input:focus,
+.cf-otp-row input:focus {
+  outline: none;
+  border-color: rgba(0, 229, 196, 0.6);
 }
 
 .cf-lead-form button,
 .cf-otp-row button {
   width: 100%;
-  min-height: 50px;
+  min-height: 52px;
   border: 0;
-  border-radius: 12px;
-  background: var(--cf-brand);
-  color: #081005;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #00FFD6 0%, #00D4FF 100%);
+  color: #000;
   font-weight: 800;
-  font-size: 0.97rem;
+  font-size: 1rem;
   cursor: pointer;
-  transition: transform 0.2s ease, filter 0.2s ease;
+  letter-spacing: 0.01em;
+  box-shadow: 0 0 18px rgba(0,255,214,0.5), 0 4px 14px rgba(0,0,0,0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .cf-lead-form button:hover,
 .cf-otp-row button:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.04);
+  transform: translateY(-2px);
+  box-shadow: 0 0 28px rgba(0,255,214,0.65), 0 6px 20px rgba(0,0,0,0.35);
 }
 
 .cf-otp-row {
@@ -562,7 +739,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-social-row {
-  margin-top: 1rem;
+  margin-top: 0.5rem;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -573,14 +750,14 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 
 .cf-mobile-events {
   display: grid;
-  gap: 0.75rem;
+  gap: 0;
   overflow-x: clip;
 }
 
 .cf-announcement-bar {
   border: 1px solid var(--cf-line);
   border-radius: 12px;
-  background: #0d141f;
+  background: #0d0d0d;
   padding: 0.65rem 0.75rem;
   display: flex;
   align-items: center;
@@ -659,14 +836,17 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-event-card {
-  flex: 0 0 min(300px, 88%);
-  min-height: 132px;
-  border-radius: 14px;
-  border: 1px solid rgba(179, 203, 247, 0.2);
-  padding: 0.9rem;
-  background: radial-gradient(circle at 100% 10%, rgba(129, 214, 255, 0.2), transparent 45%),
+  flex: 0 0 min(320px, 90%);
+  min-height: 240px;
+  border-radius: 22px;
+  border: none;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at 100% 10%, rgba(129, 214, 255, 0.18), transparent 45%),
     linear-gradient(130deg, #0c1118 0%, #090d14 55%, #111826 100%);
   scroll-snap-align: start;
+  display: grid;
+  gap: 0.9rem;
 }
 
 .cf-event-card small {
@@ -677,15 +857,203 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-event-card h4 {
-  margin: 0.42rem 0 0;
-  font-size: 1.05rem;
-  line-height: 1.2;
+  margin: 0.4rem 0 0;
+  font-size: 1.34rem;
+  line-height: 1.12;
+  letter-spacing: -0.04em;
 }
 
 .cf-event-card p {
-  margin: 0.42rem 0 0;
+  margin: 0.45rem 0 0;
   color: var(--cf-muted);
-  font-size: 0.82rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.cf-event-card-copy {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.cf-event-meta {
+  margin-top: 0.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.72rem;
+  border-top: none;
+}
+
+.cf-event-meta span {
+  color: #9bb0cf;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cf-event-meta strong {
+  color: #f5f9ff;
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.cf-event-art {
+  min-height: 118px;
+  border-radius: 18px;
+  border: none;
+  background: linear-gradient(145deg, rgba(17, 23, 35, 0.98), rgba(12, 17, 25, 0.98));
+  position: relative;
+  overflow: hidden;
+}
+
+.cf-event-card[data-event-tone='ember'] .cf-event-art {
+  background:
+    radial-gradient(circle at 50% 100%, rgba(255, 179, 65, 0.22), transparent 42%),
+    linear-gradient(145deg, #15110d 0%, #171c29 100%);
+}
+
+.cf-event-card[data-event-tone='volt'] .cf-event-art {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(241, 192, 0, 0.18), transparent 34%),
+    linear-gradient(145deg, #0e1014 0%, #131b29 100%);
+}
+
+.cf-event-card[data-event-tone='carbon'] .cf-event-art {
+  background:
+    radial-gradient(circle at 84% 25%, rgba(255, 183, 65, 0.18), transparent 28%),
+    linear-gradient(145deg, #121417 0%, #111826 100%);
+}
+
+.cf-event-coin,
+.cf-event-art-token .event-token,
+.cf-event-art-cards .event-card-back,
+.cf-event-art-cards .event-card-front,
+.cf-event-art-cards .event-chip {
+  position: absolute;
+}
+
+.cf-event-coin {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #f8fbff;
+  border: none;
+  box-shadow: 0 16px 24px rgba(0, 0, 0, 0.24);
+}
+
+.coin-pepe {
+  left: 1rem;
+  bottom: 1rem;
+  background: linear-gradient(145deg, #2dc46a, #0f5d35);
+}
+
+.coin-ada {
+  left: 4.2rem;
+  top: 1rem;
+  background: linear-gradient(145deg, #24469a, #0d0d0d);
+}
+
+.coin-zec {
+  left: 7.8rem;
+  bottom: 1.2rem;
+  background: linear-gradient(145deg, #f2c14c, #936000);
+}
+
+.coin-pip {
+  right: 4rem;
+  top: 1.2rem;
+  background: linear-gradient(145deg, #f7f7ff, #bfc7d8);
+  color: #202938;
+}
+
+.coin-power {
+  right: 1rem;
+  bottom: 1.2rem;
+  background: linear-gradient(145deg, #9654ff, #37137d);
+}
+
+.cf-event-art-token .event-plinth {
+  position: absolute;
+  inset: auto 1.2rem 1.1rem auto;
+  width: 120px;
+  height: 68px;
+  border-radius: 22px 22px 14px 14px;
+  background: linear-gradient(180deg, rgba(255, 220, 63, 0.9), rgba(151, 108, 0, 0.96));
+  box-shadow: 0 20px 30px rgba(0, 0, 0, 0.28);
+}
+
+.cf-event-art-token .event-token {
+  top: 1.2rem;
+  right: 2.5rem;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #0d0d0d, #0d0d0d);
+  border: none;
+  color: #eef5ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.cf-event-art-token .event-orbit {
+  position: absolute;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 230, 90, 0.7), transparent);
+}
+
+.cf-event-art-token .orbit-one {
+  right: 0.8rem;
+  top: 2.8rem;
+  width: 96px;
+  height: 6px;
+}
+
+.cf-event-art-token .orbit-two {
+  right: 1.3rem;
+  top: 4.8rem;
+  width: 68px;
+  height: 6px;
+}
+
+.cf-event-art-cards .event-card-back,
+.cf-event-art-cards .event-card-front {
+  width: 72px;
+  height: 106px;
+  border-radius: 20px;
+  border: none;
+  bottom: 1rem;
+}
+
+.cf-event-art-cards .event-card-back {
+  right: 5.4rem;
+  transform: rotate(-10deg);
+  background: linear-gradient(160deg, #0d0d0d, #0d0d0d);
+}
+
+.cf-event-art-cards .event-card-front {
+  right: 1.8rem;
+  transform: rotate(8deg);
+  background: linear-gradient(160deg, #ffd363, #b67600);
+}
+
+.cf-event-art-cards .event-chip {
+  width: 56px;
+  height: 56px;
+  right: 0.9rem;
+  top: 1rem;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #ffe39a, #9a6400);
+  box-shadow: 0 16px 24px rgba(0, 0, 0, 0.26);
 }
 
 .cf-events-count {
@@ -697,8 +1065,8 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 
 .cf-exchange-ticker-bar {
   border-radius: 12px;
-  background: linear-gradient(120deg, #0a121d 0%, #0c1524 100%);
-  border: 1px solid rgba(158, 177, 210, 0.2);
+  background: linear-gradient(120deg, #0d0d0d 0%, #0d0d0d 100%);
+  border: none;
   padding: 0.58rem 0;
   overflow: hidden;
 }
@@ -756,18 +1124,18 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .social-pill {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  border: 1px solid var(--cf-line);
+  border: none;
   text-decoration: none;
-  color: #f3f7ff;
+  color: #00FFD6;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 0.88rem;
-  font-weight: 700;
-  background: #101927;
+  font-weight: 800;
+  background: rgba(0,255,214,0.07);
 }
 
 .cf-mini-head {
@@ -806,7 +1174,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   gap: 0.75rem;
   border: 1px solid var(--cf-line);
   border-radius: 16px;
-  background: #0b111a;
+  background: #0d0d0d;
   padding: 0.9rem;
 }
 
@@ -814,7 +1182,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  border-bottom: 1px solid rgba(224, 234, 248, 0.15);
+  border-bottom: none;
   padding-bottom: 0.4rem;
 }
 
@@ -868,8 +1236,8 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-hot-market-row:hover {
-  border-color: rgba(156, 255, 0, 0.3);
-  background: #111a28;
+  border-color: transparent;
+  background: #0d0d0d;
   transform: translateY(-1px);
 }
 
@@ -895,7 +1263,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   border-radius: 50%;
   position: relative;
   overflow: hidden;
-  background: #1a2538;
+  background: #0d0d0d;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -976,7 +1344,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.4rem;
-  border-bottom: 1px solid rgba(203, 219, 244, 0.15);
+  border-bottom: none;
   padding-bottom: 0.42rem;
 }
 
@@ -1004,7 +1372,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   width: 100%;
   border: 1px solid var(--cf-line);
   border-radius: 12px;
-  background: #0e1622;
+  background: #0d0d0d;
   color: var(--cf-text);
   min-height: 58px;
   padding: 0.55rem 0.8rem;
@@ -1019,8 +1387,8 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .bnx-market-row:hover {
-  border-color: rgba(139, 243, 0, 0.38);
-  background: #131d2d;
+  border-color: rgba(0, 255, 214, 0.38);
+  background: #0d0d0d;
   transform: translateY(-1px);
 }
 
@@ -1058,7 +1426,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   justify-content: center;
   font-weight: 800;
   font-size: 0.76rem;
-  background: #1b2638;
+  background: #0d0d0d;
 }
 
 .bnx-coin-dot img {
@@ -1097,7 +1465,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   margin-top: 0.9rem;
   border: 1px solid var(--cf-line);
   border-radius: 14px;
-  background: #0d141f;
+  background: #0d0d0d;
   padding: 0.85rem;
 }
 
@@ -1130,7 +1498,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 .cf-hero-stats article {
   border: 1px solid var(--cf-line);
   border-radius: 12px;
-  background: #0f1725;
+  background: #0d0d0d;
   padding: 0.8rem;
 }
 
@@ -1188,7 +1556,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   pointer-events: none;
   z-index: 0;
   opacity: 0;
-  background: radial-gradient(circle at 50% 16%, rgba(139, 243, 0, 0.11), transparent 56%);
+  background: radial-gradient(circle at 50% 16%, rgba(0, 255, 214, 0.11), transparent 56%);
   transition: opacity 0.26s ease;
 }
 
@@ -1205,6 +1573,83 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   transition: box-shadow 0.24s ease;
 }
 
+/* ── Trusted by Industry Leaders ── */
+.cf-trust-section {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.cf-trust-sub {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 0.5rem;
+}
+
+.cf-trust-desc {
+  font-size: 0.9rem;
+  color: #6b7a99;
+  margin: 0 0 2rem;
+}
+
+.cf-trust-marquee-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
+}
+
+.cf-trust-row {
+  overflow: hidden;
+}
+
+.cf-trust-track {
+  display: flex;
+  gap: 14px;
+  width: max-content;
+}
+
+.cf-trust-row-fwd .cf-trust-track {
+  animation: trustFwd 28s linear infinite;
+}
+
+.cf-trust-row-rev .cf-trust-track {
+  animation: trustRev 28s linear infinite;
+}
+
+@keyframes trustFwd {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes trustRev {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+
+.cf-trust-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0d0d0d;
+  border-radius: 12px;
+  padding: 14px 22px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #8a9ab8;
+  white-space: nowrap;
+  min-width: 140px;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cf-trust-logo span {
+  font-size: 1rem;
+  opacity: 0.7;
+}
+
 .cf-pairs-grid {
   margin-top: 1rem;
   display: grid;
@@ -1214,7 +1659,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 .cf-pairs-card {
   border: 1px solid var(--cf-line);
   border-radius: 16px;
-  background: #0d141f;
+  background: #0d0d0d;
   padding: 1rem;
 }
 
@@ -1233,7 +1678,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   width: 100%;
   border: 1px solid var(--cf-line);
   border-radius: 11px;
-  background: #101a29;
+  background: #0d0d0d;
   color: inherit;
   text-decoration: none;
   min-height: 56px;
@@ -1247,7 +1692,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-pair-row:hover {
-  border-color: rgba(139, 243, 0, 0.4);
+  border-color: rgba(0, 255, 214, 0.4);
   transform: translateY(-1px);
 }
 
@@ -1273,7 +1718,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   border-radius: 999px;
   position: relative;
   overflow: hidden;
-  background: #18243a;
+  background: #0d0d0d;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1319,17 +1764,17 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-feature-card {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: none;
   border-radius: 16px;
-  background: #000;
+  background: #000000;
   padding: 1rem;
 }
 
 .cf-feature-media-card {
   padding: 0;
   overflow: hidden;
-  background: #000;
-  border-color: rgba(255, 255, 255, 0.08);
+  background: #000000;
+  border-color: transparent;
   position: relative;
   isolation: isolate;
   min-height: 180px;
@@ -1341,7 +1786,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   display: block;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  background: #000;
+  background: #000000;
 }
 
 .cf-feature-media-video {
@@ -1418,7 +1863,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   aspect-ratio: auto;
   height: min(72vh, 920px);
   object-fit: cover;
-  background: #02050a;
+  background: #000;
 }
 
 .cf-feature-card h3 {
@@ -1435,7 +1880,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 .cf-object-stage {
   margin-top: 0.9rem;
   min-height: 165px;
-  border: 1px dashed rgba(139, 243, 0, 0.36);
+  border: 1px dashed rgba(0, 255, 214, 0.36);
   border-radius: 14px;
   background: linear-gradient(180deg, rgba(4, 7, 10, 0.45), rgba(0, 0, 0, 0.12));
   display: flex;
@@ -1572,13 +2017,13 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 
 .cf-mode-switch button.active {
   background: var(--cf-brand);
-  color: #0b1208;
+  color: #fff;
 }
 
 .cf-terminal {
   border: 1px solid var(--cf-line);
   border-radius: 18px;
-  background: #0d141f;
+  background: #0d0d0d;
   overflow: hidden;
 }
 
@@ -1613,7 +2058,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   border: 1px solid var(--cf-line);
   border-radius: 13px;
   padding: 0.65rem;
-  background: #0a1119;
+  background: #000;
 }
 
 .cf-chart-mock svg {
@@ -1624,7 +2069,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 .cf-order-box {
   border: 1px solid var(--cf-line);
   border-radius: 13px;
-  background: #0a1018;
+  background: #000;
   padding: 0.8rem;
   display: grid;
   gap: 0.56rem;
@@ -1648,7 +2093,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 
 .cf-order-box input {
   border: 1px solid var(--cf-line);
-  background: #0f1724;
+  background: #000;
   color: #e9f0fe;
   padding: 0 0.8rem;
 }
@@ -1657,7 +2102,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   border: 0;
   font-weight: 800;
   background: var(--cf-brand);
-  color: #091007;
+  color: #fff;
 }
 
 .cf-app-block {
@@ -1667,8 +2112,8 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 
 .cf-app-phone {
   border-radius: 20px;
-  border: 1px solid rgba(139, 243, 0, 0.52);
-  background: linear-gradient(140deg, rgba(139, 243, 0, 0.96), rgba(95, 192, 0, 0.9));
+  border: 1px solid rgba(0, 255, 214, 0.52);
+  background: linear-gradient(140deg, rgba(0, 255, 214, 0.96), rgba(95, 192, 0, 0.9));
   min-height: 250px;
   display: grid;
   place-items: center;
@@ -1679,7 +2124,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   aspect-ratio: 9 / 16;
   border-radius: 24px;
   border: 10px solid #10131a;
-  background: #0a0d14;
+  background: #000;
   display: grid;
   place-items: center;
   text-align: center;
@@ -1760,13 +2205,14 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-apk-primary {
-  background: var(--cf-brand);
+  background: linear-gradient(135deg, #00FFD6 0%, #00D4FF 100%);
   border-color: transparent;
-  color: #091108;
+  color: #000;
+  box-shadow: 0 0 14px rgba(0,255,214,0.45), 0 2px 8px rgba(0,0,0,0.3);
 }
 
 .cf-apk-secondary {
-  background: #0f1725;
+  background: #0d0d0d;
   color: #ecf3ff;
 }
 
@@ -1778,7 +2224,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 .cf-apk-download-meta {
   border: 1px solid var(--cf-line);
   border-radius: 14px;
-  background: #0f1725;
+  background: #0d0d0d;
   padding: 0.9rem;
   display: grid;
   gap: 0.2rem;
@@ -1801,8 +2247,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   aspect-ratio: 1;
   border-radius: 14px;
   border: 1px solid var(--cf-line);
-  background: repeating-linear-gradient(90deg, #0f1725 0 9px, #f4f8ff 9px 18px),
-    repeating-linear-gradient(0deg, transparent 0 9px, rgba(0, 0, 0, 0.15) 9px 18px);
+  background: #0d0d0d;
 }
 
 .cf-store-row {
@@ -1816,7 +2261,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   min-height: 44px;
   border-radius: 999px;
   border: 1px solid var(--cf-line);
-  background: #0e1623;
+  background: #000;
   color: #ecf3ff;
   font-weight: 700;
   cursor: pointer;
@@ -1831,7 +2276,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 .cf-testi-card {
   border: 1px solid var(--cf-line);
   border-radius: 15px;
-  background: #0d141f;
+  background: #0d0d0d;
   padding: 0.95rem;
   display: grid;
   gap: 0.7rem;
@@ -1847,7 +2292,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: #1c2740;
+  background: #0d0d0d;
   color: #dbe6fa;
   display: inline-flex;
   align-items: center;
@@ -1895,17 +2340,17 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-copy-card {
-  border: 1px solid rgba(178, 197, 226, 0.28);
+  border: none;
   border-radius: 18px;
-  background: #070b12;
+  background: #000;
   padding: 0.95rem;
   display: grid;
   gap: 0.72rem;
 }
 
 .cf-copy-card.is-highlight {
-  border-color: rgba(139, 243, 0, 0.78);
-  box-shadow: 0 0 0 1px rgba(139, 243, 0, 0.18), inset 0 0 26px rgba(139, 243, 0, 0.06);
+  border-color: rgba(0, 255, 214, 0.78);
+  box-shadow: 0 0 0 1px rgba(0, 255, 214, 0.18), inset 0 0 26px rgba(0, 255, 214, 0.06);
 }
 
 .cf-copy-head {
@@ -1958,7 +2403,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 
 .cf-copy-chart {
   height: 84px;
-  border: 1px solid rgba(157, 179, 213, 0.2);
+  border: none;
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(6, 14, 24, 0.9), rgba(6, 12, 20, 0.55));
   padding: 0.4rem;
@@ -1982,8 +2427,8 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   width: 100%;
   min-height: 40px;
   border-radius: 999px;
-  border: 1px solid rgba(176, 196, 226, 0.28);
-  background: #080f1b;
+  border: none;
+  background: #0a0a0a;
   color: #eef5ff;
   font-weight: 700;
   font-size: 0.96rem;
@@ -1991,7 +2436,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-copy-btn:hover {
-  border-color: rgba(139, 243, 0, 0.55);
+  border-color: rgba(0, 255, 214, 0.55);
 }
 
 .cf-neon-strip {
@@ -2005,7 +2450,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   line-height: 0.95;
   letter-spacing: -0.04em;
   color: #b7ff35;
-  text-shadow: 0 0 18px rgba(139, 243, 0, 0.26);
+  text-shadow: 0 0 18px rgba(0, 255, 214, 0.26);
   background: none;
   -webkit-text-fill-color: currentColor;
 }
@@ -2020,19 +2465,13 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 }
 
 .cf-mobile-promo-video-shell {
-  width: min(380px, 90%);
+  width: min(420px, 95%);
   aspect-ratio: 9 / 16;
-  border-radius: 20px;
+  border-radius: 0;
   overflow: hidden;
-  border: 1px solid var(--cf-line);
-  background: #070c14;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.42);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.cf-mobile-promo-video-shell:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.5);
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .cf-mobile-video {
@@ -2053,7 +2492,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   min-height: 46px;
   border: 1px solid var(--cf-line);
   border-radius: 12px;
-  background: #0f1724;
+  background: #000;
   color: #dce6f7;
   display: grid;
   place-items: center;
@@ -2128,7 +2567,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   overflow: auto;
   border-radius: 16px;
   border: 1px solid var(--cf-line);
-  background: #0b121d;
+  background: #000;
   padding: 1rem;
   display: grid;
   gap: 0.9rem;
@@ -2160,7 +2599,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   min-height: 38px;
   border-radius: 10px;
   border: 1px solid var(--cf-line);
-  background: #0f1725;
+  background: #0d0d0d;
   color: #ebf2ff;
   padding: 0 0.95rem;
   font-weight: 700;
@@ -2175,7 +2614,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 .bnx-order-stats article {
   border: 1px solid var(--cf-line);
   border-radius: 12px;
-  background: #0f1724;
+  background: #000;
   padding: 0.7rem;
 }
 
@@ -2199,7 +2638,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
 .bnx-trades-card {
   border: 1px solid var(--cf-line);
   border-radius: 12px;
-  background: #101828;
+  background: #0d0d0d;
   padding: 0.75rem;
 }
 
@@ -2219,7 +2658,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   text-align: left;
   padding: 0.44rem;
   font-size: 0.82rem;
-  border-bottom: 1px solid rgba(189, 208, 242, 0.09);
+  border-bottom: none;
 }
 
 .bnx-order-table th {
@@ -2456,7 +2895,8 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   .cf-header-inner,
   .cf-main,
   .cf-footer {
-    width: calc(100% - 0.9rem);
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .cf-header-inner {
@@ -2468,8 +2908,9 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
     background: rgba(6, 10, 15, 0.98);
   }
 
-  .cf-brand {
-    font-size: 1.55rem;
+  .cf-brand-word,
+  .cf-drawer-brand span:last-child {
+    font-size: 1.2rem;
   }
 
   .cf-actions {
@@ -2484,17 +2925,30 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
     background: #9cff00;
   }
 
+  .cf-user-panel {
+    padding: 1rem;
+    gap: 0.72rem;
+  }
+
+  .cf-user-actions {
+    flex-direction: column;
+  }
+
+  .cf-event-card {
+    min-height: 228px;
+    padding: 0.9rem;
+  }
+
   .cf-nav-toggle {
     width: 52px;
     height: 52px;
     border-radius: 14px;
-    background: #111a2a;
+    background: #0d0d0d;
   }
 
   .cf-main {
     margin-top: 0.75rem;
     gap: 1.2rem;
-    overflow-x: hidden;
   }
 
   .cf-main section,
@@ -2504,7 +2958,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    overflow-x: hidden;
+    box-sizing: border-box;
   }
 
   .feature-container,
@@ -2573,7 +3027,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   }
 
   .cf-hero-video-section {
-    min-height: 28vh;
+    min-height: 42vh;
   }
 
   .cf-hero-video-content h2 {
@@ -2587,8 +3041,11 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   }
 
   .cf-hero {
-    border-radius: 20px;
-    background: #000;
+    border-radius: 0;
+    background: #000000;
+    padding: 1rem 20px 1.5rem 20px;
+    box-sizing: border-box;
+    overflow: visible;
   }
 
   .cf-hero h1 {
@@ -2606,15 +3063,17 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
     max-width: 100%;
     gap: 0.8rem;
     grid-template-columns: minmax(0, 1fr);
+    box-sizing: border-box;
   }
 
   .cf-lead-form input {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    min-height: 56px;
-    border-radius: 16px;
-    font-size: 1.03rem;
+    min-height: 54px;
+    border-radius: 999px;
+    font-size: 1rem;
+    box-sizing: border-box;
   }
 
   .cf-lead-form button {
@@ -2627,8 +3086,8 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
     text-align: center;
     padding-left: 1rem;
     padding-right: 1rem;
-    min-height: 58px;
-    border-radius: 16px;
+    min-height: 54px;
+    border-radius: 999px;
     font-size: 1.08rem;
     font-weight: 800;
   }
@@ -2646,7 +3105,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   }
 
   .cf-market-tabs {
-    border-bottom: 1px solid rgba(240, 245, 255, 0.22);
+    border-bottom: none;
   }
 
   .cf-market-head {
@@ -2699,7 +3158,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   .cf-exchange-ticker-bar {
     border-radius: 14px;
     padding: 0.52rem 0;
-    border-color: rgba(164, 184, 218, 0.16);
+    border-color: transparent;
   }
 
   .cf-exchange-ticker-track {
@@ -2719,7 +3178,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
     grid-template-areas:
       'symbol change'
       'price price';
-    border-color: rgba(176, 195, 226, 0.2);
+    border-color: transparent;
   }
 
   .bnx-market-symbol {
@@ -2836,7 +3295,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   }
 
   .cf-footer-accordion-item {
-    border-bottom: 1px solid rgba(206, 222, 247, 0.12);
+    border-bottom: none;
     padding-bottom: 0.25rem;
   }
 
@@ -2894,8 +3353,8 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   .cf-footer-social-grid a {
     min-height: 40px;
     border-radius: 10px;
-    border: 1px solid rgba(170, 191, 226, 0.16);
-    background: #090f18;
+    border: none;
+    background: #0a0a0a;
     color: #f2f7ff;
     text-decoration: none;
     display: inline-flex;
@@ -2908,7 +3367,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   .cf-footer-mobile-meta {
     margin-top: 0.15rem;
     padding-top: 0.85rem;
-    border-top: 1px solid rgba(177, 197, 231, 0.18);
+    border-top: none;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.5rem;
@@ -2917,8 +3376,8 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   .cf-footer-mobile-meta button {
     min-height: 40px;
     border-radius: 10px;
-    border: 1px solid rgba(171, 192, 225, 0.15);
-    background: #0a1220;
+    border: none;
+    background: #000;
     color: #eaf2ff;
     font-size: 0.93rem;
     font-weight: 600;
@@ -2944,7 +3403,7 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
     color: #b7ff35;
     background: none;
     -webkit-text-fill-color: currentColor;
-    text-shadow: 0 0 22px rgba(139, 243, 0, 0.34);
+    text-shadow: 0 0 22px rgba(0, 255, 214, 0.34);
   }
 }
 
@@ -2964,4 +3423,747 @@ body.coinflare-page.cf-chart-open .cf-signup-link {
   100% {
     transform: translateX(calc(-50% - 0.325rem));
   }
+}
+
+/* ── Gate-style Market Table ── */
+.cf-gate-market-shell {
+  background: var(--cf-panel, #0d0d0d);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+
+.cf-gate-market-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: none;
+  padding: 0 0.5rem;
+}
+
+.cf-gate-market-tabs button {
+  background: none;
+  border: none;
+  color: var(--cf-muted, #95a3bc);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.85rem 1.2rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.cf-gate-market-tabs button.active,
+.cf-gate-market-tabs button[aria-selected="true"] {
+  color: var(--cf-text, #f4f8ff);
+  border-bottom-color: var(--cf-brand, #00FFD6);
+}
+
+.cf-gate-market-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.cf-gate-market-table thead th {
+  color: var(--cf-muted, #95a3bc);
+  font-weight: 500;
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.75rem;
+  border-bottom: none;
+}
+
+.cf-gate-market-table thead th:last-child {
+  text-align: right;
+}
+
+.cf-gate-market-row {
+  border-bottom: none;
+  transition: background 0.15s;
+}
+
+.cf-gate-market-row:last-child {
+  border-bottom: none;
+}
+
+.cf-gate-market-row:hover {
+  background: rgba(0, 255, 214,0.04);
+}
+
+.cf-gate-market-table td {
+  padding: 0.65rem 0.9rem;
+  vertical-align: middle;
+  color: var(--cf-text, #f4f8ff);
+}
+
+.cf-gate-coin-cell {
+  display: flex !important;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.cf-gate-coin-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 255, 214,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.cf-gate-coin-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.cf-gate-coin-names {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cf-gate-coin-sym {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--cf-text, #f4f8ff);
+}
+
+.cf-gate-coin-name {
+  font-size: 0.7rem;
+  color: var(--cf-muted, #95a3bc);
+}
+
+.cf-gate-price-cell {
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.cf-gate-change-cell {
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.cf-gate-change-cell.positive { color: var(--cf-green, #19d27f); }
+.cf-gate-change-cell.negative { color: var(--cf-red, #ff5f82); }
+
+.cf-gate-vol-cell {
+  color: var(--cf-muted, #95a3bc);
+  font-size: 0.78rem;
+}
+
+.cf-gate-action-cell {
+  text-align: right;
+}
+
+.cf-gate-trade-btn {
+  display: inline-block;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 1rem;
+  border-radius: 20px;
+  text-decoration: none;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.cf-gate-trade-btn:hover {
+  background: #1d4ed8;
+}
+
+.cf-gate-market-more {
+  display: block;
+  text-align: center;
+  padding: 0.85rem 1rem;
+  color: var(--cf-muted, #95a3bc);
+  font-size: 0.8rem;
+  text-decoration: none;
+  border-top: none;
+  transition: color 0.2s;
+}
+
+.cf-gate-market-more:hover {
+  color: var(--cf-brand, #00FFD6);
+}
+
+.bnx-loading {
+  text-align: center;
+  color: var(--cf-muted, #95a3bc);
+  padding: 1.5rem;
+}
+
+/* ══════════════════════════════════════
+   Payment Partners Marquee Strip
+   ══════════════════════════════════════ */
+.cf-pay-partners-strip {
+  width: 100%;
+  background: #000000;
+  padding: 1rem 0 1.1rem;
+  border-top: none;
+  border-bottom: none;
+  overflow: hidden;
+}
+
+.cf-pay-partners-label {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #00FFD6;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 0.7rem;
+}
+
+.cf-pay-marquee-wrap {
+  overflow: hidden;
+  position: relative;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%);
+}
+
+.cf-pay-marquee-track {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  width: max-content;
+  animation: payMarquee 32s linear infinite;
+}
+
+.cf-pay-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #c8d8e8;
+  white-space: nowrap;
+  padding: 0.45rem 1rem 0.45rem 0.6rem;
+  border-radius: 28px;
+  background: rgba(0,255,214,0.06);
+  border: none;
+  letter-spacing: 0.01em;
+}
+
+.cf-pay-item svg {
+  flex-shrink: 0;
+  display: block;
+}
+
+@keyframes payMarquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ══════════════════════════════════════
+   Full-width homepage Market Section
+   ══════════════════════════════════════ */
+.cf-fullmkt {
+  padding: 0.5rem 0 1rem;
+  background: #000000;
+}
+
+.cf-fullmkt-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* Category tabs: Popular / Market Trends / 24H Change / New Coin List */
+.cf-fullmkt-cattabs-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin-bottom: 0;
+  border-bottom: none;
+  padding: 0 0.5rem;
+}
+.cf-fullmkt-cattabs-wrap::-webkit-scrollbar { display: none; }
+
+.cf-fullmkt-cattabs {
+  display: flex;
+  gap: 0;
+  white-space: nowrap;
+  min-width: max-content;
+}
+
+.cf-fullmkt-cattabs button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #6b7a99;
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+  transition: color 0.2s;
+  margin-bottom: -1px;
+}
+
+.cf-fullmkt-cattabs button.active {
+  color: #f4f8ff;
+  border-bottom-color: #fff;
+  font-weight: 700;
+}
+
+.cf-fullmkt-cattabs button:not(.active):hover { color: #c0cce0; }
+
+/* Sub tabs: Spot / Futures */
+.cf-fullmkt-subtabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+}
+
+.cf-fullmkt-subtabs button {
+  background: rgba(255,255,255,0.08);
+  border: none;
+  border-radius: 999px;
+  color: #8e9bb0;
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.38rem 1.1rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.cf-fullmkt-subtabs button.active {
+  background: rgba(255,255,255,0.18);
+  color: #f4f8ff;
+}
+
+/* Table */
+.cf-fullmkt-table-wrap {
+  border-radius: 0;
+  overflow: hidden;
+  background: #000000;
+  border: none;
+}
+
+.cf-fullmkt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.cf-fullmkt-table thead {
+  background: #000000;
+}
+
+.cf-fullmkt-table thead th {
+  background: #000000;
+  color: #6b7a99;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  text-align: left;
+  border: none;
+  border-bottom: none;
+  white-space: nowrap;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.cf-fullmkt-table thead th:hover { color: #f4f8ff; }
+.cf-fullmkt-table thead th:nth-child(2),
+.cf-fullmkt-table thead th:nth-child(3) { text-align: right; }
+.cf-fullmkt-table thead th.hm-sort-asc::after  { content: ' ↑'; }
+.cf-fullmkt-table thead th.hm-sort-desc::after { content: ' ↓'; }
+
+.cf-fullmkt-table tbody tr {
+  background: #000000;
+  border-bottom: none;
+  transition: background 0.15s;
+}
+.cf-fullmkt-table tbody tr:hover { background: #000000; }
+
+.cf-fullmkt-table tbody td {
+  background: transparent;
+  padding: 1rem 1rem;
+  vertical-align: middle;
+  border: none;
+  color: #f4f8ff;
+}
+.cf-fullmkt-table tbody td:nth-child(2),
+.cf-fullmkt-table tbody td:nth-child(3) { text-align: right; }
+
+/* Coin cell */
+.cf-fullmkt-coin-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cf-fullmkt-coin-ico {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.cf-fullmkt-coin-ico img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  position: absolute;
+  inset: 0;
+}
+
+.cf-fullmkt-coin-fb {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--cf-brand, #00FFD6);
+  z-index: 1;
+}
+
+.cf-fullmkt-coin-names { display: flex; flex-direction: column; gap: 1px; }
+
+.cf-fullmkt-coin-sym {
+  font-weight: 800;
+  font-size: 1rem;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.cf-fullmkt-coin-name {
+  font-size: 0.72rem;
+  color: #6b7a99;
+}
+
+.cf-fullmkt-price { font-weight: 500; font-size: 0.95rem; color: #e8edf5; }
+
+.cf-fullmkt-chg { font-weight: 700; font-size: 0.92rem; }
+.cf-fullmkt-chg.up { color: #19d27f; }
+.cf-fullmkt-chg.dn { color: #ff5f82; }
+
+.cf-fullmkt-vol { color: var(--cf-muted, #95a3bc); font-size: 0.83rem; }
+
+.cf-fullmkt-trade-btn {
+  display: inline-block;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.4rem 1.15rem;
+  border-radius: 20px;
+  text-decoration: none;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.cf-fullmkt-trade-btn:hover { background: #1d4ed8; }
+
+.cf-fullmkt-viewall {
+  display: block;
+  text-align: center;
+  padding: 1rem;
+  color: var(--cf-muted, #95a3bc);
+  font-size: 0.82rem;
+  text-decoration: none;
+  background: #000000;
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  transition: color 0.2s;
+}
+.cf-fullmkt-viewall:hover { color: var(--cf-brand, #00FFD6); }
+
+.cf-fullmkt-loading td {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--cf-muted, #95a3bc);
+  font-size: 0.9rem;
+}
+
+.cf-fullmkt-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-top-color: var(--cf-brand, #00FFD6);
+  border-radius: 50%;
+  animation: fullmkt-spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+}
+
+@keyframes fullmkt-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  /* ── Section background ── */
+  .cf-fullmkt {
+    padding: 1.5rem 0 1rem;
+    background: #000000 !important;
+  }
+  .cf-fullmkt-inner { background: #000000; }
+
+  /* ── Hide search bar on mobile ── */
+  .cf-fullmkt-controls-row { display: none; }
+
+  /* ── Tabs: Gate.io style ── */
+  .cf-fullmkt-tabs-center { margin-bottom: 1rem; }
+  .cf-fullmkt-tabs {
+    gap: 2.5rem;
+    border-bottom: none;
+    padding-bottom: 0;
+    display: flex;
+  }
+  .cf-fullmkt-tabs button {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #6b7a99;
+    padding: 0.4rem 0;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+  }
+  .cf-fullmkt-tabs button.active {
+    color: #f4f8ff;
+    border: none;
+    border-bottom: 2px solid #f4f8ff;
+    border-radius: 0;
+    background: transparent;
+    padding: 0.4rem 0;
+  }
+
+  /* ── Table wrap ── */
+  .cf-fullmkt-table-wrap {
+    background: #000000 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: visible;
+  }
+
+  /* ── All cells black ── */
+  .cf-fullmkt-table,
+  .cf-fullmkt-table thead,
+  .cf-fullmkt-table thead th,
+  .cf-fullmkt-table tbody tr,
+  .cf-fullmkt-table tbody td { background: #000000 !important; }
+
+  /* ── Hide Volume (col 4) and Action (col 5) ── */
+  .cf-fullmkt-table thead th:nth-child(4),
+  .cf-fullmkt-table tbody td:nth-child(4),
+  .cf-fullmkt-table thead th:nth-child(5),
+  .cf-fullmkt-table tbody td:nth-child(5) { display: none; }
+
+  /* ── Column headers ── */
+  .cf-fullmkt-table thead th {
+    padding: 0.5rem 1rem;
+    font-size: 0.72rem;
+    color: #6b7a99;
+    font-weight: 400;
+    border-bottom: none;
+    text-align: left;
+  }
+  .cf-fullmkt-table thead th:nth-child(2),
+  .cf-fullmkt-table thead th:nth-child(3) { text-align: right; }
+
+  /* ── Rows ── */
+  .cf-fullmkt-table tbody tr {
+    border-bottom: none !important;
+  }
+  .cf-fullmkt-table tbody td {
+    padding: 1rem 1rem;
+    border: none !important;
+  }
+  .cf-fullmkt-table tbody td:nth-child(2),
+  .cf-fullmkt-table tbody td:nth-child(3) { text-align: right; }
+
+  /* ── Coin cell ── */
+  .cf-fullmkt-coin-cell { gap: 0.65rem; }
+  .cf-fullmkt-coin-ico { width: 32px; height: 32px; }
+  .cf-fullmkt-coin-sym { font-size: 0.9rem; font-weight: 700; }
+  .cf-fullmkt-coin-name { font-size: 0.72rem; }
+
+  /* ── Price ── */
+  .cf-fullmkt-price { font-size: 0.9rem; font-weight: 500; color: #f4f8ff; }
+
+  /* ── Change ── */
+  .cf-fullmkt-chg { font-size: 0.88rem; font-weight: 600; }
+
+  /* ── View All link ── */
+  .cf-fullmkt-viewall {
+    color: #6b7a99 !important;
+    font-size: 0.88rem;
+    padding: 1rem;
+    background: #000000 !important;
+    border: none !important;
+  }
+}
+
+/* ── Gate.io-style Promo Cards ── */
+.gp-promo-wrap {
+  position: relative;
+  overflow: hidden;
+  background: #000000;
+  border-radius: 14px;
+  margin-top: 0.6rem;
+}
+
+.gp-promo-track {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+
+.gp-promo-track::-webkit-scrollbar { display: none; }
+
+.gp-promo-card {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #0d0d0d;
+  border-radius: 14px;
+  padding: 1.25rem 1.1rem 1rem;
+  min-height: 130px;
+  border: none;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+.gp-promo-copy {
+  flex: 1;
+  z-index: 1;
+}
+
+.gp-promo-copy h4 {
+  margin: 0 0 0.7rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #f4f8ff;
+  line-height: 1.4;
+}
+
+.gp-join-now {
+  font-size: 0.82rem;
+  color: #8a9bbb;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.gp-join-now:hover { color: #00FFD6; }
+
+.gp-promo-art {
+  flex-shrink: 0;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-left: 0.8rem;
+}
+
+.gp-art-icon {
+  font-size: 2.8rem;
+  z-index: 1;
+  position: relative;
+}
+
+.gp-art-dot {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.gp-dot-blue  { width: 60px; height: 60px; background: #2563eb; top: 5px; right: 0; }
+.gp-dot-green { width: 22px; height: 22px; background: #00FFD6; bottom: 8px; left: 5px; }
+.gp-dot-black { width: 18px; height: 18px; background: #000000; bottom: 10px; right: 18px; }
+
+/* Dots indicator */
+.gp-promo-dots {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  padding: 0.5rem 0 0.2rem;
+}
+
+.gp-promo-dots .gp-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  transition: background 0.3s, width 0.3s;
+}
+
+.gp-promo-dots .gp-dot.active {
+  background: #00FFD6;
+  width: 18px;
+  border-radius: 3px;
+}
+
+/* ===== COIN MARQUEE STRIP ===== */
+.coin-marquee-section {
+  background: #000;
+  padding: 2rem 0 1rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.coin-marquee-row {
+  overflow: hidden;
+  width: 100%;
+}
+.coin-marquee-track {
+  display: flex;
+  gap: 1.2rem;
+  width: max-content;
+}
+.coin-track-ltr {
+  animation: coinLTR 28s linear infinite;
+}
+.coin-track-rtl {
+  animation: coinRTL 28s linear infinite;
+}
+@keyframes coinLTR {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes coinRTL {
+  0%   { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+.coin-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.coin-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+@media (max-width: 768px) {
+  .coin-logo { width: 52px; height: 52px; }
+  .coin-marquee-track { gap: 0.9rem; }
 }

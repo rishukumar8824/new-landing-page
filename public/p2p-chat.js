@@ -1,12 +1,3 @@
-const BITEGIT_API = (window.BITEGIT_API_BASE || 'http://localhost:3000/api/v1');
-function chatFetch(path, opts) {
-  var token = localStorage.getItem('bitegit_token') || '';
-  opts = opts || {};
-  var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
-  if (token) headers['Authorization'] = 'Bearer ' + token;
-  return fetch(BITEGIT_API + path, Object.assign({}, opts, { headers: headers, credentials: 'include' }));
-}
-
 const orderId = new URLSearchParams(window.location.search).get('orderId');
 
 const backBtn = document.getElementById('backBtn');
@@ -657,7 +648,7 @@ function stopTimersAndStream() {
 }
 
 async function loadCurrentUser() {
-  const response = await chatFetch('/auth/me');
+  const response = await fetch('/api/p2p/me');
   const payload = await response.json();
 
   if (!response.ok || !payload.loggedIn || !payload.user) {
@@ -668,7 +659,7 @@ async function loadCurrentUser() {
 }
 
 async function fetchOrder() {
-  const response = await chatFetch(`/p2p/orders/${encodeURIComponent(orderId)}`);
+  const response = await fetch(`/api/p2p/orders/${encodeURIComponent(orderId)}`);
   const payload = await response.json();
 
   if (!response.ok || !payload.order) {
@@ -683,7 +674,7 @@ async function fetchMessages(options = {}) {
     return;
   }
 
-  const response = await chatFetch(`/p2p/orders/${encodeURIComponent(orderId)}/messages`);
+  const response = await fetch(`/api/p2p/orders/${encodeURIComponent(orderId)}/messages`);
   const payload = await response.json();
 
   if (!response.ok) {
@@ -697,8 +688,11 @@ async function fetchMessages(options = {}) {
 }
 
 async function postChatPayload(textPayload) {
-  const response = await chatFetch(`/p2p/orders/${encodeURIComponent(orderId)}/messages`, {
+  const response = await fetch(`/api/p2p/orders/${encodeURIComponent(orderId)}/messages`, {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify({ text: textPayload })
   });
 

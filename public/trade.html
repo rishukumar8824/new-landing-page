@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
     <title>Bitegit Trade</title>
     <link rel="stylesheet" href="/mobile-nav.css?v=20260301a" />
-    <link rel="stylesheet" href="/trade.css?v=20260303b" />
-    <script src="/bitegit-config.js"></script>
-  </head>
+    <link rel="stylesheet" href="/trade.css?v=20260323d" />
+  <script src="/app-nav.js" defer></script></head>
   <body class="trade-page has-mobile-nav">
     <header class="trade-topbar" id="tradeHeader">
       <div class="topbar-left">
@@ -36,8 +36,8 @@
         <a href="/">Buy Crypto</a>
         <a href="/markets.html">Markets</a>
         <a href="/p2p">P2P</a>
-        <a href="/trade/spot/BTCUSDT" class="active">Trade</a>
-        <a href="/trade/perp/BTCUSDT">Derivatives</a>
+        <a href="/chart.html?symbol=BTCUSDT" class="active">Trade</a>
+        <a href="/chart.html?symbol=BTCUSDT">Derivatives</a>
       </nav>
 
       <div class="topbar-actions">
@@ -58,8 +58,8 @@
       <nav class="trade-nav-links" aria-label="Mobile trade navigation">
         <a href="/">Buy Crypto</a>
         <a href="/markets.html">Markets</a>
-        <a href="/trade/spot/BTCUSDT">Spot</a>
-        <a href="/trade/perp/BTCUSDT">Futures</a>
+        <a href="/chart.html?symbol=BTCUSDT">Spot</a>
+        <a href="/chart.html?symbol=BTCUSDT">Futures</a>
         <a href="/p2p">P2P</a>
         <a href="/#crypto-for-everyone">Earn</a>
         <a href="/#events">ICO</a>
@@ -81,6 +81,19 @@
         <a href="/#app-download" class="trade-download-row">Download App</a>
       </div>
     </aside>
+
+    <div class="bg-mob-header" id="bgMobHeader">
+      <a href="/markets.html" class="bg-back-btn">&#8592;</a>
+      <div class="bg-pair-title">
+        <span id="bgPairName">BTC/USDT</span>
+        <span id="bgPairChg" class="bg-pair-chg dn">-2.59%</span>
+      </div>
+      <div class="bg-header-icons">
+        <button class="bg-icon-btn" title="Favourite">☆</button>
+        <button class="bg-icon-btn" id="bgOrderBookToggle" title="Order Book">⊟</button>
+        <button class="bg-icon-btn" title="Share">↗</button>
+      </div>
+    </div>
 
     <section class="trade-stats-strip">
       <article class="stat stat-price">
@@ -111,9 +124,25 @@
 
     <div id="mobileMarketTabs" class="mobile-market-tabs">
       <button type="button" data-mobile-tab="chart" class="active">Chart</button>
-      <button type="button" data-mobile-tab="book">Order Book</button>
-      <button type="button" data-mobile-tab="trades">Trades</button>
-      <button id="mobileBookCollapseBtn" type="button" class="mobile-collapse-btn">Collapse</button>
+      <button type="button" data-mobile-tab="book">Data</button>
+      <button type="button" data-mobile-tab="trades">Square</button>
+      <button type="button" data-mobile-tab="about">About</button>
+    </div>
+
+    <div class="bg-price-stats" id="bgPriceStats">
+      <div class="bg-ps-left">
+        <div class="bg-ps-price" id="bgPsPrice">--</div>
+        <div class="bg-ps-sub">
+          <span id="bgPsUsd">≈$--</span>
+          <span id="bgPsChgBig" class="dn">--</span>
+        </div>
+      </div>
+      <div class="bg-ps-right">
+        <div class="bg-ps-stat"><span>24h High</span><strong id="bgPsHigh">--</strong></div>
+        <div class="bg-ps-stat"><span>24h Low</span><strong id="bgPsLow">--</strong></div>
+        <div class="bg-ps-stat"><span>24h Vol</span><strong id="bgPsVol">--</strong></div>
+        <div class="bg-ps-stat"><span>Turnover</span><strong id="bgPsTurnover">--</strong></div>
+      </div>
     </div>
 
     <main class="trade-main-grid">
@@ -134,12 +163,19 @@
         </div>
 
         <div class="chart-toolbar" id="intervalTabs">
+          <button type="button" data-interval="1m">1m</button>
           <button type="button" class="active" data-interval="15m">15m</button>
           <button type="button" data-interval="1h">1h</button>
           <button type="button" data-interval="4h">4h</button>
           <button type="button" data-interval="1d">1D</button>
           <button type="button" data-interval="5m">5m</button>
           <button type="button" data-interval="30m">30m</button>
+        </div>
+
+        <div class="bg-ma-row" id="bgMaRow">
+          <span class="bg-ma-item" style="color:#e8b84b">MA(5) <strong id="bgMa5">--</strong></span>
+          <span class="bg-ma-item" style="color:#e879a8">MA(10) <strong id="bgMa10">--</strong></span>
+          <span class="bg-ma-item" style="color:#a855f7">MA(20) <strong id="bgMa20">--</strong></span>
         </div>
 
         <div class="chart-wrap">
@@ -150,6 +186,29 @@
         <div class="chart-foot">
           <p id="chartStatus">Loading chart...</p>
           <span id="chartUpdatedAt">--</span>
+        </div>
+
+        <div class="bg-period-row" id="bgPeriodRow">
+          <div class="bg-period-item">
+            <span>Today</span>
+            <strong id="bgPeriod1d" class="dn">--</strong>
+          </div>
+          <div class="bg-period-item">
+            <span>7 days</span>
+            <strong id="bgPeriod7d" class="dn">--</strong>
+          </div>
+          <div class="bg-period-item">
+            <span>30 days</span>
+            <strong id="bgPeriod30d">--</strong>
+          </div>
+          <div class="bg-period-item">
+            <span>90 days</span>
+            <strong id="bgPeriod90d" class="dn">--</strong>
+          </div>
+          <div class="bg-period-item">
+            <span>180 days</span>
+            <strong id="bgPeriod180d" class="dn">--</strong>
+          </div>
         </div>
       </section>
 
@@ -162,28 +221,29 @@
           <p id="bookSource">Source: --</p>
         </div>
 
-        <div id="panelOrderBook" class="book-panel">
-          <table class="book-table">
-            <thead>
-              <tr>
-                <th>Price</th>
-                <th>Qty</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody id="askRows"></tbody>
-          </table>
-
-          <p class="mid-price" id="midPrice">--</p>
-
-          <table class="book-table">
-            <tbody id="bidRows"></tbody>
-          </table>
-
-          <div class="book-ratio">
-            <span class="buy">B 45%</span>
-            <span class="sell">S 55%</span>
+        <div id="panelOrderBook" class="book-panel bg-book-panel">
+          <div class="bg-bs-bar">
+            <span class="bg-bs-buy" id="bgBsLabel">B <strong id="bgBuyPct">45</strong>%</span>
+            <div class="bg-bs-track">
+              <div class="bg-bs-fill-buy" id="bgBsFillBuy" style="width:45%"></div>
+            </div>
+            <span class="bg-bs-sell">S <strong id="bgSellPct">55</strong>%</span>
           </div>
+          <div class="bg-book-header">
+            <span>Qty</span>
+            <span>Bid</span>
+            <span>Ask</span>
+            <span>Qty</span>
+          </div>
+          <div id="bgBookRows" class="bg-book-rows"></div>
+          <div class="bg-mid-price-row">
+            <span id="bgMidPriceBig" class="bg-mid-big">--</span>
+            <span id="bgMidPriceSub" class="bg-mid-sub">≈$--</span>
+          </div>
+          <!-- Keep original elements hidden for JS compatibility -->
+          <tbody id="askRows" style="display:none"></tbody>
+          <p class="mid-price" id="midPrice" style="display:none">--</p>
+          <tbody id="bidRows" style="display:none"></tbody>
         </div>
 
         <div id="panelTrades" class="book-panel hidden">
@@ -298,27 +358,18 @@
       </div>
     </section>
 
+    <button id="bgFloatTradeBtn" class="bg-float-trade-btn" type="button">Trade</button>
+
     <nav class="mobile-app-nav" aria-label="App navigation">
-      <a href="/">
-        <span class="nav-icon">⌂</span>
-        <span class="nav-label">Home</span>
-      </a>
-      <a href="/markets.html">
-        <span class="nav-icon">◍</span>
-        <span class="nav-label">Markets</span>
-      </a>
-      <a href="/trade/spot/BTCUSDT" class="active" aria-current="page">
-        <span class="nav-icon">⇅</span>
-        <span class="nav-label">Trade</span>
-      </a>
-      <a href="/assets">
-        <span class="nav-icon">◔</span>
-        <span class="nav-label">Assets</span>
-      </a>
+      <a href="/"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></span><span class="nav-label">Home</span></a>
+      <a href="/markets.html"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 15h2v5H4v-5zm4-5h2v10H8V10zm4-4h2v14h-2V6zm4 7h2v7h-2v-7z"/></svg></span><span class="nav-label">Market</span></a>
+      <a href="/chart.html?symbol=BTCUSDT" class="active" aria-current="page"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.5 12a4.5 4.5 0 100-9 4.5 4.5 0 000 9zm9-4.5A4.5 4.5 0 117.5 12a4.5 4.5 0 019 0z"/></svg></span><span class="nav-label">Trade</span></a>
+      <a href="/chart.html?symbol=BTCUSDT"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5" width="18" height="14" rx="2" opacity=".3"/><rect x="3" y="5" width="18" height="4" rx="2"/><rect x="6" y="13" width="5" height="2" rx="1"/></svg></span><span class="nav-label">Futures</span></a>
+      <a href="/assets"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="7" width="20" height="14" rx="2" opacity=".3"/><rect x="2" y="7" width="20" height="5" rx="2"/><circle cx="17" cy="16" r="2.5"/></svg></span><span class="nav-label">Assets</span></a>
     </nav>
 
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
     <script src="/theme.js?v=20260301a"></script>
-    <script src="/trade.js?v=20260304a"></script>
+    <script src="/trade.js?v=20260323d"></script>
   </body>
 </html>

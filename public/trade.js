@@ -1,12 +1,3 @@
-const BITEGIT_API = (window.BITEGIT_API_BASE || 'http://localhost:3000/api/v1');
-function tradeFetch(path, opts) {
-  var token = localStorage.getItem('bitegit_token') || '';
-  opts = opts || {};
-  var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
-  if (token) headers['Authorization'] = 'Bearer ' + token;
-  return fetch(BITEGIT_API + path, Object.assign({}, opts, { headers: headers, credentials: 'include' }));
-}
-
 const pathParts = window.location.pathname.split('/').filter(Boolean);
 const routeQuery = new URLSearchParams(window.location.search);
 const queryMarket = String(routeQuery.get('market') || '').trim().toLowerCase();
@@ -104,6 +95,110 @@ const tradeDrawerLogout = document.getElementById('tradeDrawerLogout');
 const tradeLoginBtn = document.getElementById('tradeLoginBtn');
 const tradeSignupBtn = document.getElementById('tradeSignupBtn');
 const tradeUserAvatar = document.getElementById('tradeUserAvatar');
+
+// ── Bitget-style helper functions ──
+
+// MA calculation helper
+function calcMA(closes, period) {
+  if (closes.length < period) return null;
+  const slice = closes.slice(-period);
+  return slice.reduce((a, b) => a + b, 0) / period;
+}
+
+function updateMARow() {
+  if (!state.klines || state.klines.length < 3) return;
+  const closes = state.klines.map(k => k.close || k[4] || 0);
+  const ma5El = document.getElementById('bgMa5');
+  const ma10El = document.getElementById('bgMa10');
+  const ma20El = document.getElementById('bgMa20');
+  const fmt = v => v ? v.toLocaleString('en-US', {maximumFractionDigits: 2}) : '--';
+  if (ma5El) ma5El.textContent = fmt(calcMA(closes, 5));
+  if (ma10El) ma10El.textContent = fmt(calcMA(closes, 10));
+  if (ma20El) ma20El.textContent = fmt(calcMA(closes, 20));
+}
+
+async function updatePeriodPerformance(symbol) {
+  try {
+    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=181`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length < 2) return;
+    const currentClose = parseFloat(data[data.length - 1][4]);
+    const periods = [
+      { id: 'bgPeriod1d', days: 1 },
+      { id: 'bgPeriod7d', days: 7 },
+      { id: 'bgPeriod30d', days: 30 },
+      { id: 'bgPeriod90d', days: 90 },
+      { id: 'bgPeriod180d', days: 180 }
+    ];
+    periods.forEach(({ id, days }) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const idx = data.length - 1 - days;
+      if (idx < 0) return;
+      const pastClose = parseFloat(data[idx][4]);
+      if (!pastClose) return;
+      const pct = ((currentClose - pastClose) / pastClose * 100).toFixed(2);
+      el.textContent = (pct > 0 ? '+' : '') + pct + '%';
+      el.className = parseFloat(pct) >= 0 ? 'up' : 'dn';
+    });
+  } catch(e) {}
+}
+
+function renderBitgetOrderBook(orderBook) {
+  const container = document.getElementById('bgBookRows');
+  if (!container || !orderBook) return;
+  const bids = (orderBook.bids || []).slice(0, 15);
+  const asks = (orderBook.asks || []).slice(0, 15);
+
+  // Normalize: bids/asks may be arrays of objects {price, quantity} or arrays [price, qty]
+  const getPrice = (r) => r && (r.price !== undefined ? r.price : r[0]);
+  const getQty = (r) => r && (r.quantity !== undefined ? r.quantity : r[1]);
+
+  const maxLen = Math.max(bids.length, asks.length);
+  let html = '';
+  for (let i = 0; i < maxLen; i++) {
+    const bid = bids[i];
+    const ask = asks[i];
+    const bidQty = bid ? parseFloat(getQty(bid)).toFixed(4) : '';
+    const bidPrice = bid ? parseFloat(getPrice(bid)).toLocaleString('en-US', {maximumFractionDigits: 2}) : '';
+    const askPrice = ask ? parseFloat(getPrice(ask)).toLocaleString('en-US', {maximumFractionDigits: 2}) : '';
+    const askQty = ask ? parseFloat(getQty(ask)).toFixed(4) : '';
+    html += `<div class="bg-book-row">
+      <span class="bg-br-qty">${bidQty}</span>
+      <span class="bg-br-bid">${bidPrice}</span>
+      <span class="bg-br-ask">${askPrice}</span>
+      <span class="bg-br-qty-r">${askQty}</span>
+    </div>`;
+  }
+  container.innerHTML = html;
+
+  // Update mid price
+  const midEl = document.getElementById('bgMidPriceBig');
+  const midSubEl = document.getElementById('bgMidPriceSub');
+  if (bids.length && asks.length && midEl) {
+    const mid = (parseFloat(getPrice(bids[0])) + parseFloat(getPrice(asks[0]))) / 2;
+    midEl.textContent = mid.toLocaleString('en-US', {maximumFractionDigits: 2});
+    if (midSubEl) midSubEl.textContent = '≈$' + mid.toLocaleString('en-US', {maximumFractionDigits: 2});
+  }
+
+  // B/S ratio
+  const totalBid = bids.reduce((s, r) => s + parseFloat(getQty(r)), 0);
+  const totalAsk = asks.reduce((s, r) => s + parseFloat(getQty(r)), 0);
+  const total = totalBid + totalAsk;
+  if (total > 0) {
+    const buyPct = Math.round(totalBid / total * 100);
+    const sellPct = 100 - buyPct;
+    const bp = document.getElementById('bgBuyPct');
+    const sp = document.getElementById('bgSellPct');
+    const fill = document.getElementById('bgBsFillBuy');
+    if (bp) bp.textContent = buyPct;
+    if (sp) sp.textContent = sellPct;
+    if (fill) fill.style.width = buyPct + '%';
+  }
+}
+
+// ── End Bitget helpers ──
 
 let depthTimer = null;
 let klineTimer = null;
@@ -412,7 +507,7 @@ function setAccountUi() {
 
 async function loadTradeUserSession() {
   try {
-    const response = await tradeFetch('/auth/me');
+    const response = await fetch('/api/p2p/me');
     const data = await response.json();
     if (response.ok && data?.loggedIn && data?.user) {
       activeTradeUser = data.user;
@@ -427,9 +522,7 @@ async function loadTradeUserSession() {
 
 async function logoutTradeSession() {
   try {
-    await tradeFetch('/auth/logout', { method: 'POST' });
-    localStorage.removeItem('bitegit_token');
-    localStorage.removeItem('bitegit_refresh_token');
+    await fetch('/api/p2p/logout', { method: 'POST' });
   } catch (_) {
     // ignore logout errors
   }
@@ -801,6 +894,42 @@ function renderTicker(ticker) {
   setPriceChangeStyle(change);
   updateMobileQuickPrices(ticker.lastPrice, change);
   renderEstimatedQty();
+
+  // Update Bitget-style mobile header
+  const bgPairName = document.getElementById('bgPairName');
+  const bgPairChg = document.getElementById('bgPairChg');
+  if (bgPairName) bgPairName.textContent = state.symbol.replace('USDT', '/USDT');
+  if (bgPairChg) {
+    bgPairChg.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+    bgPairChg.className = 'bg-pair-chg ' + (change >= 0 ? 'up' : 'dn');
+  }
+
+  // Update Bitget-style price stats row
+  const fmtPrice = v => Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const fmtVol = v => {
+    const n = Number(v);
+    if (n >= 1e9) return (n/1e9).toFixed(2) + 'B';
+    if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
+    if (n >= 1e3) return (n/1e3).toFixed(2) + 'K';
+    return n.toFixed(2);
+  };
+  const bgPsPrice = document.getElementById('bgPsPrice');
+  const bgPsUsd = document.getElementById('bgPsUsd');
+  const bgPsChgBig = document.getElementById('bgPsChgBig');
+  const bgPsHigh = document.getElementById('bgPsHigh');
+  const bgPsLow = document.getElementById('bgPsLow');
+  const bgPsVol = document.getElementById('bgPsVol');
+  const bgPsTurnover = document.getElementById('bgPsTurnover');
+  if (bgPsPrice) bgPsPrice.textContent = fmtPrice(ticker.lastPrice);
+  if (bgPsUsd) bgPsUsd.textContent = '≈$' + fmtPrice(ticker.lastPrice);
+  if (bgPsChgBig) {
+    bgPsChgBig.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+    bgPsChgBig.className = change >= 0 ? 'up' : 'dn';
+  }
+  if (bgPsHigh) bgPsHigh.textContent = fmtPrice(ticker.high24h || ticker.lastPrice);
+  if (bgPsLow) bgPsLow.textContent = fmtPrice(ticker.low24h || ticker.lastPrice);
+  if (bgPsVol) bgPsVol.textContent = fmtVol(ticker.volume24h || 0);
+  if (bgPsTurnover) bgPsTurnover.textContent = fmtVol((ticker.volume24h || 0) * (ticker.lastPrice || 0));
 }
 
 function renderOrderBook(orderBook) {
@@ -843,6 +972,9 @@ function renderOrderBook(orderBook) {
     midPrice.textContent = formatPrice(state.ticker?.lastPrice || 0, 6);
     setPriceChangeStyle(state.ticker?.change24h || 0);
   }
+
+  // Also render Bitget-style order book
+  renderBitgetOrderBook(orderBook);
 }
 
 function renderTrades(trades) {
@@ -1260,7 +1392,7 @@ function drawCandles(data) {
 async function loadDepth() {
   const requestId = ++depthLoadSeq;
   try {
-    const response = await tradeFetch(`/market/orderbook?symbol=${encodeURIComponent(state.symbol)}&_t=${Date.now()}`, {
+    const response = await fetch(`/api/p2p/market-depth?symbol=${encodeURIComponent(state.symbol)}&_t=${Date.now()}`, {
       cache: 'no-store'
     });
     const data = await response.json();
@@ -1345,7 +1477,7 @@ async function loadKlines() {
       interval: state.interval,
       limit: '320'
     });
-    const response = await tradeFetch(`/market/klines?${params.toString()}`);
+    const response = await fetch(`/api/p2p/klines?${params.toString()}`);
     const data = await response.json();
 
     if (!response.ok || !Array.isArray(data.klines)) {
@@ -1353,6 +1485,7 @@ async function loadKlines() {
     }
 
     state.klines = data.klines;
+    updateMARow();
     const bounds = getVisibleBounds(state.klines.length);
     if (bounds.max > 0) {
       chartView.visible = clamp(chartView.visible, bounds.min, bounds.max);
@@ -1392,8 +1525,9 @@ async function placeTradeOrder() {
   });
 
   try {
-    const response = await tradeFetch('/orders', {
+    const response = await fetch('/api/trade/orders', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         market: state.market,
         symbol: state.symbol,
@@ -1448,18 +1582,46 @@ function setOrderType(orderType) {
 }
 
 function setMobileTab(tab) {
-  const target = ['chart', 'book', 'trades'].includes(tab) ? tab : 'chart';
+  const target = ['chart', 'book', 'trades', 'about'].includes(tab) ? tab : 'chart';
   state.mobileTab = target;
 
   mobileMarketTabs?.querySelectorAll('button[data-mobile-tab]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.mobileTab === target);
   });
 
+  // Remove any existing about panel
+  const existingAbout = document.getElementById('bgAboutPanel');
+  if (existingAbout && target !== 'about') {
+    existingAbout.remove();
+  }
+
   if (!isMobileViewport()) {
     chartColumn?.classList.remove('mobile-hidden');
     bookColumn?.classList.remove('mobile-hidden');
     return;
   }
+
+  if (target === 'about') {
+    chartColumn?.classList.add('mobile-hidden');
+    bookColumn?.classList.add('mobile-hidden');
+    if (!document.getElementById('bgAboutPanel')) {
+      const aboutPanel = document.createElement('div');
+      aboutPanel.id = 'bgAboutPanel';
+      aboutPanel.style.cssText = 'padding:2rem 1rem;color:#8a9bb5;font-size:0.9rem;line-height:1.7;background:#000;min-height:300px;';
+      aboutPanel.innerHTML = `<h3 style="color:#f4f8ff;margin:0 0 0.75rem">About ${state.symbol.replace('USDT', '/USDT')}</h3>
+        <p style="margin:0 0 0.5rem">Real-time spot trading pair on Bitegit exchange. Data sourced from Binance.</p>
+        <p style="margin:0;color:#5a6a80;font-size:0.8rem">Prices are indicative. Past performance is not indicative of future results.</p>`;
+      const mainGrid = document.querySelector('.trade-main-grid');
+      if (mainGrid) {
+        mainGrid.parentNode.insertBefore(aboutPanel, mainGrid.nextSibling);
+      }
+    }
+    return;
+  }
+
+  // Update body class for CSS-based tab visibility
+  document.body.classList.remove('bg-tab-chart', 'bg-tab-book', 'bg-tab-trades', 'bg-tab-about');
+  document.body.classList.add('bg-tab-' + target);
 
   if (target === 'chart') {
     chartColumn?.classList.remove('mobile-hidden');
@@ -1816,7 +1978,13 @@ function setupInteractions() {
     setMobileTab(tabBtn.dataset.mobileTab || 'chart');
   });
 
-  mobileBookCollapseBtn?.addEventListener('click', toggleBookCollapse);
+  const bgFloatTradeBtn = document.getElementById('bgFloatTradeBtn');
+  if (bgFloatTradeBtn) {
+    bgFloatTradeBtn.addEventListener('click', () => {
+      const tradePanel = document.getElementById('desktopTradePanel') || document.getElementById('mobileTradeSticky');
+      if (tradePanel) tradePanel.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
 
   tradeMenuToggle?.addEventListener('click', () => setTradeNavOpen(true));
   tradeNavClose?.addEventListener('click', () => setTradeNavOpen(false));
@@ -1867,6 +2035,8 @@ async function initTradePage() {
     chartViewTabs?.querySelector('button.active[data-chart-view]')?.dataset.chartView || activeChartMode;
   await setChartMode(defaultChartMode, { suppressLoad: true });
   applyResponsiveState();
+
+  void updatePeriodPerformance(state.symbol);
 
   await Promise.all([loadDepth(), loadKlines()]);
 

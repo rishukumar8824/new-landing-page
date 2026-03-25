@@ -84,7 +84,7 @@ body.p2p-chat-page {
 .refresh-btn {
   min-width: 38px;
   min-height: 38px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: none;
   border-radius: 10px;
   background: #171d2a;
   color: #ffffff;
@@ -221,7 +221,7 @@ body.p2p-chat-page {
 }
 
 .details-grid > div {
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: none;
   border-radius: 10px;
   background: var(--panel-2);
   padding: 0.54rem;
@@ -372,7 +372,7 @@ body.p2p-chat-page {
   max-width: min(220px, 100%);
   max-height: 220px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: none;
   object-fit: contain;
 }
 
@@ -389,7 +389,7 @@ body.p2p-chat-page {
 .send-btn {
   min-height: 40px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: none;
   font-size: 0.92rem;
   font-weight: 700;
   cursor: pointer;
@@ -399,25 +399,19 @@ body.p2p-chat-page {
   min-width: 40px;
   background: #1a2231;
   color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .send-btn {
-  min-width: 44px;
+  min-width: 84px;
   border: 0;
   background: linear-gradient(145deg, #ffc14e 0%, #f7a723 100%);
   color: #24190c;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 #chatInput {
   min-height: 40px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: none;
   background: #141b27;
   color: #f6f8fb;
   padding: 0 0.62rem;
@@ -448,7 +442,7 @@ body.p2p-chat-page {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid rgba(247, 167, 35, 0.25);
+  border: none;
   border-top-color: #f7a723;
   animation: upload-spin 0.7s linear infinite;
 }
@@ -479,7 +473,7 @@ body.p2p-chat-page {
   width: min(92vw, 760px);
   max-height: 92dvh;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: none;
   background: #0c0f15;
   padding: 2.7rem 0.75rem 0.75rem;
   display: grid;
@@ -493,7 +487,7 @@ body.p2p-chat-page {
   min-width: 34px;
   min-height: 34px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: none;
   background: rgba(18, 24, 36, 0.9);
   color: #ffffff;
   cursor: pointer;

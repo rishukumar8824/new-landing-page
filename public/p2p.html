@@ -3,188 +3,187 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <title>Bitegit P2P</title>
-    <link rel="stylesheet" href="/mobile-nav.css?v=20260323c" />
-    <link rel="stylesheet" href="/styles.css?v=20260323c" />
-    <link rel="stylesheet" href="/p2p.css?v=20260323c" />
-    <script src="/bitegit-config.js"></script>
+    <title>Bitegit P2P | Buy &amp; Sell Crypto</title>
+    <link rel="stylesheet" href="/mobile-nav.css" />
+    <link rel="stylesheet" href="/p2p.css?v=20260324a" />
   </head>
   <body class="p2p-page p2p-theme-dark has-mobile-nav" data-mobile-tab="p2p">
+
+    <!-- ── Main Header ── -->
     <header class="p2p-header" id="p2pHeader">
       <div class="p2p-header-inner">
         <div class="p2p-brand-wrap">
-          <button id="p2pMenuToggle" class="p2p-menu-btn" type="button" aria-label="Open menu" aria-controls="p2pNavDrawer" aria-expanded="false">☰</button>
-          <a href="/" class="p2p-brand">BITEGIT</a>
+          <a href="/" class="p2p-brand">
+            <span class="p2p-brand-mark" aria-hidden="true"></span>
+            <span class="p2p-brand-word">Bitegit</span>
+          </a>
         </div>
-
         <nav class="p2p-main-nav" aria-label="Primary navigation">
           <a href="/">Buy Crypto</a>
-          <a href="/trade/spot/BTCUSDT">Markets</a>
-          <a href="/p2p" class="active">P2P</a>
+          <a href="/markets.html">Markets</a>
           <a href="/trade/spot/BTCUSDT">Trade</a>
-          <a href="/">Finance</a>
-          <a href="/">Learn</a>
+          <a href="/trade/perp/BTCUSDT">Futures</a>
+          <a href="/p2p" class="active">P2P</a>
+          <a href="/">Earn</a>
         </nav>
-
         <div class="p2p-header-actions">
-          <input class="p2p-search" type="text" value="BTC/USDT" readonly />
-          <button id="themeToggleBtn" type="button" class="p2p-theme-toggle">Light</button>
-          <button id="openAuthBtn" class="p2p-login-btn" type="button">Log In</button>
-          <a class="p2p-signup-btn" href="/">Sign Up</a>
+          <button id="openAuthBtn" class="p2p-login-btn" type="button" data-auth-guest-only>Log In</button>
+          <a class="p2p-signup-btn" href="/auth.html?mode=signup&redirect=%2Fp2p" data-auth-guest-only>Sign Up</a>
+          <a id="openAssetsBtn" class="p2p-user-btn hidden" href="/assets" data-auth-user-only>Assets</a>
+          <button id="p2pMenuToggle" class="p2p-hamburger" type="button" aria-label="Open menu" aria-controls="p2pNavDrawer" aria-expanded="false">
+            <span></span><span></span><span></span>
+          </button>
         </div>
       </div>
     </header>
 
+    <!-- ── Sub-nav (Express / P2P / Block Trade) ── -->
+    <nav class="p2p-subnav" aria-label="P2P navigation">
+      <div class="p2p-subnav-inner">
+        <div class="p2p-subnav-left">
+          <a href="#">Express</a>
+          <a href="/p2p" class="active">P2P</a>
+          <a href="#">Block Trade</a>
+        </div>
+        <div class="p2p-subnav-right">
+          <a href="/p2p#orders" data-mobile-tab-target="orders">Orders</a>
+          <a href="/p2p#ads" data-mobile-tab-target="ads">My Ads</a>
+          <a href="/p2p#profile" data-mobile-tab-target="profile">Profile</a>
+          <div class="p2p-dot-menu-wrap">
+            <button class="p2p-dot-btn" id="p2pDotBtn" aria-label="More options">
+              <span></span><span></span><span></span>
+            </button>
+            <div class="p2p-dot-dropdown" id="p2pDotDropdown">
+              <button class="p2p-dot-item" onclick="openP2PScreen('merchantScreen');closeDotMenu()">Become Merchant</button>
+              <button class="p2p-dot-item" onclick="openP2PScreen('beginnerScreen');closeDotMenu()">Beginner guidance</button>
+              <button class="p2p-dot-item" onclick="openP2PScreen('faqScreen');closeDotMenu()">FAQ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Mobile drawer -->
     <div id="p2pNavOverlay" class="p2p-nav-overlay hidden" aria-hidden="true"></div>
     <aside id="p2pNavDrawer" class="p2p-nav-drawer" aria-hidden="true">
       <div class="p2p-drawer-head">
-        <strong>BITEGIT</strong>
-        <button id="p2pNavClose" type="button" aria-label="Close menu">✕</button>
+        <strong>Bitegit</strong>
+        <button id="p2pNavClose" type="button" aria-label="Close">✕</button>
       </div>
       <nav class="p2p-drawer-links" aria-label="Mobile navigation">
         <a href="/">Buy Crypto</a>
-        <a href="/trade/spot/BTCUSDT">Markets</a>
+        <a href="/markets.html">Markets</a>
         <a href="/p2p">P2P</a>
         <a href="/trade/spot/BTCUSDT">Trade</a>
-        <a href="/">Finance</a>
-        <a href="/">Learn</a>
+        <a href="/">Earn</a>
       </nav>
       <div class="p2p-drawer-actions">
-        <button id="openAuthBtnDrawer" type="button">Log In</button>
-        <a href="/">Sign Up</a>
+        <button id="openAuthBtnDrawer" type="button" data-auth-guest-only>Log In</button>
+        <a href="/auth.html?mode=signup&redirect=%2Fp2p" data-auth-guest-only>Sign Up</a>
+        <a id="drawerAssetsBtn" href="/assets" class="hidden" data-auth-user-only>Assets</a>
       </div>
     </aside>
 
-    <section class="p2p-secondary-nav">
-      <div class="p2p-shell">
-        <div class="p2p-secondary-left">
-          <a href="/">One-Click Buy</a>
-          <a href="/p2p" class="active">P2P</a>
-          <a href="/">Block</a>
-          <a href="/">Fiat Deposit</a>
-          <a href="/">Recurring Buy</a>
-          <a href="/">Bybit Card</a>
-          <a href="/">Convert</a>
-        </div>
-        <div class="p2p-secondary-right">
-          <a href="/p2p" class="active" data-mobile-tab-target="p2p">P2P</a>
-          <a href="/p2p#ads" data-mobile-tab-target="ads">Ads</a>
-          <a href="/p2p#orders" data-mobile-tab-target="orders">Orders</a>
-          <a href="/p2p#profile" data-mobile-tab-target="profile">P2P User Center</a>
-        </div>
-      </div>
-    </section>
+    <main class="p2p-main-wrap">
 
-    <section class="p2p-mobile-topnav mobile-only" aria-label="Mobile P2P top navigation">
-      <div class="p2p-shell p2p-mobile-topnav-inner">
-        <a class="mobile-topnav-back" href="/" aria-label="Back">←</a>
-        <a class="mobile-topnav-link" href="/p2p">Express</a>
-        <a class="mobile-topnav-link active" href="/p2p">P2P</a>
-        <a class="mobile-topnav-link" href="/p2p">Block Trade</a>
-        <button id="mobileCurrencyBtn" class="mobile-topnav-currency" type="button" aria-label="Select currency">
-          INR ▾
-        </button>
-      </div>
-    </section>
+      <!-- ── Hero ── -->
+      <span id="userStatus" style="display:none"></span>
 
-    <main class="p2p-shell p2p-main">
-      <section class="p2p-hero-note">
-        <h1>Use P2P to buy USDT with INR</h1>
-        <p>Secure order matching, escrow workflow, and real-time chat between buyer and seller.</p>
-      </section>
+      <!-- ── Board ── -->
+      <section class="p2p-board">
 
-      <section class="p2p-promo">
-        <p>South Asia Exclusive Trading Showdown - Deposit, trade and win up to 300 USDT.</p>
-      </section>
-
-      <section class="p2p-board-card">
-        <div class="p2p-session-line">
-          <p id="userStatus" class="user-status">P2P account status.</p>
-          <button id="logoutBtn" type="button" class="secondary-btn">Logout</button>
-        </div>
-
-        <div class="p2p-mobile-top">
-          <div class="p2p-action-row">
-            <div id="sideTabs" class="p2p-tabs sticky-toggle">
-              <button class="side-tab active" data-side="buy" type="button">Buy</button>
-              <button class="side-tab" data-side="sell" type="button">Sell</button>
+        <!-- Gate.io style top controls -->
+        <div class="gt-controls">
+          <!-- Row 1: Buy/Sell + Refresh + Filter + Currency -->
+          <div class="gt-controls-row1">
+            <div id="sideTabs" class="gt-side-tabs">
+              <button class="gt-side-tab active" data-side="buy" type="button">Buy</button>
+              <button class="gt-side-tab" data-side="sell" type="button">Sell</button>
             </div>
-
-            <div id="assetChipRow" class="asset-chip-row desktop-only">
-              <button class="asset-chip active" data-asset="USDT" type="button">USDT</button>
-              <button class="asset-chip" data-asset="BTC" type="button">BTC</button>
-              <button class="asset-chip" data-asset="ETH" type="button">ETH</button>
-              <button class="asset-chip" data-asset="USDT" type="button">USDC</button>
-              <button class="asset-chip" data-asset="USDT" type="button">SOL</button>
-              <button class="asset-chip" data-asset="USDT" type="button">BNB</button>
-              <span class="asset-support">Supports 300+ Cryptos</span>
+            <div class="gt-controls-right">
+              <button id="refreshOffers" type="button" class="gt-icon-btn" aria-label="Refresh">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              </button>
+              <button id="applyFilters" type="button" class="gt-icon-btn" aria-label="Filter">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              </button>
+              <div class="gt-currency-wrap">
+                <select id="currencyFilter" class="gt-currency-select" aria-label="Fiat currency">
+                  <option value="INR" selected>INR</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option>
+                  <option value="AED">AED</option>
+                  <option value="SGD">SGD</option>
+                  <option value="USDT">USDT</option>
+                </select>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
             </div>
           </div>
-
-          <div class="p2p-filter-row sticky-filter-row">
-            <select id="assetFilter" aria-label="Asset">
-              <option value="USDT">USDT</option>
-              <option value="BTC">BTC</option>
-              <option value="ETH">ETH</option>
-            </select>
-            <input id="amountFilter" type="number" min="0" placeholder="Amount" />
-            <select id="paymentFilter" aria-label="Payment method">
-              <option value="">All Payment Methods</option>
-              <option value="UPI">UPI</option>
-              <option value="IMPS">IMPS</option>
-              <option value="NEFT">NEFT</option>
-              <option value="Bank">Bank Transfer</option>
-              <option value="Paytm">Paytm</option>
-            </select>
-            <select id="currencyFilter" class="currency-select" aria-label="Fiat currency">
-              <option value="INR" selected>INR</option>
-            </select>
-            <button id="refreshOffers" type="button" class="secondary-btn">Refresh</button>
-            <button id="applyFilters" type="button" class="filter-btn">Filter <span class="badge">1</span></button>
+          <!-- Row 2: Asset selector + Amount input -->
+          <div class="gt-controls-row2">
+            <div class="gt-asset-wrap">
+              <svg width="22" height="22" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#26a17b"/><path d="M17.922 17.383v-.002c-.11.008-.677.042-1.942.042-1.01 0-1.721-.03-1.971-.042v.003c-3.888-.171-6.79-.848-6.79-1.658 0-.809 2.902-1.486 6.79-1.66v2.644c.254.018.982.061 1.988.061 1.207 0 1.812-.05 1.925-.06v-2.643c3.88.173 6.775.85 6.775 1.658 0 .81-2.895 1.485-6.775 1.657m0-3.59v-2.366h5.414V7.819H8.595v3.608h5.414v2.365c-4.4.202-7.709 1.074-7.709 2.122 0 1.048 3.309 1.919 7.709 2.121v7.596h3.913v-7.6c4.393-.202 7.694-1.073 7.694-2.12 0-1.046-3.301-1.917-7.694-2.12" fill="white"/></svg>
+              <select id="assetFilter" class="gt-asset-select" aria-label="Asset">
+                <option value="USDT">USDT</option>
+                <option value="BTC">BTC</option>
+                <option value="ETH">ETH</option>
+              </select>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="gt-amount-wrap">
+              <input id="amountFilter" type="number" min="0" placeholder="0.000" class="gt-amount-input"/>
+              <div class="gt-amount-right">
+                <span class="gt-amount-cur">INR</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              </div>
+            </div>
           </div>
         </div>
 
-        <input id="advertiserFilter" class="hidden-control" type="text" placeholder="Search advertiser" />
+        <!-- Hidden legacy inputs kept for JS compatibility -->
+        <input id="paymentFilter" type="hidden" value=""/>
 
-        <div class="p2p-feed-row">
-          <p id="p2pMeta">Loading offers...</p>
-          <div id="exchangeTicker" class="exchange-ticker">Loading exchange data...</div>
-        </div>
-
-        <div class="p2p-alert-row">
+        <!-- Alert -->
+        <div class="p2p-alert-bar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f7a723" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span>Do not share personal contact details. Always verify payment information independently.</span>
         </div>
 
-        <div class="p2p-table-wrap desktop-only">
-          <table class="p2p-table light">
+        <!-- Desktop table -->
+        <div class="p2p-table-wrap">
+          <table class="p2p-table">
             <thead>
               <tr>
-                <th>User</th>
+                <th>Merchant</th>
                 <th>Price</th>
-                <th>Limits</th>
-                <th>Quantity</th>
-                <th>Payment</th>
+                <th>Size / Limit</th>
+                <th>Payment Method</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody id="p2pRows"></tbody>
           </table>
+          <p id="p2pMeta" class="p2p-table-meta">Loading offers…</p>
         </div>
 
+        <!-- Mobile cards -->
         <div id="p2pCards" class="p2p-cards mobile-only"></div>
+        <div style="text-align:center;padding:0.8rem 0;">
+          <button id="loadMoreOffersBtn" class="load-more-btn" style="display:none;">Load More Ads</button>
+        </div>
+
       </section>
 
-      <section id="orders" class="p2p-live-card">
-        <div class="p2p-live-head">
+      <!-- ── Ongoing Orders ── -->
+      <section id="orders" class="p2p-orders-section">
+        <div class="p2p-orders-head">
           <h2>Ongoing Orders</h2>
-          <p id="liveOrdersMeta">Loading ongoing orders...</p>
+          <p id="liveOrdersMeta"></p>
         </div>
-
-        <div class="p2p-live-table-wrap desktop-only">
-          <table class="p2p-table light">
+        <div class="p2p-table-wrap">
+          <table class="p2p-table">
             <thead>
               <tr>
                 <th>Order Ref</th>
@@ -198,409 +197,266 @@
             <tbody id="liveOrdersRows"></tbody>
           </table>
         </div>
-
         <div id="liveOrdersCards" class="p2p-cards mobile-only mobile-orders-list"></div>
       </section>
 
-      <section id="ads" class="p2p-mobile-panel p2p-ads-panel mobile-only">
-        <div class="mobile-panel-head">
+      <!-- ── Post Ad ── -->
+      <section id="ads" class="p2p-panel p2p-ads-panel">
+        <div class="p2p-panel-head">
           <h2>Post Advertisement</h2>
           <p>Any logged-in user can create buy/sell ads.</p>
         </div>
-
-        <form id="adCreateForm" class="ad-create-form">
-          <div class="ad-create-grid">
-            <label>
-              <span>Ad Type</span>
-              <select id="adTypeInput">
-                <option value="sell">Sell</option>
-                <option value="buy">Buy</option>
-              </select>
+        <form id="adCreateForm" class="p2p-ad-form">
+          <div class="p2p-ad-grid">
+            <label><span>Ad Type</span>
+              <select id="adTypeInput"><option value="sell">Sell</option><option value="buy">Buy</option></select>
             </label>
-            <label>
-              <span>Asset</span>
-              <select id="adAssetInput">
-                <option value="USDT">USDT</option>
-                <option value="BTC">BTC</option>
-                <option value="ETH">ETH</option>
-              </select>
+            <label><span>Asset</span>
+              <select id="adAssetInput"><option value="USDT">USDT</option></select>
             </label>
-          </div>
-
-          <div class="ad-create-grid">
-            <label>
-              <span>Price (INR)</span>
+            <label><span>Price (INR)</span>
               <input id="adPriceInput" type="number" step="0.0001" min="0" placeholder="96.40" />
             </label>
-            <label>
-              <span>Available (Asset)</span>
+            <label><span>Available (USDT)</span>
               <input id="adAvailableInput" type="number" step="0.0001" min="0" placeholder="500" />
             </label>
-          </div>
-
-          <div class="ad-create-grid">
-            <label>
-              <span>Min Limit (INR)</span>
+            <label><span>Min Limit (INR)</span>
               <input id="adMinLimitInput" type="number" step="1" min="0" placeholder="500" />
             </label>
-            <label>
-              <span>Max Limit (INR)</span>
+            <label><span>Max Limit (INR)</span>
               <input id="adMaxLimitInput" type="number" step="1" min="0" placeholder="50000" />
             </label>
           </div>
-
-          <label>
-            <span>Payment Methods (comma separated)</span>
+          <label class="p2p-ad-full"><span>Payment Methods (comma separated)</span>
             <input id="adPaymentsInput" type="text" placeholder="UPI, IMPS, Bank Transfer" />
           </label>
-
-          <button id="adCreateBtn" type="submit" class="ad-create-btn">Post Ad</button>
-          <p id="adCreateMeta" class="ad-create-meta">Fill details to publish your ad.</p>
+          <button id="adCreateBtn" type="submit" class="p2p-ad-submit">Post Ad</button>
+          <p id="adCreateMeta" class="p2p-ad-meta">Fill details to publish your ad.</p>
         </form>
-
-        <div class="my-ads-head">
+        <div class="p2p-myads-head">
           <h3>Your Ads</h3>
-          <button id="refreshMyAdsBtn" type="button" class="secondary-btn">Refresh</button>
+          <button id="refreshMyAdsBtn" type="button" class="p2p-sec-btn">Refresh</button>
         </div>
-        <div id="myAdsList" class="my-ads-list"></div>
+        <div id="myAdsList" class="p2p-myads-list"></div>
       </section>
 
-      <section id="profile" class="p2p-mobile-panel p2p-profile-panel mobile-only">
-
-        <!-- Identity card -->
-        <article class="profile-identity-card">
-          <div class="profile-avatar" id="profileAvatar">U</div>
-          <div class="profile-identity-main">
+      <!-- ── Profile ── -->
+      <section id="profile" class="p2p-panel p2p-profile-panel">
+        <div class="p2p-panel-head">
+          <h2>P2P Profile</h2>
+          <p>Identity and 30-day performance overview.</p>
+        </div>
+        <article class="p2p-profile-card">
+          <div class="p2p-profile-avatar" id="profileAvatar">U</div>
+          <div class="p2p-profile-info">
             <h3 id="profileName">Guest User</h3>
-            <p id="profileSignupTime" class="profile-signup-time">Signup Time: --</p>
-            <div class="profile-badge-row">
-              <span class="profile-badge" id="badge-email">✓ Email</span>
-              <span class="profile-badge" id="badge-phone">✓ Phone</span>
-              <span id="profileIdentityTag" class="profile-identity-tag">Identity Not Submitted</span>
-            </div>
+            <p id="profileEmail"></p>
+            <span id="profileIdentityTag" class="p2p-identity-tag">Identity Not Submitted</span>
           </div>
+          <button id="profileDepositBtn" type="button" class="p2p-deposit-btn">Deposit</button>
         </article>
-
-        <!-- Stats grid -->
-        <div class="profile-metrics-grid profile-metrics-grid-30d">
-          <article>
-            <span>Total Trades</span>
-            <strong id="profileTotalOrders2">0</strong>
-          </article>
-          <article>
-            <span>Completion Rate</span>
-            <strong id="profileCompletionRate">0%</strong>
-          </article>
-          <article>
-            <span>30 Days Trades</span>
-            <strong id="profileCompletedOrders30d">0</strong>
-          </article>
-          <article>
-            <span>Average Time</span>
-            <strong id="profileAvgReleaseTime">0 m</strong>
-          </article>
+        <div class="p2p-metrics-grid">
+          <article><span>Completed Orders (30D)</span><strong id="profileCompletedOrders30d">0</strong></article>
+          <article><span>Completion Rate (30D)</span><strong id="profileCompletionRate30d">0%</strong></article>
+          <article><span>Avg Release Time</span><strong id="profileAvgReleaseTime">--</strong></article>
+          <article><span>Avg Payment Time</span><strong id="profileAvgPaymentTime">--</strong></article>
         </div>
-
-        <p id="profileMeta" class="profile-meta hidden"></p>
-
-        <!-- Tabs: Trade | Notifications | Others -->
-        <div class="profile-tabs-bar">
-          <button class="profile-tab active" data-ptab="trade" onclick="switchProfileTab('trade')">Trade</button>
-          <button class="profile-tab" data-ptab="notif" onclick="switchProfileTab('notif')">Notifications</button>
-          <button class="profile-tab" data-ptab="other" onclick="switchProfileTab('other')">Others</button>
-        </div>
-
-        <!-- TRADE TAB -->
-        <div class="profile-tab-panel active" id="ptab-trade">
-          <div class="profile-menu-list">
-            <!-- KYC Verification row -->
-            <div class="profile-menu-row" onclick="openKycBasicPage()">
-              <div class="pmr-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              </div>
-              <div class="pmr-label">
-                KYC Verification
-                <span id="kycStatusBadge" class="kyc-status-badge">Not Done</span>
-              </div>
-              <svg class="pmr-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-            <div class="profile-menu-row" onclick="void(0)">
-              <div class="pmr-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-              </div>
-              <div class="pmr-label">Payment Management</div>
-              <svg class="pmr-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-            <div class="profile-menu-row" onclick="void(0)">
-              <div class="pmr-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-              </div>
-              <div class="pmr-label">Restrictions Removal</div>
-              <svg class="pmr-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-            <div class="profile-menu-row" onclick="void(0)">
-              <div class="pmr-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-              </div>
-              <div class="pmr-label">Follow / Block</div>
-              <svg class="pmr-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-            <div class="profile-menu-row" onclick="void(0)">
-              <div class="pmr-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-              </div>
-              <div class="pmr-label">Ad Code</div>
-              <svg class="pmr-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-            <div class="profile-menu-row" onclick="void(0)">
-              <div class="pmr-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><circle cx="12" cy="12" r="2"/><circle cx="6" cy="12" r="2"/><circle cx="18" cy="12" r="2"/></svg>
-              </div>
-              <div class="pmr-label">Recently Viewed</div>
-              <svg class="pmr-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-          </div>
-        </div>
-
-        <!-- NOTIFICATIONS TAB -->
-        <div class="profile-tab-panel" id="ptab-notif">
-          <div class="profile-menu-list">
-            <div class="profile-menu-row" onclick="void(0)">
-              <div class="pmr-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              </div>
-              <div class="pmr-label">Order Notifications</div>
-              <svg class="pmr-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-            <div class="profile-menu-row" onclick="void(0)">
-              <div class="pmr-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              </div>
-              <div class="pmr-label">Chat Alerts</div>
-              <svg class="pmr-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-          </div>
-        </div>
-
-        <!-- OTHERS TAB -->
-        <div class="profile-tab-panel" id="ptab-other">
-          <div class="profile-menu-list">
-            <div class="profile-menu-row" onclick="void(0)">
-              <div class="pmr-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              </div>
-              <div class="pmr-label">P2P Help Center</div>
-              <svg class="pmr-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-            <div class="profile-menu-row" onclick="void(0)">
-              <div class="pmr-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              </div>
-              <div class="pmr-label">Activities</div>
-              <svg class="pmr-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-          </div>
-        </div>
-
+        <p id="profileMeta" class="p2p-profile-meta">Profile data sync pending.</p>
+        <p class="p2p-deposit-line">Deposit <strong id="profileDeposit">₹0</strong></p>
       </section>
 
     </main>
 
-    <!-- ===== KYC PAGE 1: BASIC DETAILS ===== -->
-    <div id="kycPageBasic" class="kyc-fullpage" style="display:none;">
-      <div class="kyc-fp-header">
-        <button type="button" class="kyc-fp-back" onclick="closeKycPages()">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-        <div class="kyc-fp-title-wrap">
-          <span class="kyc-fp-title">Identity Verification</span>
-          <span class="kyc-fp-step">Step 1 of 2</span>
-        </div>
-      </div>
-
-      <!-- Step progress bar -->
-      <div class="kyc-fp-progress">
-        <div class="kyc-fp-prog-bar">
-          <div class="kyc-fp-prog-fill" style="width:50%"></div>
-        </div>
-      </div>
-
-      <div class="kyc-fp-body">
-        <!-- Intro card -->
-        <div class="kyc-fp-intro">
-          <div class="kyc-fp-intro-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          </div>
-          <div>
-            <div class="kyc-fp-intro-title">Basic Details</div>
-            <div class="kyc-fp-intro-desc">Provide your personal information as it appears on your official ID</div>
-          </div>
-        </div>
-
-        <!-- Form fields -->
-        <div class="kyc-fp-form">
-          <div class="kyc-fp-field">
-            <label class="kyc-fp-label">Full Name</label>
-            <input id="kycFullName" type="text" class="kyc-fp-input" placeholder="As on Aadhaar / Passport" autocomplete="name" />
-          </div>
-          <div class="kyc-fp-field">
-            <label class="kyc-fp-label">Date of Birth</label>
-            <input id="kycDob" type="date" class="kyc-fp-input" />
-          </div>
-          <div class="kyc-fp-row2">
-            <div class="kyc-fp-field">
-              <label class="kyc-fp-label">Country</label>
-              <select id="kycCountry" class="kyc-fp-input">
-                <option value="IN">🇮🇳 India</option>
-                <option value="US">🇺🇸 United States</option>
-                <option value="GB">🇬🇧 United Kingdom</option>
-                <option value="AE">🇦🇪 UAE</option>
-                <option value="SG">🇸🇬 Singapore</option>
-              </select>
-            </div>
-            <div class="kyc-fp-field">
-              <label class="kyc-fp-label">Phone Number</label>
-              <input id="kycPhone" type="tel" class="kyc-fp-input" placeholder="+91 98765 43210" autocomplete="tel" />
-            </div>
-          </div>
-        </div>
-
-        <p id="kycBasicHint" class="kyc-fp-hint"></p>
-
-        <button type="button" class="kyc-fp-btn" onclick="submitKycBasicAndNext()">
-          Continue to Step 2
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
-
-        <p class="kyc-fp-secure-note">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7690" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          Your data is encrypted and used only for identity verification
-        </p>
-      </div>
-    </div>
-
-    <!-- ===== KYC PAGE 2: ADVANCED VERIFICATION ===== -->
-    <div id="kycPageAdvance" class="kyc-fullpage" style="display:none;">
-      <div class="kyc-fp-header">
-        <button type="button" class="kyc-fp-back" onclick="backToKycBasic()">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-        <div class="kyc-fp-title-wrap">
-          <span class="kyc-fp-title">Advanced Verification</span>
-          <span class="kyc-fp-step">Step 2 of 2</span>
-        </div>
-      </div>
-
-      <!-- Step progress bar -->
-      <div class="kyc-fp-progress">
-        <div class="kyc-fp-prog-bar">
-          <div class="kyc-fp-prog-fill" style="width:100%"></div>
-        </div>
-      </div>
-
-      <div class="kyc-fp-body">
-        <!-- Intro card -->
-        <div class="kyc-fp-intro">
-          <div class="kyc-fp-intro-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.6"><rect x="3" y="4" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h2M15 12h2M3 16l4-4 3 3 2-2 4 4"/></svg>
-          </div>
-          <div>
-            <div class="kyc-fp-intro-title">Document Upload</div>
-            <div class="kyc-fp-intro-desc">Upload Aadhaar card (front &amp; back) and a selfie holding your Aadhaar</div>
-          </div>
-        </div>
-
-        <!-- Upload cards -->
-        <div class="kyc-fp-uploads">
-
-          <!-- Aadhaar Front -->
-          <div class="kyc-upload-card" id="uploadCardFront">
-            <div class="kyc-upload-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.4"><rect x="3" y="4" width="18" height="14" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><circle cx="8" cy="13" r="1.5"/></svg>
-            </div>
-            <div class="kyc-upload-info">
-              <div class="kyc-upload-name">Aadhaar Front</div>
-              <div class="kyc-upload-hint" id="hintFront">Tap to upload • JPG / PNG</div>
-            </div>
-            <label class="kyc-upload-btn">
-              <input id="kycAadhaarFront" type="file" accept="image/*" style="display:none;" onchange="kycFileChanged(this,'hintFront','thumbFront')" />
-              Upload
-            </label>
-            <img id="thumbFront" class="kyc-upload-thumb" style="display:none;" />
-          </div>
-
-          <!-- Aadhaar Back -->
-          <div class="kyc-upload-card" id="uploadCardBack">
-            <div class="kyc-upload-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.4"><rect x="3" y="4" width="18" height="14" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
-            </div>
-            <div class="kyc-upload-info">
-              <div class="kyc-upload-name">Aadhaar Back</div>
-              <div class="kyc-upload-hint" id="hintBack">Tap to upload • JPG / PNG</div>
-            </div>
-            <label class="kyc-upload-btn">
-              <input id="kycAadhaarBack" type="file" accept="image/*" style="display:none;" onchange="kycFileChanged(this,'hintBack','thumbBack')" />
-              Upload
-            </label>
-            <img id="thumbBack" class="kyc-upload-thumb" style="display:none;" />
-          </div>
-
-          <!-- Selfie with Aadhaar -->
-          <div class="kyc-upload-card" id="uploadCardSelfie">
-            <div class="kyc-upload-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f0b90b" stroke-width="1.4"><circle cx="12" cy="10" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M20 4l-2 2"/><path d="M4 4l2 2"/></svg>
-            </div>
-            <div class="kyc-upload-info">
-              <div class="kyc-upload-name">Selfie with Aadhaar</div>
-              <div class="kyc-upload-hint" id="hintSelfie">Hold ID & face visible • JPG / PNG</div>
-            </div>
-            <label class="kyc-upload-btn">
-              <input id="kycSelfieDoc" type="file" accept="image/*" capture="user" style="display:none;" onchange="kycFileChanged(this,'hintSelfie','thumbSelfie')" />
-              Upload
-            </label>
-            <img id="thumbSelfie" class="kyc-upload-thumb" style="display:none;" />
-          </div>
-
-        </div>
-
-        <!-- Consent -->
-        <label class="kyc-fp-consent">
-          <input id="kycL2Consent" type="checkbox" />
-          <span>I confirm these documents belong to me and consent to AI-assisted identity verification</span>
-        </label>
-
-        <p id="kycAdvHint" class="kyc-fp-hint"></p>
-
-        <button type="button" class="kyc-fp-btn" onclick="submitKycAdvance()">
-          Submit for Verification
-        </button>
-
-        <p class="kyc-fp-secure-note">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7690" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          Review takes 24–48 hours. You'll be notified on approval.
-        </p>
-      </div>
-    </div>
-
-    <nav id="p2pMobileNav" class="mobile-app-nav p2p-mobile-bottom-nav" aria-label="P2P navigation">
-      <a href="/p2p" data-mobile-tab="p2p" class="active" aria-current="page">
-        <span class="nav-icon">⌂</span>
-        <span class="nav-label">P2P</span>
+    <!-- Mobile bottom nav (4 tabs) -->
+    <nav id="p2pMobileNav" class="p2p-mobile-bottom-nav" aria-label="P2P navigation">
+      <a href="#" class="mob-tab active" data-mob="p2p">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="7" r="3"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><circle cx="17" cy="10" r="2"/><path d="M21 21v-1a3 3 0 0 0-3-3h-1"/></svg>
+        <span>P2P</span>
       </a>
-      <a href="/p2p#orders" data-mobile-tab="orders">
-        <span class="nav-icon">☰</span>
-        <span class="nav-label">Orders</span>
+      <a href="#" class="mob-tab mob-tab-post-ad" data-mob="post">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        <span>Post Ad</span>
       </a>
-      <a href="/p2p#ads" data-mobile-tab="ads">
-        <span class="nav-icon">↗</span>
-        <span class="nav-label">Ads</span>
+      <a href="#" class="mob-tab" data-mob="orders">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span>Orders</span>
       </a>
-      <a href="/p2p#profile" data-mobile-tab="profile">
-        <span class="nav-icon">◎</span>
-        <span class="nav-label">Profile</span>
+      <a href="#" class="mob-tab" data-mob="profile">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>Profile</span>
       </a>
     </nav>
 
+    <!-- Mobile Orders Screen -->
+    <div id="mobOrdersScreen" class="mob-screen hidden" style="display:flex;flex-direction:column;height:100%;background:#000;">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);flex-shrink:0;">
+        <button class="mob-back-btn" data-mob-back="p2p" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0;line-height:1;">&#8592;</button>
+        <h2 style="margin:0;font-size:17px;font-weight:600;letter-spacing:0.2px;">Orders</h2>
+        <div style="display:flex;gap:18px;align-items:center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        </div>
+      </div>
+
+      <!-- Main tabs: Pending | Ended -->
+      <div id="ordMainTabs" style="display:flex;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;">
+        <button id="ordTabPending" data-ord-main="pending" style="flex:1;padding:13px 0;background:none;border:none;border-bottom:2px solid #f0b90b;color:#fff;font-size:14px;font-weight:700;cursor:pointer;touch-action:manipulation;">Pending</button>
+        <button id="ordTabEnded" data-ord-main="ended" style="flex:1;padding:13px 0;background:none;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,0.4);font-size:14px;font-weight:500;cursor:pointer;touch-action:manipulation;">Ended</button>
+      </div>
+
+      <!-- Pending sub-tabs: In progress | Under dispute -->
+      <div id="pendingSubTabs" style="display:flex;gap:8px;padding:10px 16px;flex-shrink:0;">
+        <button id="ordSubInprogress" data-ord-sub="inprogress" style="padding:6px 14px;border-radius:20px;background:#fff;border:none;color:#000;font-size:13px;font-weight:600;cursor:pointer;touch-action:manipulation;">In progress</button>
+        <button id="ordSubDispute" data-ord-sub="dispute" style="padding:6px 14px;border-radius:20px;background:rgba(255,255,255,0.08);border:none;color:rgba(255,255,255,0.6);font-size:13px;cursor:pointer;touch-action:manipulation;">Under dispute</button>
+      </div>
+
+      <!-- Ended sub-tabs: Completed | Canceled -->
+      <div id="endedSubTabs" style="display:none;gap:8px;padding:10px 16px;flex-shrink:0;">
+        <button id="ordSubCompleted" data-ord-sub="completed" style="padding:6px 14px;border-radius:20px;background:#fff;border:none;color:#000;font-size:13px;font-weight:600;cursor:pointer;touch-action:manipulation;">Completed</button>
+        <button id="ordSubCanceled" data-ord-sub="canceled" style="padding:6px 14px;border-radius:20px;background:rgba(255,255,255,0.08);border:none;color:rgba(255,255,255,0.6);font-size:13px;cursor:pointer;touch-action:manipulation;">Canceled</button>
+      </div>
+
+      <!-- Order lists -->
+      <div id="ordListInprogress" style="overflow-y:auto;flex:1;"></div>
+      <div id="ordListDispute" style="display:none;overflow-y:auto;flex:1;"></div>
+      <div id="ordListCompleted" style="display:none;overflow-y:auto;flex:1;"></div>
+      <div id="ordListCanceled" style="display:none;overflow-y:auto;flex:1;"></div>
+
+      <!-- hidden hooks for p2p.js desktop table -->
+      <div id="mobileOrdersTabs" style="display:none;"></div>
+      <div id="mobileOrdersList" style="display:none;"></div>
+      <div id="mobileHistoryList" style="display:none;"></div>
+      <tbody id="liveOrdersRows" style="display:none;"></tbody>
+      <div id="liveOrdersCards" style="display:none;"></div>
+    </div>
+
+    <!-- Mobile Profile Screen -->
+    <div id="mobProfileScreen" class="mob-screen hidden">
+      <!-- Header: just back arrow, no brand/hamburger -->
+      <div class="mob-screen-head">
+        <button class="mob-back-btn" data-mob-back="p2p" aria-label="Back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2>P2P Profile</h2>
+        <div style="width:32px"></div>
+      </div>
+
+      <!-- Avatar + Name -->
+      <div class="mob-profile-hero">
+        <div class="mob-profile-avatar" id="profileAvatar">U</div>
+        <div>
+          <h3 id="profileName" class="mob-profile-name">Guest User</h3>
+          <p class="mob-profile-since">Signup Time: 2024/01/01</p>
+          <div class="mob-verify-row">
+            <span class="mob-verify-chip">✓ Email</span>
+            <span class="mob-verify-chip">✓ Phone</span>
+            <span class="mob-verify-chip" id="profileIdentityTag">✓ Identity</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="mob-stats-grid">
+        <div><span>Total Trades</span><strong id="profileCompletedOrders30d">0</strong></div>
+        <div><span>Completion Rate</span><strong id="profileCompletionRate30d">0%</strong></div>
+        <div><span>30 Days Trades</span><strong>0</strong></div>
+        <div><span>Average Time</span><strong id="profileAvgReleaseTime">0 m</strong></div>
+      </div>
+
+      <!-- Menu tabs -->
+      <div class="mob-menu-tabs">
+        <button class="mob-mtab active">Trade</button>
+        <button class="mob-mtab">Notifications</button>
+        <button class="mob-mtab">Others</button>
+      </div>
+      <ul class="mob-menu-list">
+        <li data-open-kyc="1" style="cursor:pointer;">
+          <span>🛡️</span>
+          <span style="flex:1;">KYC Verification <span id="kycStatusBadge" style="font-size:0.62rem;font-weight:700;padding:2px 7px;border-radius:999px;background:rgba(246,70,93,0.15);border:1px solid rgba(246,70,93,0.3);color:#f6465d;margin-left:6px;">Not Done</span></span>
+          <span class="mob-arrow">›</span>
+        </li>
+        <li data-open-payment="1" style="cursor:pointer;-webkit-tap-highlight-color:transparent;"><span>💳</span> Payment Management <span class="mob-arrow">›</span></li>
+        <li><span>⚙️</span> Settings <span class="mob-arrow">›</span></li>
+        <li><span>👤</span> Follow/Block <span class="mob-arrow">›</span></li>
+        <li><span>🔑</span> Ad Code <span class="mob-arrow">›</span></li>
+        <li><span>👁</span> Recently Viewed <span class="mob-arrow">›</span></li>
+        <li><span>🔒</span> Fund Password <span class="mob-arrow">›</span></li>
+      </ul>
+
+      <!-- hidden hooks for p2p.js -->
+      <p id="profileMeta" class="hidden"></p>
+      <p id="profileEmail" class="hidden"></p>
+      <p id="profileAvgPaymentTime" class="hidden"></p>
+      <p id="profileDeposit" class="hidden"></p>
+      <button id="profileDepositBtn" class="hidden"></button>
+    </div>
+
+    <!-- Mobile Post Ad Screen -->
+    <div id="mobPostAdScreen" class="mob-screen hidden">
+      <div class="mob-screen-head">
+        <button class="mob-back-btn" data-mob-back="p2p" aria-label="Back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2>Post Ad</h2>
+        <div style="width:32px"></div>
+      </div>
+
+      <!-- Tab: Create / My Ads -->
+      <div class="mob-post-tabs">
+        <button class="mob-ptab active" data-ptab="create">Post Ad</button>
+        <button class="mob-ptab" data-ptab="myads">My Ads</button>
+      </div>
+
+      <!-- Create Ad Form -->
+      <div id="mobPostAdCreate" class="mob-post-section">
+        <form id="mobAdCreateForm" class="mob-ad-form">
+          <div class="mob-ad-row">
+            <label>
+              <span>Ad Type</span>
+              <select id="mobAdTypeInput"><option value="sell">Sell USDT</option><option value="buy">Buy USDT</option></select>
+            </label>
+            <label>
+              <span>Asset</span>
+              <select id="mobAdAssetInput"><option value="USDT">USDT</option></select>
+            </label>
+          </div>
+          <label>
+            <span>Price per USDT (INR)</span>
+            <input id="mobAdPriceInput" type="number" step="0.0001" min="0" placeholder="e.g. 96.40" inputmode="decimal" />
+          </label>
+          <label>
+            <span>Available USDT</span>
+            <input id="mobAdAvailableInput" type="number" step="0.0001" min="0" placeholder="e.g. 500" inputmode="decimal" />
+          </label>
+          <div class="mob-ad-row">
+            <label>
+              <span>Min Limit (INR)</span>
+              <input id="mobAdMinLimitInput" type="number" step="1" min="0" placeholder="500" inputmode="numeric" />
+            </label>
+            <label>
+              <span>Max Limit (INR)</span>
+              <input id="mobAdMaxLimitInput" type="number" step="1" min="0" placeholder="50000" inputmode="numeric" />
+            </label>
+          </div>
+          <label>
+            <span>Payment Methods (comma separated)</span>
+            <input id="mobAdPaymentsInput" type="text" placeholder="UPI, IMPS, Bank Transfer" />
+          </label>
+          <button id="mobAdCreateBtn" type="submit" class="mob-ad-submit-btn">Post Ad</button>
+          <p id="mobAdCreateMeta" class="mob-ad-meta">Fill details to publish your ad.</p>
+        </form>
+      </div>
+
+      <!-- My Ads List -->
+      <div id="mobPostAdMyads" class="mob-post-section" style="display:none;">
+        <div id="mobMyAdsList" class="mob-myads-list"></div>
+      </div>
+    </div>
+
+    <!-- ══ MODALS (kept identical — JS hooks unchanged) ══ -->
+
+    <!-- Deal modal -->
     <section id="dealModal" class="deal-modal hidden" aria-hidden="true">
       <div id="dealBackdrop" class="deal-backdrop"></div>
       <div class="deal-panel" role="dialog" aria-modal="true" aria-labelledby="dealTitle">
@@ -613,53 +469,40 @@
               <p class="deal-time">1 minute ago</p>
             </div>
           </div>
-
           <div class="deal-verify">
-            <span>Email</span>
-            <span>SMS</span>
-            <span>Identity Verification</span>
+            <span>Email</span><span>SMS</span><span>Identity Verification</span>
           </div>
-
           <dl class="deal-meta-list">
             <div><dt>Available</dt><dd id="dealAvailable">--</dd></div>
             <div><dt>Limits</dt><dd id="dealLimits">--</dd></div>
             <div><dt>Payment Duration</dt><dd id="dealDuration">15m</dd></div>
             <div><dt>Payment Method</dt><dd id="dealPaymentPreview">--</dd></div>
           </dl>
-
           <p class="deal-terms">Counterparty terms may include additional instructions. Verify payment details carefully before confirming.</p>
         </article>
-
         <article class="deal-right">
           <div class="deal-price-row">
             <span>Price</span>
             <strong id="dealPrice">--</strong>
             <small>INR</small>
           </div>
-
           <label class="deal-field">
             <span>I will pay</span>
             <div class="deal-input-wrap">
-              <input id="dealPayAmount" type="number" min="0" step="0.01" placeholder="Enter INR amount" />
-              <b>INR</b>
+              <input id="dealPayAmount" type="number" min="0" step="0.01" placeholder="Enter INR amount" /><b>INR</b>
             </div>
           </label>
-
           <label class="deal-field">
             <span>I will receive</span>
             <div class="deal-input-wrap">
-              <input id="dealReceiveAmount" type="number" min="0" step="0.000001" placeholder="Auto USDT amount" />
-              <b>USDT</b>
+              <input id="dealReceiveAmount" type="number" min="0" step="0.000001" placeholder="Auto USDT amount" /><b>USDT</b>
             </div>
           </label>
-
           <label class="deal-field">
             <span>Payment Mode</span>
             <select id="dealPaymentSelect"></select>
           </label>
-
           <p id="dealHint" class="deal-hint">Enter amount to continue.</p>
-
           <div class="deal-actions">
             <button id="dealConfirmBtn" type="button" class="deal-confirm-btn">Buy</button>
             <button id="dealCancelBtn" type="button" class="deal-cancel-btn">Cancel</button>
@@ -668,6 +511,7 @@
       </div>
     </section>
 
+    <!-- KYC modal -->
     <section id="kycModal" class="p2p-kyc-modal hidden" aria-hidden="true">
       <div id="kycBackdrop" class="p2p-kyc-backdrop"></div>
       <div class="p2p-kyc-panel" role="dialog" aria-modal="true" aria-labelledby="kycTitle">
@@ -676,42 +520,25 @@
             <h3 id="kycTitle">Complete KYC Before P2P Buy</h3>
             <p id="kycStatusText">Upload Aadhaar front and selfie with document for identity verification.</p>
           </div>
-          <button id="kycCloseBtn" type="button" class="secondary-btn" aria-label="Close KYC">Close</button>
+          <button id="kycCloseBtn" type="button" class="p2p-sec-btn" aria-label="Close KYC">Close</button>
         </div>
-
         <form id="kycForm" class="p2p-kyc-form">
-          <label class="p2p-kyc-field">
-            <span>Aadhaar Number</span>
-            <input
-              id="kycAadhaarInput"
-              type="text"
-              inputmode="numeric"
-              autocomplete="off"
-              maxlength="12"
-              placeholder="Enter 12-digit Aadhaar number"
-              required
-            />
+          <label class="p2p-kyc-field"><span>Aadhaar Number</span>
+            <input id="kycAadhaarInput" type="text" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Enter 12-digit Aadhaar number" required />
           </label>
-
-          <label class="p2p-kyc-field">
-            <span>Aadhaar Front Image</span>
+          <label class="p2p-kyc-field"><span>Aadhaar Front Image</span>
             <input id="kycAadhaarFrontInput" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" required />
             <small id="kycAadhaarFrontMeta">Upload clear front side image.</small>
           </label>
-
-          <label class="p2p-kyc-field">
-            <span>Selfie With Aadhaar</span>
+          <label class="p2p-kyc-field"><span>Selfie With Aadhaar</span>
             <input id="kycSelfieInput" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" required />
             <small id="kycSelfieMeta">Face and document must be clearly visible in one frame.</small>
           </label>
-
           <label class="p2p-kyc-consent">
             <input id="kycConsent" type="checkbox" />
             <span>I confirm the documents belong to me and I allow AI face verification.</span>
           </label>
-
           <p id="kycHint" class="p2p-kyc-hint">KYC required to place buy orders.</p>
-
           <div class="p2p-kyc-actions">
             <button id="kycSubmitBtn" type="submit">Submit KYC</button>
           </div>
@@ -719,115 +546,192 @@
       </div>
     </section>
 
+    <!-- Auth modal -->
     <section id="authModal" class="p2p-auth-modal hidden" aria-hidden="true">
       <div id="authBackdrop" class="p2p-auth-backdrop"></div>
       <div class="p2p-auth-panel" role="dialog" aria-modal="true" aria-labelledby="authTitle">
-        <h3 id="authTitle">P2P Login</h3>
-        <p>Enter your email and password to continue.</p>
-        <input id="emailInput" type="email" placeholder="Enter email" autocomplete="email" />
-        <input id="passwordInput" type="password" placeholder="Enter password" autocomplete="current-password" />
-        <div class="p2p-auth-actions">
-          <button id="loginBtn" type="button">Login</button>
-          <button id="closeAuthBtn" type="button" class="secondary-btn">Close</button>
+        <!-- Login step -->
+        <div id="authStepLogin">
+          <h3 id="authTitle">P2P Login</h3>
+          <p>Enter your email and password to continue.</p>
+          <input id="emailInput" type="email" placeholder="Enter email" autocomplete="email" />
+          <input id="passwordInput" type="password" placeholder="Enter password" autocomplete="current-password" />
+          <div class="p2p-auth-actions">
+            <button id="loginBtn" type="button">Login</button>
+            <button id="closeAuthBtn" type="button" class="p2p-sec-btn">Close</button>
+          </div>
+          <p style="text-align:center;margin-top:0.7rem;"><button id="forgotPasswordLink" type="button" style="background:none;border:none;color:#00c2b2;font-size:0.82rem;cursor:pointer;text-decoration:underline;">Forgot Password?</button></p>
+        </div>
+        <!-- Forgot password step -->
+        <div id="authStepForgot" style="display:none;">
+          <h3>Reset Password</h3>
+          <p style="font-size:0.83rem;color:#8a97ae;">Enter your email and we'll send a 6-digit reset code.</p>
+          <input id="resetEmailInput" type="email" placeholder="Enter your email" autocomplete="email" />
+          <p id="forgotMsg" style="font-size:0.8rem;color:#f6465d;min-height:1.2em;"></p>
+          <div class="p2p-auth-actions">
+            <button id="sendResetCodeBtn" type="button">Send Code</button>
+            <button id="backToLoginBtn" type="button" class="p2p-sec-btn">Back</button>
+          </div>
+        </div>
+        <!-- Reset code + new password step -->
+        <div id="authStepReset" style="display:none;">
+          <h3>Enter Reset Code</h3>
+          <p style="font-size:0.83rem;color:#8a97ae;">Enter the 6-digit code sent to your email and your new password.</p>
+          <input id="resetCodeInput" type="text" placeholder="6-digit code" inputmode="numeric" maxlength="6" />
+          <input id="newPasswordInput" type="password" placeholder="New password (min 8 chars)" />
+          <input id="confirmPasswordInput" type="password" placeholder="Confirm new password" />
+          <p id="resetMsg" style="font-size:0.8rem;color:#f6465d;min-height:1.2em;"></p>
+          <div class="p2p-auth-actions">
+            <button id="doResetBtn" type="button">Reset Password</button>
+            <button id="backToForgotBtn" type="button" class="p2p-sec-btn">Back</button>
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="orderModal" class="order-modal hidden" aria-hidden="true">
-      <div class="order-backdrop" id="closeModalBackdrop"></div>
-      <div class="order-page" role="dialog" aria-modal="true" aria-labelledby="orderTitle">
-        <header class="order-page-header">
-          <button id="closeModalBtn" type="button" class="order-back-btn" aria-label="Back">←</button>
-          <div class="order-counterparty">
-            <p id="orderCounterpartyName">Counterparty</p>
-            <span class="order-online">
-              <span class="online-dot"></span>
-              Online
-            </span>
-          </div>
-          <button id="orderChatBtn" type="button" class="order-chat-btn" aria-label="Open chat">💬</button>
-        </header>
+    <!-- KYC Rejected screen -->
+    <div id="kycRejectedScreen" class="mob-screen" style="display:none;z-index:600;">
+      <div class="mob-screen-head">
+        <button class="mob-back-btn" onclick="document.getElementById('kycRejectedScreen').style.display='none'" aria-label="Back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2>KYC Rejected</h2>
+        <span></span>
+      </div>
+      <div class="mob-kyc-fp-body" style="justify-content:center;align-items:center;text-align:center;gap:1.5rem;">
+        <div style="font-size:4rem;">❌</div>
+        <div>
+          <p style="font-size:1.1rem;font-weight:800;color:#f6465d;margin:0 0 0.5rem;">KYC Verification Failed</p>
+          <p style="font-size:0.82rem;color:#8a97ae;line-height:1.6;margin:0;">Your KYC documents were not approved.</p>
+        </div>
+        <div id="kycRejectionReasonBox" style="background:rgba(246,70,93,0.08);border:1.5px solid rgba(246,70,93,0.25);border-radius:14px;padding:1rem 1.2rem;width:100%;box-sizing:border-box;display:none;">
+          <p style="font-size:0.78rem;color:#f6465d;margin:0;font-weight:600;">Reason:</p>
+          <p id="kycRejectionReasonText" style="font-size:0.8rem;color:#ccc;margin:0.4rem 0 0;text-align:left;"></p>
+        </div>
+        <div style="background:rgba(255,255,255,0.05);border-radius:14px;padding:1rem 1.2rem;width:100%;box-sizing:border-box;">
+          <p style="font-size:0.78rem;color:#8a97ae;margin:0;text-align:left;line-height:1.7;">
+            • Fix the issue mentioned above<br/>
+            • Ensure documents are clear and readable<br/>
+            • Aadhaar photo must match your selfie
+          </p>
+        </div>
+        <button onclick="document.getElementById('kycRejectedScreen').style.display='none'; document.querySelector('[data-open-kyc]') && document.querySelector('[data-open-kyc]').click();" class="mob-kyc-fp-btn" style="background:linear-gradient(96deg,#f6465d,#c53030);">Resubmit KYC</button>
+        <button onclick="document.getElementById('kycRejectedScreen').style.display='none';" class="mob-kyc-fp-btn" style="background:rgba(255,255,255,0.08);color:#fff;margin-top:0;">Close</button>
+      </div>
+    </div>
 
-        <div class="order-page-body single-column">
-          <section class="order-main-column">
-            <div class="order-main-title">
-              <h2 id="orderTitle">The order has been generated. Proceed to payment.</h2>
-              <div class="countdown-timer">
-                <strong id="orderTimer">15:00</strong>
-                <span>Time Remaining</span>
+    <!-- Order modal -->
+    <!-- Order modal — Binance style post-payment view -->
+    <section id="orderModal" class="order-modal hidden" aria-hidden="true" style="position:fixed;inset:0;z-index:610;background:#000;display:flex;flex-direction:column;font-family:'Manrope',sans-serif;overflow:hidden;">
+      <!-- hidden legacy backdrop for JS compat -->
+      <div id="closeModalBackdrop" style="display:none;"></div>
+
+      <!-- Header -->
+      <header style="display:flex;align-items:center;padding:0.9rem 1rem;gap:0.75rem;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,0.08);">
+        <button id="closeModalBtn" type="button" style="background:none;border:none;color:#fff;font-size:1.4rem;cursor:pointer;padding:0.2rem 0.4rem;line-height:1;" aria-label="Back">←</button>
+        <div style="flex:1;text-align:center;">
+          <p id="orderCounterpartyName" style="margin:0;font-size:0.9rem;font-weight:700;color:#fff;"></p>
+          <span style="font-size:0.72rem;color:rgba(255,255,255,0.4);">P2P Order</span>
+        </div>
+        <button id="orderChatBtn" type="button" style="background:rgba(255,255,255,0.08);border:none;color:#fff;width:38px;height:38px;border-radius:9px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" aria-label="Open chat">💬</button>
+      </header>
+
+      <!-- Body -->
+      <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:1rem 1.1rem;">
+
+        <!-- Status + timer -->
+        <div style="margin-bottom:1.1rem;">
+          <h2 id="orderTitle" style="margin:0 0 0.3rem;font-size:1.05rem;font-weight:700;line-height:1.4;color:#fff;">Waiting for seller to release crypto</h2>
+          <p style="margin:0;font-size:0.81rem;color:rgba(255,255,255,0.45);">Please pay within <strong id="orderTimer" style="color:#f0b90b;">15:00</strong></p>
+        </div>
+
+        <!-- Counterparty card -->
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1rem;margin-bottom:0.85rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;">
+            <div style="display:flex;align-items:center;gap:0.6rem;">
+              <div id="orderMerchantAvatar" style="width:32px;height:32px;border-radius:50%;background:#f0b90b;color:#000;font-weight:800;font-size:0.88rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">S</div>
+              <div>
+                <div style="display:flex;align-items:center;gap:0.35rem;">
+                  <h3 id="orderMerchant" style="margin:0;font-size:0.88rem;font-weight:700;color:#fff;"></h3>
+                  <span style="color:#f0b90b;font-size:0.75rem;">⚡</span>
+                </div>
+                <p id="orderCounterpartyMeta" style="margin:0;font-size:0.72rem;color:rgba(255,255,255,0.4);"></p>
               </div>
             </div>
-
-            <article class="order-info-card">
-              <div class="order-info-head">
-                <div>
-                  <p class="order-info-label">Counterparty</p>
-                  <h3 id="orderMerchant">--</h3>
-                  <p id="orderCounterpartyMeta" class="order-info-meta">Verified counterparty</p>
-                </div>
-                <strong id="orderStatus" class="status-pill status-created">CREATED</strong>
-              </div>
-              <div class="escrow-notice">
-                <p>Crypto is held in escrow until payment confirmed.</p>
-              </div>
-            </article>
-
-            <article class="order-details-card">
-              <h3>Order Details</h3>
-              <div class="order-details-grid">
-                <div><span>Trading Amount</span><strong id="orderAmount">--</strong></div>
-                <div><span>Price</span><strong id="orderPrice">--</strong></div>
-                <div><span>Quantity</span><strong id="orderAssetAmount">--</strong></div>
-                <div><span>Fee</span><strong id="orderFee">₹0</strong></div>
-                <div><span>Payment Method</span><strong id="orderPayment">--</strong></div>
-                <div><span>Order Number</span><strong id="orderRef">--</strong></div>
-                <div><span>Order Time</span><strong id="orderTime">--</strong></div>
-                <div><span>Participants</span><strong id="orderParticipants">--</strong></div>
-              </div>
-            </article>
-
-            <section id="paymentPanel" class="payment-panel hidden" aria-live="polite">
-              <div class="payment-panel-head">
-                <h3>Payment</h3>
-                <span id="paymentCountdown">15:00</span>
-              </div>
-              <p class="payment-amount-line">To be paid <strong id="paymentAmountDisplay">₹0</strong></p>
-              <div class="payment-instructions">
-                <p id="paymentMethodDisplay">Payment method: --</p>
-                <p id="paymentInstructions">Complete payment using selected method and click “I have paid”.</p>
-              </div>
-              <button id="paidConfirmBtn" type="button" class="paid-confirm-btn">I have paid</button>
-            </section>
-          </section>
-
+            <strong id="orderStatus" class="status-pill status-created" style="font-size:0.72rem;">CREATED</strong>
+          </div>
+          <div style="font-size:0.74rem;color:rgba(255,255,255,0.45);display:grid;gap:0.2rem;line-height:1.45;border-top:1px solid rgba(255,255,255,0.07);padding-top:0.6rem;">
+            <div>• The other party has passed real-name and video identity verification.</div>
+            <div>• The cryptocurrency in this order is held in escrow and your payment is secure.</div>
+          </div>
         </div>
 
-        <section class="hidden legacy-chat-shadow" aria-hidden="true">
-          <div id="chatState"></div>
-          <div id="chatMessages"></div>
-          <form id="chatForm"></form>
-          <input id="chatInput" type="text" />
-          <button id="chatSendBtn" type="button"></button>
-          <button id="chatImageBtn" type="button"></button>
-          <input id="chatImageInput" class="hidden-control" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" />
-          <p id="chatUploadState" class="hidden"></p>
-        </section>
+        <!-- Order details card -->
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1rem;margin-bottom:0.85rem;">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+            <span style="width:12px;height:12px;border-radius:50%;background:#26a17b;display:inline-block;flex-shrink:0;"></span>
+            <span style="font-weight:700;font-size:0.88rem;color:#fff;">Buy USDT</span>
+          </div>
+          <div style="display:grid;gap:0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:rgba(255,255,255,0.45);font-size:0.79rem;">Trading amount</span><strong id="orderAmount" style="color:#fff;font-size:0.82rem;">--</strong></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:rgba(255,255,255,0.45);font-size:0.79rem;">Price</span><strong id="orderPrice" style="color:#fff;font-size:0.82rem;">--</strong></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:rgba(255,255,255,0.45);font-size:0.79rem;">Quantity</span><strong id="orderAssetAmount" style="color:#fff;font-size:0.82rem;">--</strong></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:rgba(255,255,255,0.45);font-size:0.79rem;">Fee</span><strong id="orderFee" style="color:#fff;font-size:0.82rem;">0 USDT</strong></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:rgba(255,255,255,0.45);font-size:0.79rem;">Payment method</span><strong id="orderPayment" style="color:#fff;font-size:0.82rem;">--</strong></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:rgba(255,255,255,0.45);font-size:0.79rem;">Order No</span><strong id="orderRef" style="color:#fff;font-size:0.75rem;">--</strong></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:rgba(255,255,255,0.45);font-size:0.79rem;">Order time</span><strong id="orderTime" style="color:#fff;font-size:0.79rem;">--</strong></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;"><span style="color:rgba(255,255,255,0.45);font-size:0.79rem;">Participants</span><strong id="orderParticipants" style="color:#fff;font-size:0.79rem;">--</strong></div>
+          </div>
+        </div>
 
-        <footer class="order-action-dock">
-          <button id="markPaidBtn" type="button" class="order-pay-btn">Pay</button>
-          <button id="cancelOrderBtn" type="button" class="order-cancel-btn">Cancel</button>
-        </footer>
+        <!-- Chat section -->
+        <div id="chatContainer" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.85rem;margin-bottom:0.85rem;min-height:120px;max-height:260px;overflow-y:auto;">
+          <div style="font-size:0.76rem;font-weight:700;color:rgba(255,255,255,0.4);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.05em;">Chat</div>
+          <div id="chatMessages" style="display:grid;gap:0.4rem;"></div>
+          <div id="chatState" style="font-size:0.75rem;color:rgba(255,255,255,0.3);text-align:center;padding:0.4rem 0;"></div>
+        </div>
+
+        <!-- Chat input -->
+        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;align-items:flex-end;">
+          <div style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;display:flex;align-items:center;gap:0.4rem;padding:0.55rem 0.8rem;">
+            <input id="chatInput" type="text" placeholder="Type a message..." style="flex:1;background:none;border:none;color:#fff;font-size:0.85rem;outline:none;font-family:'Manrope',sans-serif;min-width:0;" />
+            <button id="chatImageBtn" type="button" style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:1rem;padding:0;flex-shrink:0;">📎</button>
+            <input id="chatImageInput" class="hidden-control" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" />
+          </div>
+          <button id="chatSendBtn" type="button" style="background:#00c2b2;border:none;color:#000;width:42px;height:42px;border-radius:10px;cursor:pointer;font-size:1rem;flex-shrink:0;display:flex;align-items:center;justify-content:center;">↑</button>
+        </div>
+        <form id="chatForm" style="display:none;"></form>
+        <p id="chatUploadState" class="hidden"></p>
+
+        <!-- hidden legacy elements for JS compat -->
+        <div style="display:none;">
+          <span id="paymentCountdown">15:00</span>
+          <span id="paymentAmountDisplay">₹0</span>
+          <span id="paymentMethodDisplay">--</span>
+          <span id="paymentInstructions">--</span>
+          <button id="paidConfirmBtn" type="button"></button>
+          <section id="paymentPanel"></section>
+        </div>
       </div>
+
+      <!-- Action footer -->
+      <footer style="padding:0.85rem 1.1rem;flex-shrink:0;display:grid;gap:0.5rem;padding-bottom:calc(0.85rem + env(safe-area-inset-bottom));border-top:1px solid rgba(255,255,255,0.07);">
+        <button id="markPaidBtn" type="button" style="width:100%;padding:0.9rem;background:#fff;color:#000;border:none;border-radius:10px;font-size:0.92rem;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;">Pay</button>
+        <div style="display:flex;gap:0.5rem;">
+          <button id="cancelOrderBtn" type="button" style="flex:1;padding:0.75rem;background:rgba(255,255,255,0.06);color:#fff;border:none;border-radius:10px;font-size:0.88rem;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;">Cancel</button>
+          <button id="disputeBtn" type="button" class="hidden" style="flex:1;padding:0.75rem;background:rgba(246,70,93,0.12);color:#f6465d;border:1px solid rgba(246,70,93,0.3);border-radius:10px;font-size:0.88rem;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;">Raise Dispute</button>
+        </div>
+      </footer>
     </section>
 
+    <!-- Cancel modal -->
     <section id="cancelModal" class="cancel-modal hidden" aria-hidden="true">
       <div id="cancelModalBackdrop" class="cancel-backdrop"></div>
       <div class="cancel-panel" role="dialog" aria-modal="true" aria-labelledby="cancelModalTitle">
         <div class="cancel-panel-head">
           <h3 id="cancelModalTitle">Please select a reason for cancellation</h3>
-          <button id="cancelModalCloseBtn" type="button" aria-label="Close cancellation">✕</button>
+          <button id="cancelModalCloseBtn" type="button" aria-label="Close">✕</button>
         </div>
-
         <form id="cancelReasonForm" class="cancel-reason-form">
           <label><input type="radio" name="cancelReason" value="I don't want to proceed" /> I don't want to proceed</label>
           <label><input type="radio" name="cancelReason" value="Seller requirements issue" /> Seller requirements issue</label>
@@ -836,24 +740,417 @@
           <label><input type="radio" name="cancelReason" value="I believe seller is scammer" /> I believe seller is scammer</label>
           <label><input type="radio" name="cancelReason" value="Other" /> Other</label>
         </form>
-
         <label class="cancel-confirm-check">
           <input id="cancelNoPaymentCheck" type="checkbox" />
           I have not paid the seller
         </label>
-
         <button id="cancelConfirmBtn" type="button" class="cancel-confirm-btn" disabled>Confirm Cancel</button>
       </div>
     </section>
 
+    <!-- Image preview -->
     <section id="imagePreviewModal" class="image-preview-modal hidden" aria-hidden="true">
       <div id="imagePreviewBackdrop" class="image-preview-backdrop"></div>
       <div class="image-preview-panel" role="dialog" aria-modal="true" aria-label="Payment screenshot preview">
-        <button id="imagePreviewCloseBtn" type="button" class="image-preview-close" aria-label="Close preview">✕</button>
+        <button id="imagePreviewCloseBtn" type="button" class="image-preview-close" aria-label="Close">✕</button>
         <img id="imagePreviewEl" src="" alt="Payment screenshot" />
       </div>
     </section>
 
-    <script src="/p2p.js?v=20260323c"></script>
-  </body>
+    <!-- Hidden legacy elements for JS compatibility -->
+    <input id="advertiserFilter" class="hidden-control" type="text" placeholder="Search advertiser" />
+    <div id="exchangeTicker" class="hidden-control"></div>
+    <button id="themeToggleBtn" type="button" class="hidden-control">Light</button>
+    <div id="assetChipRow" class="hidden-control">
+      <button class="asset-chip active" data-asset="USDT" type="button">USDT</button>
+    </div>
+
+    <script src="/p2p.js?v=20260325s"></script>
+    <script>
+    // Mobile tab switching
+    (function() {
+      const tabs = document.querySelectorAll('.mob-tab');
+      const mainWrap = document.querySelector('.p2p-main-wrap');
+      const ordersScreen = document.getElementById('mobOrdersScreen');
+      const profileScreen = document.getElementById('mobProfileScreen');
+      const mobileNav = document.querySelector('.p2p-mobile-bottom-nav');
+
+      function showScreen(name) {
+        if (!mainWrap) return;
+        mainWrap.style.display = name === 'p2p' ? '' : 'none';
+        if (ordersScreen) ordersScreen.classList.toggle('hidden', name !== 'orders');
+        if (profileScreen) profileScreen.classList.toggle('hidden', name !== 'profile');
+        tabs.forEach(t => t.classList.toggle('active', t.dataset.mob === name));
+      }
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', e => {
+          e.preventDefault();
+          showScreen(tab.dataset.mob);
+        });
+      });
+
+      document.querySelectorAll('.mob-back-btn').forEach(btn => {
+        btn.addEventListener('click', () => showScreen(btn.dataset.mobBack || 'p2p'));
+      });
+
+      // Order sub-tabs click
+      document.querySelectorAll('.mob-otab').forEach(t => {
+        t.addEventListener('click', () => {
+          document.querySelectorAll('.mob-otab').forEach(x => x.classList.remove('active'));
+          t.classList.add('active');
+        });
+      });
+      document.querySelectorAll('.mob-subtab').forEach(t => {
+        t.addEventListener('click', () => {
+          document.querySelectorAll('.mob-subtab').forEach(x => x.classList.remove('active'));
+          t.classList.add('active');
+        });
+      });
+      document.querySelectorAll('.mob-mtab').forEach(t => {
+        t.addEventListener('click', () => {
+          document.querySelectorAll('.mob-mtab').forEach(x => x.classList.remove('active'));
+          t.classList.add('active');
+        });
+      });
+    })();
+    </script>
+  
+    <!-- ===== KYC SCREEN 1: BASIC DETAILS ===== -->
+    <div id="kycBasicScreen" class="mob-screen" style="display:none;z-index:600;">
+      <div class="mob-screen-head">
+        <button class="mob-back-btn" data-kyc-close="1" aria-label="Back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2>Basic Details</h2>
+        <span style="font-size:0.72rem;color:#6b7690;font-weight:500;">Step 1 / 2</span>
+      </div>
+
+      <!-- Progress -->
+      <div style="padding:0 1rem 0.5rem;">
+        <div style="height:3px;background:rgba(255,255,255,0.07);border-radius:99px;overflow:hidden;">
+          <div style="width:50%;height:100%;background:linear-gradient(90deg,#f0b90b,#f8d041);border-radius:99px;"></div>
+        </div>
+      </div>
+
+      <div class="mob-kyc-fp-body">
+        <div class="mob-kyc-fp-intro">
+          <div class="mob-kyc-fp-intro-icon">🛡️</div>
+          <div>
+            <div class="mob-kyc-fp-intro-title">Personal Information</div>
+            <div class="mob-kyc-fp-intro-desc">Fill your details as they appear on your official ID</div>
+          </div>
+        </div>
+
+        <div class="mob-kyc-fp-form">
+          <div class="mob-kyc-fp-field">
+            <label class="mob-kyc-fp-label">Full Name</label>
+            <input id="kycFullName" type="text" class="mob-kyc-fp-input" placeholder="As on Aadhaar / Passport" autocomplete="name"/>
+          </div>
+          <div class="mob-kyc-fp-field">
+            <label class="mob-kyc-fp-label">Date of Birth</label>
+            <input id="kycDob" type="date" class="mob-kyc-fp-input"/>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;">
+            <div class="mob-kyc-fp-field">
+              <label class="mob-kyc-fp-label">Country</label>
+              <select id="kycCountry" class="mob-kyc-fp-input">
+                <option value="IN">🇮🇳 India</option>
+                <option value="US">🇺🇸 USA</option>
+                <option value="GB">🇬🇧 UK</option>
+                <option value="AE">🇦🇪 UAE</option>
+                <option value="SG">🇸🇬 Singapore</option>
+              </select>
+            </div>
+            <div class="mob-kyc-fp-field">
+              <label class="mob-kyc-fp-label">Phone Number</label>
+              <input id="kycPhone" type="tel" class="mob-kyc-fp-input" placeholder="+91 98765 43210" autocomplete="off"/>
+            </div>
+          </div>
+        </div>
+
+        <p id="kycBasicHint" class="mob-kyc-fp-hint"></p>
+
+        <button type="button" class="mob-kyc-fp-btn" data-kyc-next="1" onclick="submitKycBasicAndNext()" style="-webkit-tap-highlight-color:transparent;cursor:pointer;">
+          Continue to Step 2 ›
+        </button>
+
+        <p class="mob-kyc-fp-note">🔒 Your data is encrypted and used only for verification</p>
+      </div>
+    </div>
+
+    <!-- ===== KYC SCREEN 2: ADVANCED VERIFICATION ===== -->
+    <div id="kycAdvanceScreen" class="mob-screen" style="display:none;z-index:600;">
+      <div class="mob-screen-head">
+        <button class="mob-back-btn" data-kyc-back="basic" aria-label="Back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2>Document Upload</h2>
+        <span style="font-size:0.72rem;color:#6b7690;font-weight:500;">Step 2 / 2</span>
+      </div>
+
+      <!-- Progress -->
+      <div style="padding:0 1rem 0.5rem;">
+        <div style="height:3px;background:rgba(255,255,255,0.07);border-radius:99px;overflow:hidden;">
+          <div style="width:100%;height:100%;background:linear-gradient(90deg,#f0b90b,#f8d041);border-radius:99px;"></div>
+        </div>
+      </div>
+
+      <div class="mob-kyc-fp-body">
+        <div class="mob-kyc-fp-intro">
+          <div class="mob-kyc-fp-intro-icon">🪪</div>
+          <div>
+            <div class="mob-kyc-fp-intro-title">Upload Documents</div>
+            <div class="mob-kyc-fp-intro-desc">Aadhaar front &amp; back + selfie holding Aadhaar</div>
+          </div>
+        </div>
+
+        <!-- Aadhaar Number -->
+        <div class="mob-kyc-fp-field" style="margin-bottom:1rem;">
+          <label class="mob-kyc-fp-label">Aadhaar Number</label>
+          <input id="kycAadhaarNumber" type="tel" inputmode="numeric" maxlength="12" autocomplete="off"
+            class="mob-kyc-fp-input" placeholder="Enter 12-digit Aadhaar number"/>
+        </div>
+
+        <!-- Upload cards -->
+        <div class="mob-kyc-upload-list">
+
+          <div class="mob-kyc-upload-card" id="upCardFront">
+            <div class="mob-kyc-upload-left">
+              <div class="mob-kyc-upload-ico">🪪</div>
+              <div>
+                <div class="mob-kyc-upload-name">Aadhaar Front</div>
+                <div class="mob-kyc-upload-hint" id="hintFront">Tap Upload • JPG / PNG</div>
+              </div>
+            </div>
+            <label class="mob-kyc-upload-btn">
+              <input id="kycAadhaarFront" type="file" accept="image/*" style="display:none" onchange="kycFileChanged(this,'hintFront','thumbFront','upCardFront')"/>
+              Upload
+            </label>
+            <img id="thumbFront" class="mob-kyc-thumb" style="display:none"/>
+          </div>
+
+          <div class="mob-kyc-upload-card" id="upCardBack">
+            <div class="mob-kyc-upload-left">
+              <div class="mob-kyc-upload-ico">🪪</div>
+              <div>
+                <div class="mob-kyc-upload-name">Aadhaar Back</div>
+                <div class="mob-kyc-upload-hint" id="hintBack">Tap Upload • JPG / PNG</div>
+              </div>
+            </div>
+            <label class="mob-kyc-upload-btn">
+              <input id="kycAadhaarBack" type="file" accept="image/*" style="display:none" onchange="kycFileChanged(this,'hintBack','thumbBack','upCardBack')"/>
+              Upload
+            </label>
+            <img id="thumbBack" class="mob-kyc-thumb" style="display:none"/>
+          </div>
+
+          <div class="mob-kyc-upload-card" id="upCardSelfie">
+            <div class="mob-kyc-upload-left">
+              <div class="mob-kyc-upload-ico">🤳</div>
+              <div>
+                <div class="mob-kyc-upload-name">Selfie with Aadhaar</div>
+                <div class="mob-kyc-upload-hint" id="hintSelfie">Face + ID both visible</div>
+              </div>
+            </div>
+            <label class="mob-kyc-upload-btn">
+              <input id="kycSelfieDoc" type="file" accept="image/*" capture="user" style="display:none" onchange="kycFileChanged(this,'hintSelfie','thumbSelfie','upCardSelfie')"/>
+              Upload
+            </label>
+            <img id="thumbSelfie" class="mob-kyc-thumb" style="display:none"/>
+          </div>
+
+        </div>
+
+        <label class="mob-kyc-fp-consent">
+          <input id="kycL2Consent" type="checkbox"/>
+          <span>I confirm these documents are mine and consent to AI-assisted identity verification</span>
+        </label>
+
+        <p id="kycAdvHint" class="mob-kyc-fp-hint"></p>
+
+        <button type="button" class="mob-kyc-fp-btn" data-kyc-submit="1" onclick="submitKycAdvance()" style="-webkit-tap-highlight-color:transparent;cursor:pointer;">
+          Submit for Verification
+        </button>
+
+        <p class="mob-kyc-fp-note">🔒 Review takes 24–48 hours. You'll be notified on approval.</p>
+      </div>
+    </div>
+
+    <!-- KYC Under Review Screen -->
+    <div id="kycUnderReviewScreen" class="mob-screen" style="display:none;z-index:600;">
+      <div class="mob-screen-head">
+        <button class="mob-back-btn" onclick="document.getElementById('kycUnderReviewScreen').style.display='none'" aria-label="Back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2>KYC Status</h2>
+        <span></span>
+      </div>
+      <div class="mob-kyc-fp-body" style="justify-content:center;align-items:center;text-align:center;gap:1.5rem;">
+        <div style="font-size:4rem;">⏳</div>
+        <div>
+          <p style="font-size:1.1rem;font-weight:800;color:#00c2b2;margin:0 0 0.5rem;">Documents Under Review</p>
+          <p style="font-size:0.82rem;color:#8a97ae;line-height:1.6;margin:0;">Your KYC documents have been submitted successfully.<br/>Our team will verify them within <strong style="color:#fff;">24–48 hours</strong>.<br/>You'll be notified once verified.</p>
+        </div>
+        <div style="background:rgba(0,194,178,0.08);border:1.5px solid rgba(0,194,178,0.25);border-radius:14px;padding:1rem 1.2rem;width:100%;box-sizing:border-box;">
+          <p style="font-size:0.78rem;color:#00c2b2;margin:0;font-weight:600;">What happens next?</p>
+          <ul style="font-size:0.75rem;color:#8a97ae;margin:0.5rem 0 0;padding-left:1.2rem;line-height:1.8;text-align:left;">
+            <li>Admin reviews your Aadhaar &amp; selfie</li>
+            <li>Verification takes 24–48 hours</li>
+            <li>You can trade once approved</li>
+          </ul>
+        </div>
+        <button onclick="document.getElementById('kycUnderReviewScreen').style.display='none'; window.showMobScreen && window.showMobScreen('mobProfileScreen'); window.loadProfilePanel && window.loadProfilePanel();" class="mob-kyc-fp-btn" style="margin-top:0.5rem;background:linear-gradient(96deg,#00c2b2,#0099a8);box-shadow:0 2px 14px rgba(0,194,178,0.3);">Got it</button>
+      </div>
+    </div>
+
+    <!-- ===== PAYMENT METHODS SCREEN ===== -->
+    <!-- ===== BECOME MERCHANT SCREEN ===== -->
+    <div id="merchantScreen" class="mob-screen p2p-info-screen" style="display:none;z-index:600;background:#000;overflow-y:auto;">
+      <div class="mob-screen-head" style="position:sticky;top:0;z-index:10;background:#000;">
+        <button class="mob-back-btn" onclick="closeP2PScreen('merchantScreen')" aria-label="Back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2>Become Merchant</h2>
+        <span></span>
+      </div>
+      <div style="padding:1.2rem 1rem 3rem;">
+        <!-- Hero -->
+        <div style="margin-bottom:1.8rem;">
+          <h1 style="font-size:1.5rem;font-weight:800;color:#fff;line-height:1.35;margin:0 0 0.5rem;">Bitegit P2P Merchant Application</h1>
+          <p style="font-size:0.82rem;color:#6b7690;line-height:1.6;margin:0 0 1rem;">Become a Bitegit P2P merchant and enjoy zero fees along with more exclusive services.</p>
+          <button class="mob-kyc-fp-btn" style="background:linear-gradient(96deg,#00c2b2,#0099a8);box-shadow:0 2px 14px rgba(0,194,178,0.3);max-width:160px;">Apply Now</button>
+        </div>
+        <!-- Merchant Benefits -->
+        <h2 style="font-size:1rem;font-weight:700;color:#fff;text-align:center;margin:0 0 1rem;">Merchant Benefits</h2>
+        <!-- Certified -->
+        <div class="merch-card">
+          <div class="merch-card-head"><span>Certified Merchant</span><span class="merch-badge merch-badge-cert">✓</span></div>
+          <ul class="merch-list">
+            <li>Buy/Sell Orders: 2 Each</li>
+            <li>Pending Orders: 6 Each</li>
+            <li>Single Order Limit: 30,000 USDT</li>
+          </ul>
+        </div>
+        <!-- Blue V -->
+        <div class="merch-card">
+          <div class="merch-card-head"><span>Blue V Merchant</span><span class="merch-badge merch-badge-blue">◆</span></div>
+          <ul class="merch-list">
+            <li>Exclusive Blue "V" Badge</li>
+            <li>Buy/Sell Orders: 3 Each</li>
+            <li>Pending Orders: 10 Each</li>
+            <li>Single Order Limit: 100,000 USDT</li>
+            <li>Better Exposure &amp; Higher Ranking for Ads</li>
+            <li>Priority Customer Support</li>
+            <li>1-on-1 Dedicated Support &amp; BD</li>
+          </ul>
+        </div>
+        <!-- Crown -->
+        <div class="merch-card">
+          <div class="merch-card-head"><span>Crown Merchant</span><span class="merch-badge merch-badge-crown">♛</span></div>
+          <ul class="merch-list">
+            <li>Exclusive "Crown" Badge</li>
+            <li>Buy/Sell Orders: 3 Each</li>
+            <li>Pending Orders: 15 Each</li>
+            <li>Single Order Limit: 150,000 USDT</li>
+            <li>Better Exposure &amp; Higher Ranking for Ads</li>
+            <li>Priority Customer Support</li>
+            <li>1-on-1 Dedicated Support &amp; BD</li>
+            <li>Special Gifts</li>
+          </ul>
+        </div>
+        <!-- How to become -->
+        <h2 style="font-size:1rem;font-weight:700;color:#fff;text-align:center;margin:1.5rem 0 1rem;">How to Become a Verified Merchant?</h2>
+        <div class="merch-steps">
+          <div class="merch-step"><div class="merch-step-icon">📋</div><p>Submit the application form</p></div>
+          <div class="merch-step-divider"></div>
+          <div class="merch-step"><div class="merch-step-icon">💰</div><p>Pay deposit</p></div>
+          <div class="merch-step-divider"></div>
+          <div class="merch-step"><div class="merch-step-icon">✅</div><p>Approval — Become certified</p></div>
+        </div>
+        <p style="font-size:0.75rem;color:#6b7690;text-align:center;margin-top:1.2rem;">Contact Us: <span style="color:#00c2b2;">support@bitegit.com</span></p>
+      </div>
+    </div>
+
+    <!-- ===== BEGINNER GUIDANCE SCREEN ===== -->
+    <div id="beginnerScreen" class="mob-screen p2p-info-screen" style="display:none;z-index:600;background:#000;overflow-y:auto;">
+      <div class="mob-screen-head" style="position:sticky;top:0;z-index:10;background:#000;">
+        <button class="mob-back-btn" onclick="closeP2PScreen('beginnerScreen')" aria-label="Back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2>Beginner Guidance</h2>
+        <span></span>
+      </div>
+      <div style="padding:1.2rem 1rem 3rem;">
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>What is P2P Trading?</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body">P2P (Peer-to-Peer) trading lets you buy and sell crypto directly with other users at agreed prices, with Bitegit acting as an escrow to keep your funds safe.</div>
+        </div>
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>How to Buy USDT on P2P?</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body">1. Select "Buy" tab and choose USDT.<br/>2. Pick an offer that suits your limit &amp; payment method.<br/>3. Enter amount and click Buy.<br/>4. Pay the seller via the selected payment method.<br/>5. Confirm payment — USDT will be released to your wallet.</div>
+        </div>
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>How to Sell USDT on P2P?</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body">1. Select "Sell" tab and choose USDT.<br/>2. Pick a buy offer from a merchant.<br/>3. Enter amount and confirm.<br/>4. Wait for the buyer to send payment.<br/>5. Confirm receipt — USDT will be released from escrow.</div>
+        </div>
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>KYC &amp; Security Settings</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body">Complete KYC verification to unlock higher trading limits. Go to Profile → KYC Verification and submit your Aadhaar front, back, and selfie. Verification takes 24–48 hours.</div>
+        </div>
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>Deposit &amp; Withdrawal</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body">Deposit crypto from any wallet to your Bitegit address. Withdrawals are processed after identity verification. Minimum withdrawal limits apply per asset.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== FAQ SCREEN ===== -->
+    <div id="faqScreen" class="mob-screen p2p-info-screen" style="display:none;z-index:600;background:#000;overflow-y:auto;">
+      <div class="mob-screen-head" style="position:sticky;top:0;z-index:10;background:#000;">
+        <button class="mob-back-btn" onclick="closeP2PScreen('faqScreen')" aria-label="Back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2>Help Center</h2>
+        <span></span>
+      </div>
+      <div style="padding:0.5rem 0 3rem;">
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>Guide for Beginners</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body faq-links">
+            <a>Functional Guidelines</a><a>Registration &amp; Installation</a><a>Candlestick</a><a>KYC &amp; Security Settings</a><a>Deposit &amp; Withdrawal</a><a>FAQ</a><a>Security Zone</a><a>Reward Center</a>
+          </div>
+        </div>
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>P2P Trade</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body faq-links">
+            <a>Introduction to P2P Trading</a><a>P2P Advertisers</a><a>P2P Payment Management</a><a>P2P Security Issues</a><a>P2P Common Issues</a>
+          </div>
+        </div>
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>Spot &amp; Margin</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body faq-links">
+            <a>Spot</a><a>Margin Trading</a><a>Stocks</a><a>Entrusted Transaction</a>
+          </div>
+        </div>
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>ETF</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body faq-links"><a>ETF Overview</a><a>ETF Risk Notice</a></div>
+        </div>
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>Unified Account</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body faq-links"><a>Unified Account Guide</a><a>Portfolio Margin</a></div>
+        </div>
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>Futures</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body faq-links"><a>Futures Guide</a><a>Perpetual Contracts</a><a>Delivery Contracts</a></div>
+        </div>
+        <div class="faq-section">
+          <div class="faq-section-head" onclick="toggleFaqSection(this)"><span>Copy Trading</span><svg class="faq-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="faq-section-body faq-links"><a>Copy Trading Intro</a><a>How to Follow a Trader</a></div>
+        </div>
+      </div>
+    </div>
+
+</body>
 </html>

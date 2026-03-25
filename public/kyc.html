@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="theme-color" content="#000000"/>
+  <title>KYC Verification — Bitegit</title>
+  <link rel="stylesheet" href="/mobile-nav.css"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{height:100%;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+    body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+
+    /* ── Header ── */
+    .kyc-header{
+      position:sticky;top:0;z-index:50;
+      background:#000;
+      display:flex;align-items:center;gap:12px;
+      padding:14px 16px 14px;
+      border-bottom:1px solid rgba(255,255,255,0.06);
+    }
+    .back-btn{
+      width:36px;height:36px;border-radius:50%;
+      background:rgba(255,255,255,0.07);border:none;color:#fff;
+      font-size:20px;display:flex;align-items:center;justify-content:center;
+      cursor:pointer;flex-shrink:0;
+    }
+    .kyc-header h1{font-size:17px;font-weight:600;flex:1;text-align:center}
+    .header-spacer{width:36px;flex-shrink:0}
+
+    /* ── Steps bar ── */
+    .steps-bar{
+      display:flex;align-items:center;justify-content:center;
+      gap:0;padding:20px 24px 0;
+    }
+    .step{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+    .step-circle{
+      width:28px;height:28px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:13px;font-weight:700;
+      background:rgba(255,255,255,0.1);color:#888;
+      position:relative;z-index:1;
+    }
+    .step.active .step-circle{background:#00E5C4;color:#000}
+    .step.done .step-circle{background:#00E5C4;color:#000}
+    .step-label{font-size:10px;color:#666;text-align:center;white-space:nowrap}
+    .step.active .step-label{color:#00E5C4}
+    .step-line{flex:1;height:2px;background:rgba(255,255,255,0.1);margin-bottom:16px}
+    .step-line.done{background:#00E5C4}
+
+    /* ── Content ── */
+    .kyc-content{padding:24px 16px;max-width:480px;margin:0 auto}
+
+    /* Status badge */
+    .status-badge{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:6px 14px;border-radius:100px;
+      font-size:13px;font-weight:600;margin-bottom:20px;
+    }
+    .status-badge.pending{background:rgba(245,158,11,0.15);color:#f59e0b}
+    .status-badge.approved{background:rgba(0,229,196,0.15);color:#00E5C4}
+    .status-badge.rejected{background:rgba(239,68,68,0.15);color:#ef4444}
+
+    /* Info box */
+    .info-box{
+      background:#0d1117;border:1px solid rgba(0,229,196,0.2);
+      border-radius:14px;padding:16px;margin-bottom:24px;
+    }
+    .info-box h3{font-size:14px;font-weight:600;color:#00E5C4;margin-bottom:8px}
+    .info-box ul{list-style:none;padding:0}
+    .info-box ul li{font-size:13px;color:#aaa;padding:3px 0 3px 16px;position:relative}
+    .info-box ul li::before{content:'✓';position:absolute;left:0;color:#00E5C4;font-size:11px}
+
+    /* Warning box */
+    .warn-box{
+      background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);
+      border-radius:12px;padding:14px 16px;margin-bottom:20px;
+      font-size:13px;color:#f59e0b;display:flex;align-items:flex-start;gap:8px;
+    }
+    .warn-box svg{flex-shrink:0;margin-top:1px}
+
+    /* Form groups */
+    .form-group{margin-bottom:20px}
+    .form-label{font-size:13px;color:#aaa;margin-bottom:8px;display:block;font-weight:500}
+    .form-input{
+      width:100%;background:#111;border:1.5px solid rgba(255,255,255,0.1);
+      border-radius:12px;padding:14px 16px;
+      color:#fff;font-size:15px;outline:none;
+      -webkit-appearance:none;
+    }
+    .form-input:focus{border-color:#00E5C4}
+    .form-input::placeholder{color:#444}
+    .char-counter{font-size:11px;color:#555;text-align:right;margin-top:4px}
+
+    /* Upload box */
+    .upload-box{
+      background:#111;border:1.5px dashed rgba(255,255,255,0.15);
+      border-radius:14px;padding:24px 16px;
+      display:flex;flex-direction:column;align-items:center;gap:10px;
+      cursor:pointer;position:relative;overflow:hidden;
+      transition:border-color 0.2s;
+    }
+    .upload-box:active{border-color:#00E5C4}
+    .upload-box.has-file{border-style:solid;border-color:rgba(0,229,196,0.4)}
+    .upload-box input[type=file]{
+      position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;
+    }
+    .upload-icon{font-size:32px}
+    .upload-title{font-size:14px;font-weight:600;color:#ccc}
+    .upload-subtitle{font-size:12px;color:#666;text-align:center}
+    .upload-preview{
+      width:100%;max-height:160px;object-fit:cover;
+      border-radius:8px;display:none;
+    }
+    .upload-box.has-file .upload-preview{display:block}
+    .upload-box.has-file .upload-icon,
+    .upload-box.has-file .upload-title,
+    .upload-box.has-file .upload-subtitle{display:none}
+    .upload-filename{font-size:12px;color:#00E5C4;margin-top:4px;display:none}
+    .upload-box.has-file .upload-filename{display:block}
+
+    /* Tips */
+    .upload-tips{
+      display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;
+    }
+    .upload-tip{
+      background:#0d0d0d;border-radius:10px;padding:10px;text-align:center;
+    }
+    .upload-tip-icon{font-size:22px;display:block;margin-bottom:4px}
+    .upload-tip-label{font-size:11px;color:#666}
+
+    /* Consent */
+    .consent-row{
+      display:flex;align-items:flex-start;gap:12px;
+      background:#111;border-radius:12px;padding:14px;
+      margin-bottom:20px;cursor:pointer;
+    }
+    .consent-check{
+      width:20px;height:20px;border-radius:5px;
+      border:2px solid rgba(255,255,255,0.2);flex-shrink:0;margin-top:1px;
+      display:flex;align-items:center;justify-content:center;
+      transition:all 0.2s;
+    }
+    .consent-check.checked{background:#00E5C4;border-color:#00E5C4}
+    .consent-check.checked::after{content:'✓';color:#000;font-size:12px;font-weight:800}
+    .consent-text{font-size:13px;color:#aaa;line-height:1.5}
+    .consent-text a{color:#00E5C4;text-decoration:none}
+
+    /* Hint */
+    .hint-msg{
+      border-radius:10px;padding:12px 14px;
+      font-size:13px;margin-bottom:16px;display:none;
+    }
+    .hint-msg.show{display:block}
+    .hint-msg.error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171}
+    .hint-msg.success{background:rgba(0,229,196,0.1);border:1px solid rgba(0,229,196,0.3);color:#00E5C4}
+    .hint-msg.info{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#aaa}
+
+    /* Submit button */
+    .btn-submit{
+      width:100%;padding:16px;border-radius:14px;border:none;
+      background:linear-gradient(135deg,#00E5C4,#00b897);
+      color:#000;font-size:16px;font-weight:700;
+      cursor:pointer;letter-spacing:0.3px;
+      box-shadow:0 4px 20px rgba(0,229,196,0.3);
+      transition:opacity 0.2s,transform 0.1s;
+    }
+    .btn-submit:active{transform:scale(0.98);opacity:0.85}
+    .btn-submit:disabled{background:#1a1a1a;color:#444;box-shadow:none;cursor:not-allowed}
+
+    /* Status screens */
+    .status-screen{display:none;text-align:center;padding:48px 24px}
+    .status-screen.show{display:block}
+    .status-icon{font-size:64px;margin-bottom:20px}
+    .status-screen h2{font-size:22px;font-weight:700;margin-bottom:10px}
+    .status-screen p{font-size:14px;color:#888;line-height:1.6;margin-bottom:28px}
+    .btn-outline{
+      display:inline-block;padding:13px 32px;border-radius:12px;
+      border:1.5px solid rgba(255,255,255,0.15);color:#fff;
+      font-size:15px;font-weight:600;text-decoration:none;
+      background:transparent;cursor:pointer;
+    }
+    .btn-outline+.btn-submit{margin-top:12px}
+
+    /* ✓ check circle for success */
+    .check-circle{
+      width:80px;height:80px;border-radius:50%;
+      background:rgba(0,229,196,0.15);
+      display:flex;align-items:center;justify-content:center;
+      margin:0 auto 20px;
+    }
+    .check-circle svg{width:40px;height:40px}
+
+    /* Divider */
+    .divider{border:none;border-top:1px solid rgba(255,255,255,0.06);margin:8px 0 24px}
+  </style>
+</head>
+<body class="has-mobile-nav">
+
+<!-- Header -->
+<header class="kyc-header">
+  <button class="back-btn" id="backBtn" aria-label="Back">‹</button>
+  <h1>KYC Verification</h1>
+  <div class="header-spacer"></div>
+</header>
+
+<!-- ── PENDING screen ── -->
+<div id="screen-pending" class="kyc-content" style="display:none">
+  <div style="text-align:center;padding:32px 0 20px">
+    <div class="check-circle" style="background:rgba(245,158,11,0.15)">
+      <svg viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="18" stroke="#f59e0b" stroke-width="2.5"/>
+        <path d="M20 12v10M20 26v2" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="status-badge pending">● Under Review</span>
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:10px">KYC Submitted!</h2>
+    <p style="font-size:14px;color:#888;line-height:1.6">Your documents are under review.<br>This usually takes 10–30 minutes.</p>
+  </div>
+  <div class="info-box" style="margin-top:8px">
+    <h3>What happens next?</h3>
+    <ul>
+      <li>Our team reviews your Aadhaar & selfie</li>
+      <li>You'll be notified once verified</li>
+      <li>After approval, P2P trading unlocks instantly</li>
+    </ul>
+  </div>
+  <a href="/p2p" class="btn-submit" style="display:block;text-align:center;text-decoration:none;margin-top:8px">Back to P2P</a>
+</div>
+
+<!-- ── APPROVED screen ── -->
+<div id="screen-approved" class="kyc-content" style="display:none">
+  <div style="text-align:center;padding:32px 0 20px">
+    <div class="check-circle">
+      <svg viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="18" stroke="#00E5C4" stroke-width="2.5"/>
+        <path d="M13 20l5 5 9-9" stroke="#00E5C4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <span class="status-badge approved">✓ Verified</span>
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:10px">KYC Approved!</h2>
+    <p style="font-size:14px;color:#888;line-height:1.6">Your identity is verified.<br>You can now buy & sell on P2P.</p>
+  </div>
+  <a href="/p2p" class="btn-submit" style="display:block;text-align:center;text-decoration:none">Start Trading on P2P</a>
+</div>
+
+<!-- ── REJECTED screen ── -->
+<div id="screen-rejected" class="kyc-content" style="display:none">
+  <div style="text-align:center;padding:32px 0 20px">
+    <div class="check-circle" style="background:rgba(239,68,68,0.12)">
+      <svg viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="18" stroke="#ef4444" stroke-width="2.5"/>
+        <path d="M14 14l12 12M26 14L14 26" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="status-badge rejected">✗ Rejected</span>
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:10px">KYC Rejected</h2>
+    <p style="font-size:14px;color:#888;line-height:1.6" id="rejectedReason">Your documents could not be verified. Please resubmit with clear photos.</p>
+  </div>
+  <button class="btn-submit" id="resubmitBtn">Resubmit KYC</button>
+</div>
+
+<!-- ── FORM screen ── -->
+<div id="screen-form" class="kyc-content">
+
+  <!-- Info -->
+  <div class="info-box">
+    <h3>📋 What you need</h3>
+    <ul>
+      <li>Aadhaar card (front side) — clear, all 4 corners visible</li>
+      <li>Selfie holding your Aadhaar card</li>
+      <li>Make sure the 12-digit number is readable</li>
+      <li>No glare, blur, or cropping</li>
+    </ul>
+  </div>
+
+  <div id="hintMsg" class="hint-msg"></div>
+
+  <!-- Aadhaar Number -->
+  <div class="form-group">
+    <label class="form-label" for="aadhaarInput">Aadhaar Number</label>
+    <input class="form-input" id="aadhaarInput" type="tel" inputmode="numeric"
+      maxlength="14" placeholder="XXXX XXXX XXXX" autocomplete="off"/>
+    <div class="char-counter" id="aadhaarCount">0 / 12</div>
+  </div>
+
+  <!-- Aadhaar Front -->
+  <div class="form-group">
+    <label class="form-label">Aadhaar Front Photo</label>
+    <div class="upload-box" id="aadhaarBox">
+      <input type="file" id="aadhaarFile" accept="image/*" capture="environment"/>
+      <div class="upload-icon">🪪</div>
+      <div class="upload-title">Tap to upload Aadhaar front</div>
+      <div class="upload-subtitle">JPG, PNG — max 10 MB</div>
+      <img class="upload-preview" id="aadhaarPreview" alt="Aadhaar preview"/>
+      <span class="upload-filename" id="aadhaarFilename"></span>
+    </div>
+    <div class="upload-tips">
+      <div class="upload-tip"><span class="upload-tip-icon">✅</span><span class="upload-tip-label">Clear & readable</span></div>
+      <div class="upload-tip"><span class="upload-tip-icon">❌</span><span class="upload-tip-label">No glare/blur</span></div>
+    </div>
+  </div>
+
+  <!-- Selfie -->
+  <div class="form-group">
+    <label class="form-label">Selfie with Aadhaar Card</label>
+    <div class="upload-box" id="selfieBox">
+      <input type="file" id="selfieFile" accept="image/*" capture="user"/>
+      <div class="upload-icon">🤳</div>
+      <div class="upload-title">Tap to take selfie with Aadhaar</div>
+      <div class="upload-subtitle">Hold your Aadhaar card near your face</div>
+      <img class="upload-preview" id="selfiePreview" alt="Selfie preview"/>
+      <span class="upload-filename" id="selfieFilename"></span>
+    </div>
+  </div>
+
+  <hr class="divider"/>
+
+  <!-- Consent -->
+  <div class="consent-row" id="consentRow">
+    <div class="consent-check" id="consentCheck"></div>
+    <div class="consent-text">
+      I confirm these documents belong to me and consent to identity verification.
+      <a href="#">Privacy Policy</a>
+    </div>
+  </div>
+
+  <!-- Warning -->
+  <div class="warn-box">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 1.5L1 14.5h14L8 1.5z" stroke="#f59e0b" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M8 6v4M8 11.5v.5" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    Submitting fake or others' documents is illegal and will result in a permanent ban.
+  </div>
+
+  <!-- Submit -->
+  <button class="btn-submit" id="submitBtn" disabled>Verify Identity</button>
+  <div style="height:12px"></div>
+</div>
+
+<!-- Bottom Nav -->
+<nav class="mobile-app-nav" aria-label="App navigation">
+  <a href="/" aria-label="Home">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12L12 3l9 9"/><path d="M9 21V12h6v9"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="/markets.html" aria-label="Market">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span>Market</span>
+  </a>
+  <a href="/chart.html" aria-label="Trade">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M7 14l3-3 3 3 4-4"/></svg>
+    <span>Trade</span>
+  </a>
+  <a href="/futures.html" aria-label="Futures">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>
+    <span>Futures</span>
+  </a>
+  <a href="/assets" aria-label="Assets">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+    <span>Assets</span>
+  </a>
+</nav>
+
+<script>
+(function(){
+  // ── Read URL params ──
+  var params = new URLSearchParams(location.search);
+  var redirect = params.get('redirect') || '/p2p';
+
+  // ── Back button ──
+  document.getElementById('backBtn').addEventListener('click', function(){
+    if(history.length > 1){ history.back(); } else { location.href = redirect; }
+  });
+
+  // ── Check existing KYC status from session ──
+  var kycStatus = (params.get('status')||'').toUpperCase();
+  var rejectedReason = params.get('reason') || '';
+
+  // Try to get from localStorage (set by p2p.js after login)
+  try {
+    var stored = JSON.parse(localStorage.getItem('bitegit_user') || '{}');
+    if(!kycStatus && stored.kyc && stored.kyc.status){
+      kycStatus = String(stored.kyc.status).toUpperCase();
+    }
+    if(!rejectedReason && stored.kyc && stored.kyc.reviewNote){
+      rejectedReason = stored.kyc.reviewNote;
+    }
+  } catch(e){}
+
+  function showScreen(name){
+    ['form','pending','approved','rejected'].forEach(function(s){
+      document.getElementById('screen-'+s).style.display = s===name ? '' : 'none';
+    });
+  }
+
+  if(kycStatus === 'APPROVED'){ showScreen('approved'); }
+  else if(kycStatus === 'PENDING'){ showScreen('pending'); }
+  else if(kycStatus === 'REJECTED'){
+    showScreen('rejected');
+    if(rejectedReason){ document.getElementById('rejectedReason').textContent = rejectedReason; }
+  } else {
+    showScreen('form');
+  }
+
+  document.getElementById('resubmitBtn') && document.getElementById('resubmitBtn').addEventListener('click', function(){
+    showScreen('form');
+  });
+
+  // ── Aadhaar input formatting ──
+  var aadhaarInput = document.getElementById('aadhaarInput');
+  var aadhaarCount = document.getElementById('aadhaarCount');
+  aadhaarInput.addEventListener('input', function(){
+    var digits = this.value.replace(/\D/g,'').slice(0,12);
+    var formatted = digits.replace(/(\d{4})(?=\d)/g,'$1 ').trim();
+    this.value = formatted;
+    aadhaarCount.textContent = digits.length + ' / 12';
+    checkReady();
+  });
+
+  // ── File upload handlers ──
+  function setupUpload(inputId, boxId, previewId, filenameId){
+    var input = document.getElementById(inputId);
+    var box   = document.getElementById(boxId);
+    var prev  = document.getElementById(previewId);
+    var fname = document.getElementById(filenameId);
+
+    input.addEventListener('change', function(){
+      var file = this.files[0];
+      if(!file) return;
+      // Validate size
+      if(file.size > 10 * 1024 * 1024){
+        showHint('File too large. Max 10 MB allowed.','error');
+        this.value=''; return;
+      }
+      // Validate type
+      if(!file.type.startsWith('image/')){
+        showHint('Please select an image file (JPG or PNG).','error');
+        this.value=''; return;
+      }
+      // Preview using FileReader (iOS safe)
+      var reader = new FileReader();
+      reader.onload = function(e){
+        prev.src = e.target.result;
+        box.classList.add('has-file');
+        fname.textContent = file.name + ' (' + Math.round(file.size/1024) + ' KB)';
+        showHint('','');
+        checkReady();
+      };
+      reader.onerror = function(){
+        showHint('Unable to read file. Please try a different image.','error');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  setupUpload('aadhaarFile','aadhaarBox','aadhaarPreview','aadhaarFilename');
+  setupUpload('selfieFile','selfieBox','selfiePreview','selfieFilename');
+
+  // ── Consent toggle ──
+  var consentRow   = document.getElementById('consentRow');
+  var consentCheck = document.getElementById('consentCheck');
+  var consentGiven = false;
+  consentRow.addEventListener('click', function(){
+    consentGiven = !consentGiven;
+    consentCheck.classList.toggle('checked', consentGiven);
+    checkReady();
+  });
+
+  // ── Enable submit button ──
+  var submitBtn = document.getElementById('submitBtn');
+  function checkReady(){
+    var aadhaarDigits = aadhaarInput.value.replace(/\D/g,'');
+    var hasAadhaar = /^\d{12}$/.test(aadhaarDigits);
+    var hasAadhaarFile = document.getElementById('aadhaarFile').files.length > 0;
+    var hasSelfieFile  = document.getElementById('selfieFile').files.length > 0;
+    submitBtn.disabled = !(hasAadhaar && hasAadhaarFile && hasSelfieFile && consentGiven);
+  }
+
+  // ── Hint message ──
+  var hintEl = document.getElementById('hintMsg');
+  function showHint(msg, type){
+    if(!msg){ hintEl.className='hint-msg'; hintEl.textContent=''; return; }
+    hintEl.className = 'hint-msg show '+(type||'info');
+    hintEl.textContent = msg;
+  }
+
+  // ── Submit KYC ──
+  submitBtn.addEventListener('click', async function(){
+    var aadhaarDigits = aadhaarInput.value.replace(/\D/g,'');
+    if(!/^\d{12}$/.test(aadhaarDigits)){
+      showHint('Enter a valid 12-digit Aadhaar number.','error'); return;
+    }
+    var aadhaarFile = document.getElementById('aadhaarFile').files[0];
+    var selfieFile  = document.getElementById('selfieFile').files[0];
+    if(!aadhaarFile || !selfieFile){
+      showHint('Please upload both Aadhaar photo and selfie.','error'); return;
+    }
+    if(!consentGiven){
+      showHint('Please accept the consent checkbox.','error'); return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Processing images…';
+    showHint('Optimizing images for upload…','info');
+
+    try {
+      var aadhaarBase64 = await readFileAsBase64(aadhaarFile);
+      var selfieBase64  = await readFileAsBase64(selfieFile);
+
+      showHint('Submitting to verification…','info');
+      submitBtn.textContent = 'Submitting…';
+
+      var resp = await fetch('/api/p2p/kyc/submit', {
+        method:'POST',
+        credentials:'include',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          aadhaarNumber: aadhaarDigits,
+          aadhaarFrontImage: aadhaarBase64,
+          selfieWithDocumentImage: selfieBase64,
+          consent: true
+        })
+      });
+
+      var data = await resp.json();
+      if(!resp.ok) throw new Error(data.message || 'Submission failed. Please try again.');
+
+      // Update local storage
+      try {
+        var user = JSON.parse(localStorage.getItem('bitegit_user')||'{}');
+        user.kyc = data.kyc || {status:'PENDING'};
+        localStorage.setItem('bitegit_user', JSON.stringify(user));
+      } catch(e){}
+
+      showScreen('pending');
+
+    } catch(err){
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Verify Identity';
+      showHint(err.message || 'Something went wrong. Please try again.','error');
+    }
+  });
+
+  // ── FileReader helper — iOS safe ──
+  function readFileAsBase64(file){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload  = function(e){ resolve(e.target.result); };
+      reader.onerror = function(){ reject(new Error('Unable to read image. Please try a JPG or PNG.')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ── Active nav ──
+  var links = document.querySelectorAll('.mobile-app-nav a');
+  links.forEach(function(a){
+    a.classList.toggle('active', a.getAttribute('href') === location.pathname);
+  });
+
+})();
+</script>
+</body>
+</html>

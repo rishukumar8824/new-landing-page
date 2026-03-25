@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="theme-color" content="#000000"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>Buy USDT – Bitegit P2P</title>
+<link rel="stylesheet" href="/mobile-nav.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:#000;color:#fff;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;min-height:100vh;overscroll-behavior:none}
+
+/* ── Page system ── */
+.page{display:none;position:fixed;inset:0;background:#000;overflow-y:auto;overflow-x:hidden;z-index:10;padding-bottom:calc(72px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.page.show{display:block}
+
+/* ── Header ── */
+.hdr{display:flex;align-items:center;padding:14px 16px;background:#000;border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:9}
+.back-btn{width:36px;height:36px;border-radius:50%;background:#111;border:none;color:#fff;font-size:1.3rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation}
+.back-btn:active{background:#1c1c1c}
+.hdr-ttl{font-size:1rem;font-weight:700;flex:1;text-align:center}
+.hdr-r{width:36px;flex-shrink:0}
+
+/* ── Teal accent ── */
+.teal{color:#00E5C4}
+
+/* ── Tabs ── */
+.p2p-tabs{display:flex;border-bottom:1px solid rgba(255,255,255,.07);padding:0 16px}
+.p2p-tab{background:none;border:none;border-bottom:2.5px solid transparent;color:#6b7a99;font-size:.9rem;font-weight:600;padding:12px 20px 12px 0;cursor:pointer;transition:color .15s,border-color .15s;touch-action:manipulation}
+.p2p-tab.on{color:#fff;border-bottom-color:#00E5C4}
+
+/* ── Price row ── */
+.price-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px}
+.price-lbl{font-size:.88rem;color:#aaa}
+.price-val{font-size:1rem;font-weight:700}
+.refresh-btn{width:32px;height:32px;border-radius:50%;border:1.5px solid rgba(255,255,255,.15);background:none;color:#aaa;display:flex;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;flex-shrink:0}
+.refresh-btn:active{background:#111}
+.refresh-btn svg{width:16px;height:16px}
+
+/* ── Amount input box ── */
+.amt-box{margin:0 16px;background:#1a1a1a;border-radius:14px;padding:14px 16px;border:1.5px solid rgba(255,255,255,.08);transition:border-color .2s}
+.amt-box:focus-within{border-color:rgba(0,229,196,.4)}
+.amt-top{display:flex;align-items:center;gap:8px}
+.amt-input{background:none;border:none;color:#fff;font-size:1.3rem;font-weight:700;flex:1;outline:none;min-width:0}
+.amt-input::placeholder{color:#444}
+.amt-cur{font-size:.88rem;color:#aaa;font-weight:600;flex-shrink:0}
+.amt-sep{width:1px;height:18px;background:rgba(255,255,255,.12);flex-shrink:0}
+.amt-max{color:#00E5C4;font-size:.88rem;font-weight:700;cursor:pointer;flex-shrink:0;touch-action:manipulation}
+.amt-meta{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.amt-limit{font-size:.78rem;color:#6b7a99}
+.amt-usdt{font-size:.82rem;color:#00E5C4;font-weight:600}
+
+/* ── Payment dropdown ── */
+.pay-drop{margin:12px 16px;background:#1a1a1a;border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:10px;cursor:pointer;border:1.5px solid rgba(255,255,255,.08);touch-action:manipulation}
+.pay-drop:active{background:#222}
+.pay-bullet{width:12px;height:12px;background:#00E5C4;border-radius:2px;flex-shrink:0}
+.pay-name{flex:1;font-size:.9rem;font-weight:600}
+.pay-chev{color:#555;font-size:1rem}
+
+/* ── Advertiser terms ── */
+.sec-lbl{font-size:.78rem;color:#6b7a99;padding:14px 16px 6px;font-weight:600}
+.terms-text{padding:0 16px 12px;font-size:.78rem;color:#555;line-height:1.7}
+
+/* ── Advertiser card ── */
+.adv-card{margin:4px 16px 16px;background:#111;border-radius:14px;padding:14px 15px;border:1px solid rgba(255,255,255,.07)}
+.adv-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.adv-av{width:40px;height:40px;border-radius:50%;background:#00E5C4;color:#000;font-size:.95rem;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.adv-name{flex:1;font-size:.95rem;font-weight:700}
+.adv-arrow{width:32px;height:32px;border-radius:8px;background:#1a1a1a;border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;color:#aaa;font-size:1rem;flex-shrink:0}
+.adv-rows{}
+.adv-row{display:flex;justify-content:space-between;padding:5px 0;font-size:.77rem;border-bottom:1px solid rgba(255,255,255,.05)}
+.adv-row:last-child{border-bottom:none}
+.adv-key{color:#6b7a99}
+.adv-val{color:#ccc;text-align:right}
+
+/* ── Fixed bottom button ── */
+.btn-fixed{position:fixed;bottom:calc(64px + env(safe-area-inset-bottom));left:0;right:0;padding:10px 16px;background:#000;border-top:1px solid rgba(255,255,255,.06);z-index:20}
+.btn-teal{width:100%;padding:15px;background:#00E5C4;color:#000;font-size:.95rem;font-weight:800;border:none;border-radius:14px;cursor:pointer;touch-action:manipulation;letter-spacing:.01em}
+.btn-teal:active{opacity:.88}
+.btn-teal:disabled{background:#1a1a1a;color:#444;cursor:default}
+.btn-white{width:100%;padding:15px;background:#fff;color:#000;font-size:.95rem;font-weight:800;border:none;border-radius:14px;cursor:pointer;touch-action:manipulation}
+.btn-white:active{opacity:.88}
+.btn-cancel-txt{display:block;text-align:center;padding:12px;color:#6b7a99;font-size:.88rem;cursor:pointer;touch-action:manipulation}
+.btn-cancel-txt:active{color:#aaa}
+
+/* ── Order screen ── */
+.order-subtitle{font-size:.82rem;font-weight:600;padding:6px 16px 0}
+.timer-teal{color:#00E5C4}
+.escrow-note{margin:10px 16px;padding:12px 14px;background:#0d1f1c;border-radius:10px;border:1px solid rgba(0,229,196,.15)}
+.escrow-note p{font-size:.75rem;color:#7a9e99;line-height:1.7;margin-bottom:6px}
+.escrow-note p:last-child{margin-bottom:0}
+.crypto-hdr{display:flex;align-items:center;gap:10px;padding:14px 16px 10px}
+.crypto-ico{width:32px;height:32px;border-radius:50%;background:#26a17b;display:flex;align-items:center;justify-content:center}
+.crypto-ico svg{width:18px;height:18px;fill:#fff}
+.crypto-name{font-size:.95rem;font-weight:700}
+.detail-rows{margin:0 16px}
+.detail-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.detail-row:last-child{border-bottom:none}
+.detail-key{font-size:.82rem;color:#6b7a99}
+.detail-val{font-size:.88rem;font-weight:600;display:flex;align-items:center;gap:8px}
+.copy-ico{width:28px;height:28px;border-radius:6px;background:#1a1a1a;border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;touch-action:manipulation}
+.copy-ico:active{background:#252525}
+.copy-ico svg{width:14px;height:14px;fill:#6b7a99}
+.pay-badge{display:inline-flex;align-items:center;gap:6px}
+.pay-sq{width:10px;height:10px;background:#00E5C4;border-radius:2px;flex-shrink:0}
+.divider{height:1px;background:rgba(255,255,255,.07);margin:14px 16px}
+.meta-row{display:flex;justify-content:space-between;align-items:center;padding:8px 16px}
+.meta-key{font-size:.78rem;color:#6b7a99}
+.meta-val{font-size:.78rem;color:#aaa;display:flex;align-items:center;gap:8px}
+
+/* ── Chat button ── */
+.chat-btn{width:36px;height:36px;border-radius:10px;background:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;touch-action:manipulation}
+.chat-btn svg{width:18px;height:18px;fill:#000}
+.chat-dot{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#00E5C4;border:1.5px solid #fff}
+
+/* ── Pay screen ── */
+.pay-step{margin:10px 16px}
+.pay-step-hdr{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.step-num{width:24px;height:24px;background:#1a1a1a;border:1.5px solid rgba(255,255,255,.2);border-radius:4px;font-size:.8rem;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;transform:rotate(45deg)}
+.step-num-inner{transform:rotate(-45deg);line-height:1}
+.step-title{font-size:.9rem;font-weight:700;padding-top:3px;flex:1}
+.step-sub{font-size:.76rem;color:#6b7a99;line-height:1.65;margin:4px 16px 10px 50px}
+.pay-detail-box{margin:0 16px;background:#1a1a1a;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+.pdb-row{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.07)}
+.pdb-row:last-child{border-bottom:none}
+.pdb-key{font-size:.78rem;color:#6b7a99}
+.pdb-val{font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:8px}
+.warn-txt{margin:10px 16px 0;padding:10px 14px;background:#1a0d00;border-radius:10px;border:1px solid rgba(255,165,0,.18)}
+.warn-txt p{font-size:.75rem;color:#c8966e;line-height:1.65}
+.step2-wrap{margin:14px 16px 0}
+.step2-hdr{display:flex;align-items:center;gap:10px}
+
+/* ── Bottom sheet (generic) ── */
+.sh-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;align-items:flex-end}
+.sh-bg.open{display:flex}
+.sh{background:#111;border-radius:20px 20px 0 0;width:100%;padding:0 0 calc(28px + env(safe-area-inset-bottom));animation:shUp .22s ease-out}
+@keyframes shUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sh-drag{width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);margin:10px auto 14px}
+
+/* ── Paid sheet ── */
+.paid-sh-ttl{padding:0 18px 14px;font-size:1.05rem;font-weight:800;border-bottom:1px solid rgba(255,255,255,.07)}
+.paid-warn-box{margin:14px 16px 0;background:#1f1500;border-radius:12px;padding:12px 14px;border:1px solid rgba(255,165,0,.2)}
+.paid-warn-box p{font-size:.78rem;color:#c89454;line-height:1.65}
+.paid-warn-ico{font-size:1rem;margin-right:6px}
+.paid-opts{margin:12px 16px 0;display:flex;flex-direction:column;gap:8px}
+.paid-opt{padding:14px 15px;background:#1a1a1a;border-radius:12px;border:1.5px solid rgba(255,255,255,.1);cursor:pointer;font-size:.88rem;font-weight:600;display:flex;align-items:center;gap:10px;touch-action:manipulation;transition:border-color .15s,background .15s}
+.paid-opt.sel{border-color:#00E5C4;background:#0d1f1c}
+.paid-radio{width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.25);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:border-color .15s}
+.paid-opt.sel .paid-radio{border-color:#00E5C4}
+.paid-radio-inner{width:10px;height:10px;border-radius:50%;background:#00E5C4;display:none}
+.paid-opt.sel .paid-radio-inner{display:block}
+.paid-confirm{margin:14px 16px 0;width:calc(100% - 32px);padding:15px;background:#222;color:#555;font-size:.95rem;font-weight:800;border:none;border-radius:14px;cursor:default;transition:all .2s;touch-action:manipulation}
+.paid-confirm.active{background:#fff;color:#000;cursor:pointer}
+.paid-confirm.active:active{opacity:.88}
+
+/* ── Chat screen ── */
+.chat-sticky{background:#0d1f1c;border-top:1px solid rgba(0,229,196,.15);border-bottom:1px solid rgba(0,229,196,.15);display:flex;align-items:center;justify-content:space-between;padding:10px 16px;position:sticky;top:0;z-index:8}
+.chat-sticky-info{font-size:.78rem;color:#6b7a99}
+.chat-sticky-info .teal{font-weight:700}
+.chat-pay-btn{padding:7px 16px;background:#fff;color:#000;font-size:.8rem;font-weight:800;border:none;border-radius:20px;cursor:pointer;flex-shrink:0;touch-action:manipulation}
+.chat-msgs{padding:14px 16px 12px;display:flex;flex-direction:column;gap:10px}
+.chat-ts{text-align:center;font-size:.72rem;color:#555;margin:4px 0}
+.chat-msg-row{display:flex;align-items:flex-end;gap:8px}
+.chat-av{width:30px;height:30px;border-radius:50%;background:#00E5C4;color:#000;font-size:.75rem;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chat-bubble{background:#1a1a1a;border-radius:0 14px 14px 14px;padding:10px 13px;font-size:.85rem;color:#ddd;max-width:80%;line-height:1.55;border:1px solid rgba(255,255,255,.06)}
+.chat-notice{background:#0d0d0d;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 14px;font-size:.78rem;line-height:1.65}
+.chat-notice strong{color:#fff;display:block;margin-bottom:4px;font-size:.85rem}
+.chat-notice span{color:#6b7a99}
+.chat-bar{position:fixed;bottom:calc(64px + env(safe-area-inset-bottom));left:0;right:0;background:#000;border-top:1px solid rgba(255,255,255,.07);padding:10px 14px;display:flex;align-items:center;gap:10px;z-index:20}
+.chat-input{flex:1;background:#1a1a1a;border:1px solid rgba(255,255,255,.1);border-radius:22px;padding:10px 15px;color:#fff;font-size:.9rem;outline:none}
+.chat-input::placeholder{color:#555}
+.chat-img-btn{width:38px;height:38px;border-radius:50%;background:#1a1a1a;border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;touch-action:manipulation}
+.chat-img-btn:active{background:#252525}
+.chat-img-btn svg{width:18px;height:18px;fill:#6b7a99}
+/* override page padding for chat since we have sticky chat-bar */
+#pg-chat{padding-bottom:calc(64px + 64px + env(safe-area-inset-bottom))}
+
+/* ── Cancel warning ── */
+.cancel-card{margin:10px 16px;background:#111;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.07)}
+.cancel-row{display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid rgba(255,255,255,.07)}
+.cancel-row:last-child{border-bottom:none}
+.cancel-row-lbl{font-size:.88rem;font-weight:600}
+.cancel-row-btn{padding:8px 14px;background:#1a1a1a;border:1px solid rgba(255,255,255,.12);border-radius:20px;color:#fff;font-size:.78rem;font-weight:600;cursor:pointer;touch-action:manipulation}
+.cancel-row-btn:active{background:#252525}
+.cancel-sec-lbl{padding:18px 16px 8px;font-size:.78rem;color:#6b7a99;font-weight:600}
+.cancel-list{padding:0 16px;display:flex;flex-direction:column;gap:10px}
+.cancel-item{display:flex;gap:10px;align-items:flex-start;font-size:.82rem;color:#aaa;line-height:1.65}
+.cancel-num{font-size:.82rem;font-weight:700;flex-shrink:0;width:18px}
+
+/* ── Cancel reason ── */
+.reason-subtitle{padding:4px 16px 14px;font-size:.82rem;color:#00E5C4;cursor:pointer;touch-action:manipulation}
+.radio-list{display:flex;flex-direction:column;padding:0 16px;gap:2px}
+.radio-item{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer;touch-action:manipulation}
+.radio-item:last-child{border-bottom:none}
+.radio-circle{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.25);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:border-color .15s}
+.radio-item.sel .radio-circle{border-color:#00E5C4}
+.radio-dot{width:11px;height:11px;border-radius:50%;background:#00E5C4;display:none}
+.radio-item.sel .radio-dot{display:block}
+.radio-lbl{font-size:.88rem;flex:1;line-height:1.4}
+.watch-btn{padding:6px 12px;background:#1a1a1a;border:1px solid rgba(255,255,255,.12);border-radius:16px;color:#aaa;font-size:.75rem;cursor:pointer;flex-shrink:0;touch-action:manipulation;white-space:nowrap}
+.reason-check-row{display:flex;align-items:flex-start;gap:10px;padding:14px 16px 0;margin-bottom:8px}
+.check-box{width:22px;height:22px;border-radius:5px;border:2px solid rgba(255,255,255,.25);flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;margin-top:2px;transition:border-color .15s,background .15s}
+.check-box.chk{border-color:#00E5C4;background:#00E5C4}
+.check-box.chk::after{content:'✓';color:#000;font-size:.75rem;font-weight:900}
+.check-lbl{font-size:.82rem;color:#aaa;line-height:1.55;flex:1}
+.confirm-btn{width:calc(100% - 32px);margin:0 16px;padding:15px;background:#1a1a1a;color:#444;font-size:.95rem;font-weight:800;border:none;border-radius:14px;cursor:default;transition:all .2s}
+.confirm-btn.active{background:#fff;color:#000;cursor:pointer}
+.confirm-btn.active:active{opacity:.88}
+
+/* ── Media sheet ── */
+.media-sh-item{padding:17px 24px;font-size:.95rem;font-weight:600;color:#fff;cursor:pointer;text-align:center;border-bottom:1px solid rgba(255,255,255,.07);touch-action:manipulation}
+.media-sh-item:active{background:#1a1a1a}
+.media-sh-cancel{padding:17px 24px;font-size:.9rem;color:#6b7a99;cursor:pointer;text-align:center;touch-action:manipulation;margin-top:4px}
+.media-sh-cancel:active{color:#aaa}
+
+/* ── Copied toast ── */
+.copied-toast{position:fixed;bottom:calc(80px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(0,229,196,.15);border:1px solid rgba(0,229,196,.3);color:#00E5C4;font-size:.8rem;font-weight:700;padding:8px 18px;border-radius:20px;z-index:9999;pointer-events:none;opacity:0;transition:opacity .2s}
+.copied-toast.show{opacity:1}
+
+/* ── Online dot ── */
+.online-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#00E5C4;margin-right:5px}
+.online-row{text-align:center;font-size:.75rem;color:#00E5C4;padding:2px 0 8px}
+.hdr-online{display:flex;flex-direction:column;align-items:center;flex:1}
+
+/* ── Misc ── */
+.hdr-dots{font-size:1.2rem;letter-spacing:.1em;cursor:pointer;padding:4px 8px;color:#aaa}
+.adv-card-inline{background:#111;border-radius:14px;padding:12px 14px;margin:10px 16px;display:flex;align-items:center;gap:12px;border:1px solid rgba(255,255,255,.07)}
+</style>
+<script src="/app-nav.js" defer></script>
+</head>
+<body class="has-mobile-nav">
+
+<!-- ════════════════════════════════════════════
+     SCREEN 1: pg-form — Buy Form
+════════════════════════════════════════════ -->
+<div class="page show" id="pg-form">
+  <div class="hdr">
+    <button class="back-btn" data-action="go-p2p" aria-label="Back">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span class="hdr-ttl">Buy USDT</span>
+    <div class="hdr-r"></div>
+  </div>
+
+  <!-- Crypto / Fiat tabs -->
+  <div class="p2p-tabs">
+    <button class="p2p-tab" data-tab-group="form" data-tab-val="crypto">Crypto</button>
+    <button class="p2p-tab on" data-tab-group="form" data-tab-val="fiat">Fiat</button>
+  </div>
+
+  <!-- Price row -->
+  <div class="price-row">
+    <div>
+      <span class="price-lbl">Price </span>
+      <span class="price-val" id="form-price">₹101.30</span>
+    </div>
+    <button class="refresh-btn" data-action="refresh-price" aria-label="Refresh price">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+    </button>
+  </div>
+
+  <!-- Amount input -->
+  <div class="amt-box">
+    <div class="amt-top">
+      <input class="amt-input" type="number" inputmode="decimal" placeholder="Enter amount" id="form-amt" autocomplete="off"/>
+      <span class="amt-cur">INR</span>
+      <div class="amt-sep"></div>
+      <span class="amt-max" data-action="set-max">Max</span>
+    </div>
+    <div class="amt-meta">
+      <span class="amt-limit" id="form-limit">Limit ₹1,000 – ₹6,000</span>
+      <span class="amt-usdt" id="form-usdt">≈ 0.00 USDT</span>
+    </div>
+  </div>
+
+  <!-- Payment method -->
+  <div class="pay-drop" data-action="toggle-payment">
+    <div class="pay-bullet"></div>
+    <span class="pay-name" id="form-pay-name">Digital eRupee</span>
+    <span class="pay-chev">⌄</span>
+  </div>
+
+  <!-- Advertiser terms -->
+  <div class="sec-lbl">Advertiser terms</div>
+  <div class="terms-text" id="form-terms">No specific conditions. Feel free to trade. Please transfer within 15 minutes of placing the order. Ensure you use Digital eRupee for the payment. Do not mention "crypto" or "USDT" in the transfer remarks.</div>
+
+  <!-- Advertiser info card -->
+  <div class="sec-lbl">Advertiser info</div>
+  <div class="adv-card">
+    <div class="adv-top">
+      <div class="adv-av" id="form-adv-av">E</div>
+      <span class="adv-name" id="form-adv-name">ER.LAOR ✦</span>
+      <div class="adv-arrow">→</div>
+    </div>
+    <div class="adv-rows" id="form-adv-rows">
+      <div class="adv-row"><span class="adv-key">Pay within</span><span class="adv-val">15 minutes</span></div>
+      <div class="adv-row"><span class="adv-key">Historical orders</span><span class="adv-val">Buy 5338 Sell 11955</span></div>
+      <div class="adv-row"><span class="adv-key">30D avg release time</span><span class="adv-val">1 min</span></div>
+      <div class="adv-row"><span class="adv-key">Completed orders (both)</span><span class="adv-val">0</span></div>
+      <div class="adv-row"><span class="adv-key">Account signup time</span><span class="adv-val">2023.12.30</span></div>
+    </div>
+  </div>
+
+  <!-- spacer for fixed btn -->
+  <div style="height:80px"></div>
+
+  <div class="btn-fixed">
+    <button class="btn-teal" id="buy-btn" data-action="buy-usdt">Buy USDT with 0 fees</button>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SCREEN 2: pg-order — Order Generated
+════════════════════════════════════════════ -->
+<div class="page" id="pg-order">
+  <div class="hdr">
+    <button class="back-btn" data-action="nav" data-target="pg-form" aria-label="Back">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span class="hdr-ttl" style="font-size:.9rem">The order has been generated.</span>
+    <div class="hdr-r"></div>
+  </div>
+
+  <div class="order-subtitle">
+    <span>Proceed to payment.</span><br/>
+    <span class="teal timer-teal" id="order-timer">Please pay within 14:59</span>
+  </div>
+
+  <!-- Advertiser card -->
+  <div class="adv-card-inline" style="margin-top:12px">
+    <div class="adv-av">E</div>
+    <span class="adv-name" style="flex:1">ER.LAOR ✦</span>
+    <button class="chat-btn" data-action="nav" data-target="pg-chat" aria-label="Chat">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <div class="chat-dot"></div>
+    </button>
+  </div>
+
+  <!-- Escrow -->
+  <div class="escrow-note">
+    <p>* The other party has passed our real-name and video identity verification.</p>
+    <p>* The cryptocurrency in this order is held in escrow and protected by Bitegit's asset guarantee program.</p>
+  </div>
+
+  <!-- Crypto header -->
+  <div class="crypto-hdr">
+    <div class="crypto-ico">
+      <svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#26a17b"/><path d="M17.922 17.383v-.002c-.11.008-.677.042-1.942.042-1.01 0-1.721-.03-1.971-.042v.003c-3.888-.171-6.79-.848-6.79-1.658 0-.809 2.902-1.486 6.79-1.66v2.644c.254.018.982.061 1.988.061 1.207 0 1.812-.05 1.925-.06v-2.643c3.88.173 6.775.85 6.775 1.658 0 .81-2.895 1.485-6.775 1.657m0-3.59v-2.366h5.414V7.819H8.595v3.608h5.414v2.365c-4.4.202-7.709 1.074-7.709 2.126 0 1.053 3.309 1.924 7.709 2.126v7.608h3.913v-7.61c4.393-.202 7.694-1.073 7.694-2.124 0-1.051-3.301-1.922-7.694-2.125" fill="#fff"/></svg>
+    </div>
+    <span class="crypto-name">Buy USDT</span>
+  </div>
+
+  <!-- Detail rows -->
+  <div class="detail-rows">
+    <div class="detail-row">
+      <span class="detail-key">Trading amount</span>
+      <span class="detail-val" id="ord-amount">₹1,000 <button class="copy-ico" data-copy-val="1000" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-key">Price</span>
+      <span class="detail-val" id="ord-price">₹101.30 <button class="copy-ico" data-copy-val="101.30" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-key">Quantity</span>
+      <span class="detail-val" id="ord-qty">9.87 USDT <button class="copy-ico" data-copy-val="9.87" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-key">Fee</span>
+      <span class="detail-val">0 USDT</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-key">Payment method</span>
+      <span class="detail-val"><span class="pay-badge"><span class="pay-sq"></span>Digital eRupee</span></span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Meta rows -->
+  <div class="meta-row">
+    <span class="meta-key">Order No.</span>
+    <span class="meta-val" id="ord-no">— <button class="copy-ico" data-copy-id="order-no" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></span>
+  </div>
+  <div class="meta-row">
+    <span class="meta-key">Order time</span>
+    <span class="meta-val" id="ord-time">—</span>
+  </div>
+  <div class="meta-row">
+    <span class="meta-key">Notes</span>
+    <span class="meta-val" style="color:#555">No notes</span>
+  </div>
+
+  <div style="height:100px"></div>
+  <div class="btn-fixed">
+    <button class="btn-white" data-action="nav" data-target="pg-pay">Next →</button>
+    <span class="btn-cancel-txt" data-action="nav" data-target="pg-cancel-warning" data-prev="pg-order">Cancel</span>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SCREEN 3: pg-pay — Payment Instructions
+════════════════════════════════════════════ -->
+<div class="page" id="pg-pay">
+  <div class="hdr">
+    <button class="back-btn" data-action="nav" data-target="pg-order" aria-label="Back">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span class="hdr-ttl" style="font-size:.88rem;font-weight:800">Please use Digital eRupee<br/>to transfer funds</span>
+    <div class="hdr-r"></div>
+  </div>
+
+  <div class="order-subtitle" style="padding-top:10px">
+    <span class="teal timer-teal" id="pay-timer">Please pay within 14:59</span>
+  </div>
+
+  <!-- Advertiser card -->
+  <div class="adv-card-inline" style="margin-top:8px">
+    <div class="adv-av">E</div>
+    <span class="adv-name" style="flex:1">ER.LAOR ✦</span>
+    <button class="chat-btn" data-action="nav" data-target="pg-chat" aria-label="Chat">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <div class="chat-dot"></div>
+    </button>
+  </div>
+
+  <!-- Step 1 -->
+  <div class="pay-step" style="margin-top:14px">
+    <div class="pay-step-hdr">
+      <div class="step-num"><span class="step-num-inner">①</span></div>
+      <span class="step-title">Exit the Bitget App and transfer funds to the following recipient's account.</span>
+    </div>
+  </div>
+  <p class="step-sub">Do not include "crypto", "USDT", "digital currency" or similar terms in transfer remarks to avoid transaction delays or freezes.</p>
+
+  <!-- Payment detail box -->
+  <div class="pay-detail-box">
+    <div class="pdb-row">
+      <span class="pdb-key">Trading amount</span>
+      <span class="pdb-val" id="pay-amt">₹1,000 <button class="copy-ico" data-copy-val="1000" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></span>
+    </div>
+    <div class="pdb-row">
+      <span class="pdb-key">Recipient name</span>
+      <span class="pdb-val">Satish Laor <button class="copy-ico" data-copy-val="Satish Laor" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></span>
+    </div>
+    <div class="pdb-row">
+      <span class="pdb-key">Payment method</span>
+      <span class="pdb-val"><span class="pay-badge"><span class="pay-sq"></span>Digital eRupee</span> <button class="copy-ico" data-copy-val="Digital eRupee" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></span>
+    </div>
+    <div class="pdb-row">
+      <span class="pdb-key">Digital eRupee wallet VPA</span>
+      <span class="pdb-val">ask in chat <button class="copy-ico" data-copy-val="ask in chat" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></span>
+    </div>
+  </div>
+
+  <!-- Warning -->
+  <div class="warn-txt">
+    <p>Please use an account under your name to make the transfer. Transfers from third-party accounts will not be accepted and may result in loss of funds. Bitegit will not be held responsible for such transactions.</p>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="step2-wrap">
+    <div class="step2-hdr">
+      <div class="step-num" style="flex-shrink:0"><span class="step-num-inner">②</span></div>
+      <span class="step-title">After completing the transfer, tap the Paid button.</span>
+    </div>
+  </div>
+
+  <div style="height:100px"></div>
+  <div class="btn-fixed">
+    <button class="btn-white" data-action="open-paid-sheet">Paid</button>
+    <span class="btn-cancel-txt" data-action="nav" data-target="pg-cancel-warning" data-prev="pg-pay">Cancel</span>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SCREEN 4: pg-paid-sheet — Bottom Sheet overlay
+════════════════════════════════════════════ -->
+<div class="sh-bg" id="pg-paid-sheet" role="dialog" aria-modal="true" aria-label="Confirm payment">
+  <div class="sh">
+    <div class="sh-drag"></div>
+    <div class="paid-sh-ttl">Paid</div>
+    <div class="paid-warn-box">
+      <p><span class="paid-warn-ico">⚠</span>Complete the payment before clicking 'Paid'. False actions may lead to account restrictions and a frozen account.</p>
+    </div>
+    <div class="paid-opts">
+      <div class="paid-opt" data-paid-opt="transferred">
+        <div class="paid-radio"><div class="paid-radio-inner"></div></div>
+        <span>I have transferred 1000 INR to the above account.</span>
+      </div>
+      <div class="paid-opt" data-paid-opt="not-paid">
+        <div class="paid-radio"><div class="paid-radio-inner"></div></div>
+        <span>I have not made the payment yet.</span>
+      </div>
+    </div>
+    <button class="paid-confirm" id="paid-confirm-btn" data-action="paid-confirm" disabled>Confirm</button>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SCREEN 5: pg-chat — Chat
+════════════════════════════════════════════ -->
+<div class="page" id="pg-chat">
+  <div class="hdr">
+    <button class="back-btn" data-action="nav" data-target="pg-pay" aria-label="Back">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="hdr-online">
+      <span style="font-size:1rem;font-weight:700">ER.LAOR</span>
+      <div class="online-row"><span class="online-dot"></span>Online</div>
+    </div>
+    <span class="hdr-dots" style="width:36px;text-align:center">···</span>
+  </div>
+
+  <!-- Sticky info bar -->
+  <div class="chat-sticky">
+    <div class="chat-sticky-info">
+      To be paid <strong>₹1,000</strong> &nbsp;|&nbsp; <span class="teal" id="chat-timer">14:59</span>
+    </div>
+    <button class="chat-pay-btn" data-action="open-paid-sheet">Pay</button>
+  </div>
+
+  <!-- Messages -->
+  <div class="chat-msgs">
+    <div class="chat-ts">Today 12:34 PM</div>
+
+    <div class="chat-msg-row">
+      <div class="chat-av">E</div>
+      <div class="chat-bubble">Hello! Please complete the payment to Digital eRupee. Contact me in chat for the VPA address.</div>
+    </div>
+
+    <div class="chat-notice">
+      <strong>Pending Payment</strong>
+      <span>You have a pending payment of ₹1,000. Please complete the payment within 15 minutes of placing the order. The order will be automatically cancelled if payment is not received.</span>
+    </div>
+
+    <div class="chat-msg-row">
+      <div class="chat-av">E</div>
+      <div class="chat-bubble">Please do not mention "crypto" or "USDT" in your transfer remarks.</div>
+    </div>
+  </div>
+
+  <!-- Input bar -->
+  <div class="chat-bar">
+    <input class="chat-input" type="text" placeholder="Type a message…" autocomplete="off"/>
+    <button class="chat-img-btn" data-action="open-media-sheet" aria-label="Attach image">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+    </button>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SCREEN 6: pg-cancel-warning — Cancel Warning
+════════════════════════════════════════════ -->
+<div class="page" id="pg-cancel-warning">
+  <div class="hdr">
+    <button class="back-btn" data-action="cancel-back" aria-label="Back">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span class="hdr-ttl" style="font-size:.88rem">Before you cancel, here are solutions for common issues.</span>
+    <div class="hdr-r"></div>
+  </div>
+
+  <div class="cancel-card">
+    <div class="cancel-row">
+      <span class="cancel-row-lbl">How to make a payment</span>
+      <button class="cancel-row-btn">View tip</button>
+    </div>
+    <div class="cancel-row">
+      <span class="cancel-row-lbl">Having trouble paying?</span>
+      <button class="cancel-row-btn" data-action="nav" data-target="pg-chat">Chat with seller</button>
+    </div>
+  </div>
+
+  <div class="cancel-sec-lbl">Other issue? Please review the following before canceling your order.</div>
+  <div class="cancel-list">
+    <div class="cancel-item">
+      <span class="cancel-num teal">1</span>
+      <span>Canceling orders frequently may affect your trading reputation and limit your ability to place future orders on P2P.</span>
+    </div>
+    <div class="cancel-item">
+      <span class="cancel-num teal">2</span>
+      <span>If you have already paid, do NOT cancel the order. Contact the seller or Bitegit support immediately to resolve the issue.</span>
+    </div>
+    <div class="cancel-item">
+      <span class="cancel-num teal" style="color:#fff">3</span>
+      <span>Users who cancel <span class="teal">3</span> or more orders within 24 hours will be temporarily suspended from trading.</span>
+    </div>
+  </div>
+
+  <div style="height:80px"></div>
+  <div class="btn-fixed">
+    <button class="btn-white" data-action="nav" data-target="pg-cancel-reason">Proceed to cancel</button>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SCREEN 7: pg-cancel-reason — Cancel Reason
+════════════════════════════════════════════ -->
+<div class="page" id="pg-cancel-reason">
+  <div class="hdr">
+    <button class="back-btn" data-action="nav" data-target="pg-cancel-warning" aria-label="Back">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span class="hdr-ttl">Please select a reason for cancellation</span>
+    <div class="hdr-r"></div>
+  </div>
+
+  <div class="reason-subtitle">Order cancellation tips</div>
+
+  <div class="radio-list" id="reason-list">
+    <div class="radio-item" data-reason="1">
+      <div class="radio-circle"><div class="radio-dot"></div></div>
+      <span class="radio-lbl">I don't want to proceed with this order.</span>
+    </div>
+    <div class="radio-item" data-reason="2">
+      <div class="radio-circle"><div class="radio-dot"></div></div>
+      <span class="radio-lbl">I don't meet the seller's requirements.</span>
+    </div>
+    <div class="radio-item" data-reason="3">
+      <div class="radio-circle"><div class="radio-dot"></div></div>
+      <span class="radio-lbl">I don't know how to make the payment.</span>
+      <button class="watch-btn">Watch tutorial</button>
+    </div>
+    <div class="radio-item" data-reason="4">
+      <div class="radio-circle"><div class="radio-dot"></div></div>
+      <span class="radio-lbl">I agreed with the seller to cancel the order.</span>
+    </div>
+    <div class="radio-item" data-reason="5">
+      <div class="radio-circle"><div class="radio-dot"></div></div>
+      <span class="radio-lbl">I could not reach the seller.</span>
+    </div>
+    <div class="radio-item" data-reason="6">
+      <div class="radio-circle"><div class="radio-dot"></div></div>
+      <span class="radio-lbl">The seller's payment details are incorrect.</span>
+    </div>
+    <div class="radio-item" data-reason="7">
+      <div class="radio-circle"><div class="radio-dot"></div></div>
+      <span class="radio-lbl">The seller was rude or unprofessional.</span>
+    </div>
+    <div class="radio-item" data-reason="8">
+      <div class="radio-circle"><div class="radio-dot"></div></div>
+      <span class="radio-lbl">I believe the seller may be a scammer.</span>
+    </div>
+    <div class="radio-item" data-reason="9">
+      <div class="radio-circle"><div class="radio-dot"></div></div>
+      <span class="radio-lbl">Other</span>
+    </div>
+  </div>
+
+  <div class="reason-check-row">
+    <div class="check-box" id="reason-checkbox"></div>
+    <span class="check-lbl">I have not paid the seller / I have received the seller's refund.</span>
+  </div>
+
+  <div style="height:80px"></div>
+  <div class="btn-fixed">
+    <button class="confirm-btn" id="reason-confirm-btn" disabled data-action="reason-confirm">Confirm</button>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     SCREEN 8: pg-media-sheet — Media picker
+════════════════════════════════════════════ -->
+<div class="sh-bg" id="pg-media-sheet" role="dialog" aria-modal="true" aria-label="Select media">
+  <div class="sh">
+    <div class="sh-drag"></div>
+    <div class="media-sh-item" data-action="close-media-sheet">Take a photo</div>
+    <div class="media-sh-item" data-action="close-media-sheet">Select from album</div>
+    <div class="media-sh-item" data-action="close-media-sheet">Video</div>
+    <div class="media-sh-cancel" data-action="close-media-sheet">Cancel</div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
+     BOTTOM NAV
+════════════════════════════════════════════ -->
+<nav class="mobile-app-nav" aria-label="App navigation">
+  <a href="/">
+    <span class="nav-icon">
+      <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+    </span>
+    <span class="nav-label">Home</span>
+  </a>
+  <a href="/markets.html">
+    <span class="nav-icon">
+      <svg viewBox="0 0 24 24"><path d="M3 3v18h18M7 16l4-4 4 4 4-4"/></svg>
+    </span>
+    <span class="nav-label">Market</span>
+  </a>
+  <a href="/chart.html?symbol=BTCUSDT">
+    <span class="nav-icon">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    </span>
+    <span class="nav-label">Trade</span>
+  </a>
+  <a href="/chart.html?symbol=BTCUSDT">
+    <span class="nav-icon">
+      <svg viewBox="0 0 24 24"><path d="M2 20h20M4 20V10l8-7 8 7v10M10 20v-5h4v5"/></svg>
+    </span>
+    <span class="nav-label">Futures</span>
+  </a>
+  <a href="/assets">
+    <span class="nav-icon">
+      <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM1 7l3-4h16l3 4M12 12v.01"/></svg>
+    </span>
+    <span class="nav-label">Assets</span>
+  </a>
+</nav>
+
+<!-- Copied toast -->
+<div class="copied-toast" id="copied-toast">Copied!</div>
+
+
+<!-- ════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════ -->
+<script>
+(function () {
+  'use strict';
+
+  /* ─── Offer data ─── */
+  var offersData = {
+    'offer-001': {
+      advertiser: 'ER.LAOR',
+      avatarLetter: 'E',
+      price: 101.30,
+      min: 1000,
+      max: 6000,
+      payment: 'Digital eRupee',
+      recipientName: 'Satish Laor',
+      vpa: 'ask in chat',
+      terms: 'No specific conditions. Feel free to trade. Please transfer within 15 minutes of placing the order. Ensure you use Digital eRupee for the payment. Do not mention "crypto" or "USDT" in the transfer remarks.',
+      payWithin: '15 minutes',
+      historicalBuy: 5338,
+      historicalSell: 11955,
+      avgRelease: '1 min',
+      signupDate: '2023.12.30'
+    }
+  };
+
+  /* ─── State ─── */
+  var state = {
+    currentPage: 'pg-form',
+    prevCancelPage: 'pg-pay',
+    orderId: null,
+    orderTime: null,
+    selectedReason: null,
+    reasonChecked: false,
+    selectedPaidOpt: null,
+    offer: null,
+    amountINR: 0,
+    timerSeconds: 899, // 14:59
+    timerInterval: null,
+    timerStarted: false
+  };
+
+  /* ─── Page navigation ─── */
+  function showPage(id) {
+    document.querySelectorAll('.page').forEach(function (p) {
+      p.classList.remove('show');
+    });
+    var el = document.getElementById(id);
+    if (el) {
+      el.classList.add('show');
+      el.scrollTop = 0;
+    }
+    state.currentPage = id;
+  }
+
+  /* ─── URL param init ─── */
+  function getUrlParam(name) {
+    try {
+      return new URLSearchParams(window.location.search).get(name);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function initOffer() {
+    var offerId = getUrlParam('offerId') || 'offer-001';
+    state.offer = offersData[offerId] || offersData['offer-001'];
+    var o = state.offer;
+    // Populate form
+    var priceEl = document.getElementById('form-price');
+    if (priceEl) priceEl.textContent = '₹' + o.price.toFixed(2);
+    var limitEl = document.getElementById('form-limit');
+    if (limitEl) limitEl.textContent = 'Limit ₹' + o.min.toLocaleString() + ' – ₹' + o.max.toLocaleString();
+    var payEl = document.getElementById('form-pay-name');
+    if (payEl) payEl.textContent = o.payment;
+    var termsEl = document.getElementById('form-terms');
+    if (termsEl) termsEl.textContent = o.terms;
+    var nameEl = document.getElementById('form-adv-name');
+    if (nameEl) nameEl.textContent = o.advertiser + ' ✦';
+    var avEl = document.getElementById('form-adv-av');
+    if (avEl) avEl.textContent = o.avatarLetter;
+    // Adv rows
+    var rows = document.getElementById('form-adv-rows');
+    if (rows) {
+      rows.innerHTML =
+        row('Pay within', o.payWithin) +
+        row('Historical orders', 'Buy ' + o.historicalBuy + ' Sell ' + o.historicalSell) +
+        row('30D avg release time', o.avgRelease) +
+        row('Completed orders (both)', '0') +
+        row('Account signup time', o.signupDate);
+    }
+  }
+
+  function row(k, v) {
+    return '<div class="adv-row"><span class="adv-key">' + k + '</span><span class="adv-val">' + v + '</span></div>';
+  }
+
+  /* ─── Amount input ─── */
+  function initAmountInput() {
+    var inp = document.getElementById('form-amt');
+    if (!inp) return;
+    inp.addEventListener('input', calcUsdt);
+  }
+
+  function calcUsdt() {
+    var inp = document.getElementById('form-amt');
+    var usdt = document.getElementById('form-usdt');
+    if (!inp || !usdt || !state.offer) return;
+    var val = parseFloat(inp.value) || 0;
+    state.amountINR = val;
+    var qty = val > 0 ? (val / state.offer.price).toFixed(2) : '0.00';
+    usdt.textContent = '≈ ' + qty + ' USDT';
+    var btn = document.getElementById('buy-btn');
+    if (btn) {
+      if (val >= state.offer.min && val <= state.offer.max) {
+        btn.disabled = false;
+        btn.textContent = 'Buy USDT with 0 fees';
+      } else if (val > 0) {
+        btn.disabled = true;
+        btn.textContent = val < state.offer.min ? 'Minimum ₹' + state.offer.min : 'Maximum ₹' + state.offer.max;
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Buy USDT with 0 fees';
+      }
+    }
+  }
+
+  /* ─── Generate order ─── */
+  function generateOrder() {
+    var inp = document.getElementById('form-amt');
+    var amtVal = inp ? parseFloat(inp.value) : 0;
+    if (amtVal <= 0) amtVal = 1000;
+    state.amountINR = amtVal;
+    state.orderId = 'BG' + Date.now() + Math.floor(Math.random() * 1000);
+    state.orderTime = new Date();
+
+    var o = state.offer;
+    var qty = (amtVal / o.price).toFixed(2);
+
+    // Populate order screen
+    setInner('ord-amount', '₹' + amtVal.toLocaleString());
+    setInner('ord-price', '₹' + o.price.toFixed(2));
+    setInner('ord-qty', qty + ' USDT');
+    var ordNoEl = document.getElementById('ord-no');
+    if (ordNoEl) {
+      ordNoEl.innerHTML = '<span style="font-size:.75rem;letter-spacing:.03em">' + state.orderId + '</span> <button class="copy-ico" data-copy-val="' + state.orderId + '" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>';
+    }
+    var ordTimeEl = document.getElementById('ord-time');
+    if (ordTimeEl) ordTimeEl.textContent = formatDateTime(state.orderTime);
+
+    // Populate pay screen
+    var payAmtEl = document.getElementById('pay-amt');
+    if (payAmtEl) {
+      payAmtEl.innerHTML = '₹' + amtVal.toLocaleString() + ' <button class="copy-ico" data-copy-val="' + amtVal + '" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>';
+    }
+
+    // Update paid sheet amount
+    var paidOpts = document.querySelectorAll('.paid-opt');
+    if (paidOpts[0]) {
+      paidOpts[0].querySelector('span').textContent = 'I have transferred ' + amtVal.toLocaleString() + ' INR to the above account.';
+    }
+
+    // Start timer
+    startTimer();
+    showPage('pg-order');
+  }
+
+  function setInner(id, html) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = html;
+  }
+
+  function formatDateTime(d) {
+    var pad = function (n) { return n < 10 ? '0' + n : n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+      ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+
+  /* ─── Timer ─── */
+  function startTimer() {
+    if (state.timerStarted) return;
+    state.timerStarted = true;
+    state.timerSeconds = 899;
+    updateTimerUI();
+    state.timerInterval = setInterval(function () {
+      if (state.timerSeconds > 0) {
+        state.timerSeconds--;
+        updateTimerUI();
+      } else {
+        clearInterval(state.timerInterval);
+        updateTimerUI();
+      }
+    }, 1000);
+  }
+
+  function formatTimer(s) {
+    var m = Math.floor(s / 60);
+    var sec = s % 60;
+    return 'Please pay within ' + m + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+
+  function updateTimerUI() {
+    var txt = formatTimer(state.timerSeconds);
+    var shortTxt = (function (s) {
+      var m = Math.floor(s / 60);
+      var sec = s % 60;
+      return m + ':' + (sec < 10 ? '0' : '') + sec;
+    })(state.timerSeconds);
+
+    var ids = ['order-timer', 'pay-timer'];
+    ids.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    });
+    var chatTimer = document.getElementById('chat-timer');
+    if (chatTimer) chatTimer.textContent = shortTxt;
+  }
+
+  /* ─── Copy to clipboard ─── */
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+    showCopiedToast();
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  var toastTimeout;
+  function showCopiedToast() {
+    var t = document.getElementById('copied-toast');
+    if (!t) return;
+    t.classList.add('show');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(function () {
+      t.classList.remove('show');
+    }, 1500);
+  }
+
+  /* ─── Paid sheet ─── */
+  function openPaidSheet() {
+    var sh = document.getElementById('pg-paid-sheet');
+    if (sh) sh.classList.add('open');
+    state.selectedPaidOpt = null;
+    document.querySelectorAll('.paid-opt').forEach(function (o) { o.classList.remove('sel'); });
+    var btn = document.getElementById('paid-confirm-btn');
+    if (btn) { btn.classList.remove('active'); btn.disabled = true; }
+  }
+
+  function closePaidSheet() {
+    var sh = document.getElementById('pg-paid-sheet');
+    if (sh) sh.classList.remove('open');
+  }
+
+  /* ─── Media sheet ─── */
+  function openMediaSheet() {
+    var sh = document.getElementById('pg-media-sheet');
+    if (sh) sh.classList.add('open');
+  }
+
+  function closeMediaSheet() {
+    var sh = document.getElementById('pg-media-sheet');
+    if (sh) sh.classList.remove('open');
+  }
+
+  /* ─── Cancel reason state ─── */
+  function updateReasonConfirm() {
+    var btn = document.getElementById('reason-confirm-btn');
+    if (!btn) return;
+    if (state.selectedReason && state.reasonChecked) {
+      btn.classList.add('active');
+      btn.disabled = false;
+    } else {
+      btn.classList.remove('active');
+      btn.disabled = true;
+    }
+  }
+
+  /* ─── Event delegation ─── */
+  function handleInteraction(e) {
+    var target = e.target;
+
+    /* ── Copy buttons ── */
+    var copyBtn = target.closest('[data-copy-val]');
+    if (copyBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      copyText(copyBtn.getAttribute('data-copy-val'));
+      return;
+    }
+
+    /* ── data-action ── */
+    var actionEl = target.closest('[data-action]');
+    if (actionEl) {
+      var action = actionEl.getAttribute('data-action');
+      e.preventDefault();
+
+      switch (action) {
+
+        case 'go-p2p':
+          window.location = '/p2p';
+          break;
+
+        case 'nav': {
+          var tgt = actionEl.getAttribute('data-target');
+          var prev = actionEl.getAttribute('data-prev');
+          if (prev) state.prevCancelPage = prev;
+          if (tgt) showPage(tgt);
+          break;
+        }
+
+        case 'cancel-back':
+          showPage(state.prevCancelPage || 'pg-pay');
+          break;
+
+        case 'refresh-price': {
+          var pr = document.getElementById('form-price');
+          if (pr) {
+            pr.style.opacity = '0.3';
+            setTimeout(function () { pr.style.opacity = '1'; }, 400);
+          }
+          break;
+        }
+
+        case 'set-max': {
+          var inp2 = document.getElementById('form-amt');
+          if (inp2 && state.offer) {
+            inp2.value = state.offer.max;
+            calcUsdt();
+          }
+          break;
+        }
+
+        case 'buy-usdt':
+          generateOrder();
+          break;
+
+        case 'open-paid-sheet':
+          openPaidSheet();
+          break;
+
+        case 'paid-confirm':
+          if (state.selectedPaidOpt === 'transferred') {
+            closePaidSheet();
+            showPage('pg-chat');
+          } else {
+            closePaidSheet();
+          }
+          break;
+
+        case 'open-media-sheet':
+          openMediaSheet();
+          break;
+
+        case 'close-media-sheet':
+          closeMediaSheet();
+          break;
+
+        case 'reason-confirm':
+          // Order cancelled — go back to p2p
+          window.location = '/p2p';
+          break;
+      }
+      return;
+    }
+
+    /* ── Paid opts ── */
+    var paidOpt = target.closest('[data-paid-opt]');
+    if (paidOpt) {
+      e.preventDefault();
+      state.selectedPaidOpt = paidOpt.getAttribute('data-paid-opt');
+      document.querySelectorAll('.paid-opt').forEach(function (o) { o.classList.remove('sel'); });
+      paidOpt.classList.add('sel');
+      var btn2 = document.getElementById('paid-confirm-btn');
+      if (btn2) { btn2.classList.add('active'); btn2.disabled = false; }
+      return;
+    }
+
+    /* ── Radio reasons ── */
+    var radioItem = target.closest('.radio-item');
+    if (radioItem && radioItem.closest('#reason-list')) {
+      e.preventDefault();
+      state.selectedReason = radioItem.getAttribute('data-reason');
+      document.querySelectorAll('#reason-list .radio-item').forEach(function (r) { r.classList.remove('sel'); });
+      radioItem.classList.add('sel');
+      updateReasonConfirm();
+      return;
+    }
+
+    /* ── Reason checkbox ── */
+    var chkBox = target.closest('#reason-checkbox');
+    if (chkBox) {
+      e.preventDefault();
+      state.reasonChecked = !state.reasonChecked;
+      chkBox.classList.toggle('chk', state.reasonChecked);
+      updateReasonConfirm();
+      return;
+    }
+
+    /* ── Sheet overlay tap-to-close ── */
+    var shBg = target.closest('.sh-bg');
+    if (shBg && target === shBg) {
+      e.preventDefault();
+      shBg.classList.remove('open');
+      return;
+    }
+
+    /* ── Form tabs ── */
+    var tabEl = target.closest('[data-tab-group="form"]');
+    if (tabEl) {
+      e.preventDefault();
+      document.querySelectorAll('[data-tab-group="form"]').forEach(function (t) { t.classList.remove('on'); });
+      tabEl.classList.add('on');
+      return;
+    }
+  }
+
+  /* ─── Bind events ─── */
+  document.addEventListener('touchend', handleInteraction, { passive: false });
+  document.addEventListener('click', handleInteraction);
+
+  /* ─── Auth check ─── */
+  var authParam = getUrlParam('auth');
+  if (authParam === '0') {
+    // Not logged in — redirect to login with return URL
+    var returnUrl = encodeURIComponent(location.href);
+    window.location.replace('/auth.html?mode=login&redirect=' + returnUrl);
+    return; // stop execution
+  }
+
+  /* ─── Init ─── */
+  initOffer();
+  initAmountInput();
+
+})();
+</script>
+</body>
+</html>

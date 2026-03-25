@@ -50,7 +50,7 @@ function normalizeP2PKycStatus(rawStatus) {
   return 'NOT_SUBMITTED';
 }
 
-function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 * 1000 }) {
+function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 * 1000, p2pEmailService = null, broadcastUserEvent = null }) {
   if (!repos || !walletService) {
     throw new Error('P2P order controller requires repos and walletService.');
   }
@@ -128,33 +128,7 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
         return res.status(400).json({ success: false, message: 'Buyer and seller cannot be same account.' });
       }
 
-      if (adType === 'SELL') {
-        const credential = await repos.getP2PCredential(String(req.p2pUser?.email || '').trim().toLowerCase());
-        const kycStatus = normalizeP2PKycStatus(credential?.kycStatus);
-
-        if (kycStatus !== 'VERIFIED') {
-          const statusMessageMap = {
-            NOT_SUBMITTED: 'Complete KYC verification before placing a buy order.',
-            PENDING_REVIEW: 'KYC is under review. You can place buy orders after verification.',
-            REJECTED: 'KYC verification was rejected. Please resubmit documents to continue.'
-          };
-
-          const codeMap = {
-            NOT_SUBMITTED: 'KYC_REQUIRED',
-            PENDING_REVIEW: 'KYC_PENDING',
-            REJECTED: 'KYC_REJECTED'
-          };
-
-          return res.status(403).json({
-            success: false,
-            code: codeMap[kycStatus] || 'KYC_REQUIRED',
-            message: statusMessageMap[kycStatus] || 'KYC verification required for buy orders.',
-            kyc: {
-              status: kycStatus
-            }
-          });
-        }
-      }
+      // KYC gate removed — all logged-in users can place orders
 
       const selectedPaymentMethod = String(req.body.paymentMethod || '').trim();
       const exactPayment = Array.isArray(offer.payments)
@@ -200,9 +174,44 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
 
       const savedOrder = await walletService.createEscrowOrder(orderDoc);
 
+      // Push real-time notification to seller and buyer via SSE
+      if (typeof broadcastUserEvent === 'function') {
+        const pushPayload = { orderId: savedOrder.id, reference: savedOrder.reference };
+        if (savedOrder.sellerId) broadcastUserEvent(savedOrder.sellerId, 'new_order', pushPayload);
+        if (savedOrder.buyerId) broadcastUserEvent(savedOrder.buyerId, 'new_order', pushPayload);
+      }
+
+      // Notify seller AND buyer via email (non-blocking)
+      if (p2pEmailService) {
+        setImmediate(async () => {
+          try {
+            const [sellerCred, buyerCred] = await Promise.all([
+              repos.getP2PCredentialByUserId(savedOrder.sellerUserId),
+              repos.getP2PCredentialByUserId(savedOrder.buyerUserId)
+            ]);
+            if (sellerCred?.email) {
+              await p2pEmailService.sendOrderCreated(sellerCred.email, savedOrder);
+            }
+            // Also notify buyer that order was placed successfully
+            if (buyerCred?.email && buyerCred.email !== sellerCred?.email) {
+              await p2pEmailService.sendOrderCreated(buyerCred.email, savedOrder);
+            }
+          } catch (emailErr) {
+            console.warn('[p2p-email] order-created notify failed:', emailErr.message);
+          }
+        });
+      }
+
+      // Compute remainingSeconds so the client timer starts correctly
+      const activeStatuses = ['CREATED', 'PENDING', 'PAID', 'PAYMENT_SENT', 'DISPUTED'];
+      const remainingSeconds = activeStatuses.includes(savedOrder.status) && Number(savedOrder.expiresAt) > Date.now()
+        ? Math.max(0, Math.floor((Number(savedOrder.expiresAt) - Date.now()) / 1000))
+        : 0;
+      const orderForClient = { ...savedOrder, remainingSeconds };
+
       return res.status(201).json({
         ...toOrderResponse(savedOrder),
-        order: savedOrder
+        order: orderForClient
       });
     } catch (error) {
       const knownStatus = Number(error?.status || 0);

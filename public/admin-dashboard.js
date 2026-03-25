@@ -21,17 +21,16 @@ const state = {
 
 const dom = {
   sidebar: document.getElementById('adminSidebar'),
-  sidebarOverlay: document.getElementById('sidebarOverlay'),
-  menuToggleBtn: document.getElementById('menuToggleBtn'),
-  logoutBtnSide: document.getElementById('logoutBtnSide'),
+  sidebarBackdrop: document.getElementById('sidebarBackdrop'),
+  sidebarOpenBtn: document.getElementById('sidebarOpenBtn'),
+  sidebarCloseBtn: document.getElementById('sidebarCloseBtn'),
   sidebarNav: document.getElementById('sidebarNav'),
   panels: Array.from(document.querySelectorAll('[data-panel]')),
   pageTitle: document.getElementById('pageTitle'),
   adminIdentity: document.getElementById('adminIdentity'),
   globalMessage: document.getElementById('globalMessage'),
   refreshCurrentBtn: document.getElementById('refreshCurrentBtn'),
-  logoutBtn: document.getElementById('logoutBtn'),
-  liveTime: document.getElementById('liveTime')
+  logoutBtn: document.getElementById('logoutBtn')
 };
 
 const viewLoaders = {
@@ -51,7 +50,8 @@ const viewLoaders = {
   settings: loadSettings,
   monitoring: loadMonitoring,
   audit: loadAudit,
-  adminusers: loadAdminUsers
+  adminusers: loadAdminUsers,
+  'user-profile': loadUserProfilePanel
 };
 
 const PAGE_TITLES = {
@@ -173,30 +173,58 @@ async function apiRequest(path, options = {}) {
   return payload;
 }
 
+// Replaces window.prompt() with inline modal
+function askRemarks(title = 'Add Remarks', desc = 'Optional', defaultVal = '') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('remarksModal');
+    const input = document.getElementById('remarksModalInput');
+    document.getElementById('remarksModalTitle').textContent = title;
+    document.getElementById('remarksModalDesc').textContent = desc;
+    input.value = defaultVal;
+    modal.style.display = 'flex';
+
+    function close(val) {
+      modal.style.display = 'none';
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKey);
+      resolve(val);
+    }
+    const okBtn = document.getElementById('remarksModalOk');
+    const cancelBtn = document.getElementById('remarksModalCancel');
+    const onOk = () => close(input.value || '');
+    const onCancel = () => close(null);
+    const onKey = (e) => { if (e.key === 'Enter') close(input.value || ''); if (e.key === 'Escape') close(null); };
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    input.addEventListener('keydown', onKey);
+    setTimeout(() => input.focus(), 50);
+  });
+}
+
+function escapeHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function apiRequestOptional(path, fallback = {}, options = {}) {
+  try {
+    return await apiRequest(path, options);
+  } catch {
+    return fallback;
+  }
+}
+
 function setSidebarOpen(open) {
   if (window.innerWidth >= 1024) {
     return;
   }
   if (open) {
-    dom.sidebar.classList.add('open');
-    if (dom.sidebarOverlay) dom.sidebarOverlay.classList.add('active');
+    dom.sidebar.classList.remove('-translate-x-full');
+    dom.sidebarBackdrop.classList.remove('hidden');
   } else {
-    dom.sidebar.classList.remove('open');
-    if (dom.sidebarOverlay) dom.sidebarOverlay.classList.remove('active');
+    dom.sidebar.classList.add('-translate-x-full');
+    dom.sidebarBackdrop.classList.add('hidden');
   }
-}
-
-function startLiveClock() {
-  function tick() {
-    if (!dom.liveTime) return;
-    const now = new Date();
-    const h = String(now.getHours()).padStart(2, '0');
-    const m = String(now.getMinutes()).padStart(2, '0');
-    const s = String(now.getSeconds()).padStart(2, '0');
-    dom.liveTime.textContent = `${h}:${m}:${s}`;
-  }
-  tick();
-  setInterval(tick, 1000);
 }
 
 function setActiveNav(view) {
@@ -233,8 +261,6 @@ async function changeView(view) {
   if (!viewLoaders[view]) {
     return;
   }
-  // Always close user profile drawer when switching views
-  closeUserProfile();
   // Clear support polling when leaving support view
   if (state.currentView === 'support' && view !== 'support') {
     if (state.support.pollInterval) {
@@ -257,14 +283,11 @@ function renderCards(containerId, cards) {
   container.innerHTML = cards
     .map(
       (card) => `
-      <div class="stat-card">
-        <div class="stat-icon">${card.icon || '📊'}</div>
-        <div class="stat-info">
-          <div class="stat-label">${card.label}</div>
-          <div class="stat-value">${card.value}</div>
-          ${card.meta ? `<div class="stat-meta">${card.meta}</div>` : ''}
-        </div>
-      </div>
+      <article class="card-item">
+        <p class="text-xs uppercase tracking-wide text-slate-400">${card.label}</p>
+        <p class="mt-2 stat-value">${card.value}</p>
+        ${card.meta ? `<p class="mt-1 text-xs text-slate-500">${card.meta}</p>` : ''}
+      </article>
     `
     )
     .join('');
@@ -324,6 +347,29 @@ function drawChart(instanceKey, canvasId, labels, values, color = '#22c55e') {
   });
 }
 
+// Donut/Ring chart helper using Chart.js
+const _donutInstances = {};
+function drawDonut(canvasId, values, labels, colors) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  if (_donutInstances[canvasId]) { _donutInstances[canvasId].destroy(); }
+  const total = values.reduce((a,b)=>a+b,0);
+  const data = total === 0 ? values.map(()=>1) : values;
+  _donutInstances[canvasId] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: '#0f172a', borderWidth: 3, hoverOffset: 6 }] },
+    options: {
+      responsive: false,
+      cutout: '72%',
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: (i) => ` ${i.label}: ₹${(i.raw).toLocaleString('en-IN',{minimumFractionDigits:2})}` }
+      }}
+    }
+  });
+}
+
 async function ensureAdminSession() {
   const payload = await apiRequest('/auth/me');
   state.admin = payload.admin;
@@ -343,57 +389,117 @@ async function loadOverview() {
 
   renderCards('overviewCards', [
     {
-      icon: '💰',
       label: 'Revenue Today',
       value: `₹${formatNumber(revenue.totalRevenue?.today || 0, 2)}`,
       meta: `Week: ₹${formatNumber(revenue.totalRevenue?.week || 0, 2)}`
     },
     {
-      icon: '📅',
       label: 'Revenue Month',
       value: `₹${formatNumber(revenue.totalRevenue?.month || 0, 2)}`,
       meta: `Spot Fees: ₹${formatNumber(revenue.spotFeeEarnings || 0, 2)}`
     },
     {
-      icon: '📈',
       label: 'Trading Volume',
       value: `USDT ${formatNumber(revenue.totalTradingVolume || 0, 2)}`,
       meta: `Active users: ${Number(revenue.totalActiveUsers || 0)}`
     },
     {
-      icon: '🏦',
       label: 'Platform Wallet',
       value: `₹${formatNumber(wallet.totalBalance || 0, 2)}`,
       meta: `Locked: ₹${formatNumber(wallet.totalLockedBalance || 0, 2)}`
     }
   ]);
 
-  const trend = Array.isArray(revenue.trend) ? revenue.trend : [];
-  drawChart(
-    'overviewRevenue',
-    'overviewRevenueChart',
-    trend.map((row) => row.date),
-    trend.map((row) => Number(row.revenue || 0)),
-    '#22c55e'
-  );
-
   const health = document.getElementById('overviewHealth');
   health.innerHTML = [
-    ['DB Connection', monitoring.dbConnected ? 'Connected' : 'Disconnected'],
+    ['DB', monitoring.dbConnected ? '🟢 Connected' : '🔴 Down'],
     ['Active Users', Number(monitoring.activeUsers || 0)],
     ['Active Admins', Number(monitoring.activeAdmins || 0)],
-    ['Failed Login (10m)', Number(monitoring.failedLoginAttemptsLast10Min || 0)],
-    ['API Requests (10m)', Number(monitoring.apiRequestsLast10Min || 0)]
+    ['Failed Logins (10m)', Number(monitoring.failedLoginAttemptsLast10Min || 0)],
+    ['API Req (10m)', Number(monitoring.apiRequestsLast10Min || 0)]
   ]
-    .map(
-      ([key, value]) => `
-      <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-        <dt class="text-slate-400">${key}</dt>
-        <dd class="font-medium">${value}</dd>
+    .map(([key, value]) => `
+      <div class="rounded-xl bg-slate-950/60 px-3 py-2 flex flex-col gap-0.5">
+        <dt class="text-xs text-slate-400">${key}</dt>
+        <dd class="font-semibold text-slate-100">${value}</dd>
       </div>
-    `
-    )
-    .join('');
+    `).join('');
+
+  // ── Extra stats (parallel, non-blocking) ─────────────────────────────────
+  const [usersPayload, kycPayload, wdPayload, p2pPayload, ticketsPayload] = await Promise.all([
+    apiRequestOptional('/users?limit=200', { users: [] }),
+    apiRequestOptional('/users?limit=200&kycStatus=PENDING_REVIEW', { users: [] }),
+    apiRequestOptional('/wallet/withdrawals?status=PENDING&limit=100', { withdrawals: [] }),
+    apiRequestOptional('/p2p/disputes?limit=100', { disputes: [] }),
+    apiRequestOptional('/support/tickets?status=OPEN&limit=100', { tickets: [] })
+  ]);
+
+  const users = Array.isArray(usersPayload.users) ? usersPayload.users : [];
+  const totalUsers = users.length;
+  const activeUsers = users.filter(u => u.status === 'ACTIVE').length;
+  const frozenUsers = users.filter(u => u.status === 'FROZEN').length;
+  const bannedUsers = users.filter(u => u.status === 'BANNED').length;
+  const kycVerified = users.filter(u => u.kycStatus === 'VERIFIED' || u.kycStatus === 'APPROVED').length;
+  const kycPending = (kycPayload.users || []).length;
+
+  // Donut chart — user distribution
+  document.getElementById('donutTotalUsers').textContent = totalUsers;
+  const donutCtx = document.getElementById('userDonutChart').getContext('2d');
+  if (window._userDonutChart) window._userDonutChart.destroy();
+  window._userDonutChart = new Chart(donutCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Active', 'Frozen', 'Banned', 'Other'],
+      datasets: [{
+        data: [activeUsers, frozenUsers, bannedUsers, Math.max(0, totalUsers - activeUsers - frozenUsers - bannedUsers)],
+        backgroundColor: ['#22c55e', '#f59e0b', '#ef4444', '#475569'],
+        borderWidth: 0,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      cutout: '72%',
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.raw}` } } },
+      animation: { animateRotate: true, duration: 900 }
+    }
+  });
+  document.getElementById('userDonutLegend').innerHTML = [
+    ['#22c55e', 'Active', activeUsers],
+    ['#f59e0b', 'Frozen', frozenUsers],
+    ['#ef4444', 'Banned', bannedUsers]
+  ].map(([color, label, val]) => `
+    <div class="flex justify-between items-center">
+      <span class="flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:${color}"></span>${label}</span>
+      <span class="font-semibold text-slate-200">${val}</span>
+    </div>
+  `).join('');
+
+  // Activity rings
+  const pendingWd = (wdPayload.withdrawals || []).length;
+  const openDisputes = (p2pPayload.disputes || []).length;
+  const openTickets = (ticketsPayload.tickets || []).length;
+
+  function setRing(id, value, max, circumference) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const pct = max > 0 ? Math.min(value / max, 1) : 0;
+    const dash = pct * circumference;
+    el.style.strokeDasharray = `${dash} ${circumference}`;
+  }
+  setRing('actRingKyc', kycVerified, Math.max(totalUsers, 1), 471);
+  setRing('actRingTrade', Number(revenue.totalActiveUsers || 0), Math.max(totalUsers, 1), 364);
+  setRing('actRingP2p', openDisputes + pendingWd, Math.max(totalUsers * 0.3, 1), 270);
+
+  document.getElementById('legKyc').textContent = kycVerified;
+  document.getElementById('legTrade').textContent = Number(revenue.totalActiveUsers || 0);
+  document.getElementById('legP2p').textContent = openDisputes + pendingWd;
+
+  // Quick stats
+  document.getElementById('qs-pendingKyc').textContent = kycPending;
+  document.getElementById('qs-pendingWd').textContent = pendingWd;
+  document.getElementById('qs-disputes').textContent = openDisputes;
+  document.getElementById('qs-tickets').textContent = openTickets;
+  document.getElementById('qs-totalRevenue').textContent = `₹${formatNumber((revenue.totalRevenue?.month || 0) + (revenue.totalRevenue?.week || 0), 2)}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -448,11 +554,13 @@ async function loadKyc() {
 async function viewKycDocuments(userId) {
   const modal = document.getElementById('kycDocModal');
   const aadhaarContainer = document.getElementById('kycDocAadhaarContainer');
+  const aadhaarBackContainer = document.getElementById('kycDocAadhaarBackContainer');
   const selfieContainer = document.getElementById('kycDocSelfieContainer');
 
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
+  modal.style.display = 'flex';
+
   aadhaarContainer.innerHTML = '<p class="text-sm text-slate-500">Loading...</p>';
+  if (aadhaarBackContainer) aadhaarBackContainer.innerHTML = '<p class="text-sm text-slate-500">Loading...</p>';
   selfieContainer.innerHTML = '<p class="text-sm text-slate-500">Loading...</p>';
 
   try {
@@ -465,7 +573,15 @@ async function viewKycDocuments(userId) {
     if (data.aadhaarFront) {
       aadhaarContainer.innerHTML = `<img src="${data.aadhaarFront}" alt="Aadhaar Front" class="w-full h-auto object-contain max-h-80" />`;
     } else {
-      aadhaarContainer.innerHTML = '<p class="text-sm text-slate-500 p-4 text-center">No Aadhaar image available</p>';
+      aadhaarContainer.innerHTML = '<p class="text-sm text-slate-500 p-4 text-center">No Aadhaar front available</p>';
+    }
+
+    if (aadhaarBackContainer) {
+      if (data.aadhaarBack) {
+        aadhaarBackContainer.innerHTML = `<img src="${data.aadhaarBack}" alt="Aadhaar Back" class="w-full h-auto object-contain max-h-80" />`;
+      } else {
+        aadhaarBackContainer.innerHTML = '<p class="text-sm text-slate-500 p-4 text-center">No Aadhaar back available</p>';
+      }
     }
 
     if (data.selfie) {
@@ -480,6 +596,7 @@ async function viewKycDocuments(userId) {
     `;
   } catch (error) {
     aadhaarContainer.innerHTML = `<p class="text-sm text-rose-400 p-4">Error: ${error.message}</p>`;
+    if (aadhaarBackContainer) aadhaarBackContainer.innerHTML = '';
     selfieContainer.innerHTML = '';
     showMessage(error.message || 'Failed to load KYC documents.', 'error');
   }
@@ -506,19 +623,24 @@ async function loadUsers(options = {}) {
   body.innerHTML = state.users
     .map(
       (user) => `
-      <tr class="user-row" data-profile-id="${user.userId}" style="cursor:pointer;transition:background 0.15s;" title="Click to view full profile">
-        <td class="admin-td" style="font-family:monospace;font-size:11px;color:var(--accent);">${user.userId}</td>
-        <td class="admin-td" style="font-weight:500;">${user.email}</td>
+      <tr>
+        <td class="admin-td font-mono text-xs">${user.userId}</td>
+        <td class="admin-td">${user.email}</td>
         <td class="admin-td">${statusBadge(user.role)}</td>
         <td class="admin-td">${statusBadge(user.status)}</td>
         <td class="admin-td">${statusBadge(user.kycStatus)}</td>
-        <td class="admin-td" style="text-align:right;color:var(--green);font-weight:600;">${formatNumber(user.balance, 4)}</td>
-        <td class="admin-td" style="text-align:right;color:var(--red);">${formatNumber(user.lockedBalance, 4)}</td>
+        <td class="admin-td text-right">${formatNumber(user.balance, 4)}</td>
+        <td class="admin-td text-right">${formatNumber(user.lockedBalance, 4)}</td>
         <td class="admin-td">
-          <div style="display:flex;flex-wrap:wrap;gap:4px;">
-            <button class="btn-primary btn-sm" data-user-action="profile" data-user-id="${user.userId}">👤 Profile</button>
-            <button class="btn-secondary btn-sm" data-user-action="freeze" data-user-id="${user.userId}">Freeze</button>
-            <button class="btn-danger btn-sm" data-user-action="ban" data-user-id="${user.userId}">Ban</button>
+          <div class="flex flex-wrap gap-1">
+            <button class="btn-secondary !text-xs !py-1" data-user-action="freeze" data-user-id="${user.userId}">Freeze</button>
+            <button class="btn-secondary !text-xs !py-1" data-user-action="unfreeze" data-user-id="${user.userId}">Unfreeze</button>
+            <button class="btn-danger !text-xs !py-1" data-user-action="ban" data-user-id="${user.userId}">Ban</button>
+            <button class="btn-secondary !text-xs !py-1" data-user-action="adjust" data-user-id="${user.userId}">Adjust</button>
+            <button class="btn-secondary !text-xs !py-1" data-user-action="reset" data-user-id="${user.userId}">Reset Pass</button>
+            <button class="btn-secondary !text-xs !py-1" data-user-action="kyc" data-user-id="${user.userId}">KYC</button>
+            <button class="btn-secondary !text-xs !py-1" data-user-action="view-docs" data-user-id="${user.userId}">Docs</button>
+            <button class="btn-primary !text-xs !py-1" data-user-action="profile" data-user-id="${user.userId}">👤 Profile</button>
           </div>
         </td>
       </tr>
@@ -581,10 +703,10 @@ async function loadWallet() {
   const pendingDepositAmount = pendingDeposits.reduce((sum, row) => sum + Number(row.amount || 0), 0);
 
   renderCards('walletCards', [
-    { icon: '💎', label: 'Total Balance', value: `₹${formatNumber(overview.totalBalance || 0, 2)}` },
-    { icon: '🔒', label: 'Locked Balance', value: `₹${formatNumber(overview.totalLockedBalance || 0, 2)}` },
-    { icon: '⬇️', label: 'Pending Deposits', value: `${pendingDeposits.length}`, meta: `Amount: ${formatNumber(pendingDepositAmount || 0, 6)}` },
-    { icon: '⬆️', label: 'Pending Withdrawal', value: `₹${formatNumber(overview.pendingWithdrawalAmount || 0, 2)}` }
+    { label: 'Total Balance', value: `₹${formatNumber(overview.totalBalance || 0, 2)}` },
+    { label: 'Locked Balance', value: `₹${formatNumber(overview.totalLockedBalance || 0, 2)}` },
+    { label: 'Pending Deposits', value: `${pendingDeposits.length}`, meta: `Amount: ${formatNumber(pendingDepositAmount || 0, 6)}` },
+    { label: 'Pending Withdrawal', value: `₹${formatNumber(overview.pendingWithdrawalAmount || 0, 2)}` }
   ]);
 
   const depositsList = document.getElementById('depositsList');
@@ -778,8 +900,9 @@ async function loadP2P() {
         <p class="text-sm font-semibold">${order.reference}</p>
         <p class="text-xs text-slate-400">${order.id} • ${order.asset} • ₹${formatNumber(order.amountInr || 0, 2)}</p>
         <div class="mt-2 flex gap-2">
-          <button class="btn-primary" data-p2p-action="release-order" data-order-id="${order.id}">Release Escrow</button>
-          <button class="btn-danger" data-p2p-action="freeze-order" data-order-id="${order.id}">Freeze Escrow</button>
+          <button class="btn-primary" data-p2p-action="release-order" data-order-id="${order.id}" title="Release crypto to buyer">Release to Buyer</button>
+          <button class="btn-danger" data-p2p-action="cancel-order" data-order-id="${order.id}" title="Cancel order, return crypto to seller">Cancel (Seller Wins)</button>
+          <button class="btn-secondary" data-p2p-action="freeze-order" data-order-id="${order.id}">Freeze</button>
         </div>
       </article>
     `
@@ -804,225 +927,152 @@ async function loadP2P() {
 
 async function loadSupport() {
   const statusFilter = document.getElementById('supportStatusFilter')?.value || '';
-  const query = new URLSearchParams({ limit: '50' });
-  if (statusFilter) query.set('status', statusFilter);
-
-  let payload;
-  try {
-    payload = await apiRequest(`/support/tickets?${query.toString()}`);
-  } catch (e) {
-    document.getElementById('supportTicketsList').innerHTML =
-      `<div style="padding:24px;color:var(--red);font-size:13px;text-align:center;">⚠️ Failed to load: ${e.message}</div>`;
-    return;
+  const query = new URLSearchParams({ limit: '30' });
+  if (statusFilter) {
+    query.set('status', statusFilter);
   }
-
+  const payload = await apiRequest(`/support/tickets?${query.toString()}`);
   const tickets = Array.isArray(payload.tickets) ? payload.tickets : [];
   const list = document.getElementById('supportTicketsList');
 
-  // Update sidebar badge
-  const openCount = tickets.filter(t => (t.status || '').toUpperCase() !== 'CLOSED').length;
-  const badge = document.getElementById('supportBadge');
-  if (badge) { badge.style.display = openCount > 0 ? '' : 'none'; badge.textContent = openCount; }
-  const countEl = document.getElementById('supportOpenCount');
-  if (countEl) countEl.textContent = openCount > 0 ? `${openCount} open` : '';
+  list.innerHTML = tickets
+    .map((ticket) => {
+      const messages = Array.isArray(ticket.messages) ? ticket.messages : [];
+      const lastMsg = messages[messages.length - 1];
+      const preview = lastMsg ? String(lastMsg.text || '').slice(0, 60) : 'No messages yet';
+      const isActive = ticket.id === state.support.activeTicketId;
+      return `
+      <div class="rounded-xl border ${isActive ? 'border-brand bg-slate-800/80' : 'border-slate-800/60 bg-slate-900/40'} p-3 cursor-pointer hover:border-slate-700 transition-colors"
+           data-support-ticket-id="${ticket.id}" onclick="openTicket('${ticket.id}')">
+        <div class="flex items-start justify-between gap-2">
+          <p class="text-sm font-semibold text-slate-100 truncate flex-1">${ticket.subject || 'No Subject'}</p>
+          ${statusBadge(ticket.status || 'OPEN')}
+        </div>
+        <p class="mt-0.5 text-xs text-slate-400 truncate">${ticket.email || ticket.userId || 'Unknown user'} • ${ticket.category || 'General'}</p>
+        <p class="mt-1 text-xs text-slate-500 line-clamp-2">${preview}</p>
+        <p class="mt-1 text-xs text-slate-600">${formatDate(ticket.updatedAt)}</p>
+      </div>
+    `;
+    })
+    .join('');
 
   if (tickets.length === 0) {
-    list.innerHTML = `<div style="padding:48px 16px;text-align:center;color:var(--text-2);">
-      <div style="font-size:40px;margin-bottom:10px;">🎉</div>
-      <p style="font-size:13px;font-weight:600;margin:0 0 4px;">All clear!</p>
-      <p style="font-size:11px;opacity:.6;margin:0;">No support tickets found</p>
-    </div>`;
-    return;
+    list.innerHTML = '<p class="p-4 text-sm text-slate-500 text-center">No support tickets found.</p>';
   }
-
-  list.innerHTML = tickets.map((ticket) => {
-    const messages = Array.isArray(ticket.messages) ? ticket.messages : [];
-    const lastMsg = messages[messages.length - 1];
-    const isActive = ticket.id === state.support.activeTicketId;
-    const statusStr = (ticket.status || '').toUpperCase();
-    const unread = statusStr === 'OPEN';
-    const priorityColor = ticket.priority === 'HIGH' ? 'var(--red)' : ticket.priority === 'MEDIUM' ? 'var(--accent)' : 'var(--text-2)';
-
-    // User label: use email if available, otherwise make userId readable
-    const userId = ticket.userId || '';
-    const userLabel = ticket.email || ticket.userEmail ||
-      (userId ? userId.replace('usr_', '').slice(0,16) : 'Unknown User');
-
-    // Last message preview
-    const lastSenderIsAdmin = lastMsg && lastMsg.sender !== 'user';
-    const preview = lastMsg
-      ? `${lastSenderIsAdmin ? '🛡 You: ' : '👤 '}${String(lastMsg.text || '').slice(0, 48)}${lastMsg.text?.length > 48 ? '…' : ''}`
-      : 'No messages yet…';
-
-    // User avatar (first letter of userId or email)
-    const avatarChar = (userLabel[0] || '?').toUpperCase();
-    const avatarColors = ['#f0b90b','#02c076','#4263eb','#f6465d','#a855f7'];
-    const avatarColor = avatarColors[avatarChar.charCodeAt(0) % avatarColors.length];
-
-    return `<div class="support-ticket-item${isActive ? ' active' : ''}"
-         data-support-ticket-id="${ticket.id}"
-         style="cursor:pointer;display:flex;gap:10px;align-items:flex-start;">
-      <!-- Avatar -->
-      <div style="width:34px;height:34px;border-radius:50%;background:${avatarColor}20;border:2px solid ${avatarColor}40;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:${avatarColor};flex-shrink:0;margin-top:1px;">${avatarChar}</div>
-      <!-- Content -->
-      <div style="flex:1;min-width:0;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:2px;">
-          <span style="font-size:13px;font-weight:700;color:var(--text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${userLabel}</span>
-          <span style="font-size:10px;color:var(--text-2);flex-shrink:0;">${formatDate(ticket.updatedAt)}</span>
-        </div>
-        <p style="font-size:11px;color:var(--text-2);margin:0 0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ticket.subject || 'No Subject'}</p>
-        <p style="font-size:11px;color:var(--text-2);margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.65;">${preview}</p>
-        <div style="display:flex;align-items:center;gap:5px;margin-top:4px;">
-          ${statusBadge(ticket.status || 'OPEN')}
-          ${ticket.priority ? `<span style="font-size:10px;color:${priorityColor};font-weight:600;">${ticket.priority}</span>` : ''}
-        </div>
-      </div>
-      ${unread ? '<span style="position:absolute;top:11px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);"></span>' : ''}
-    </div>`;
-  }).join('');
 }
 
 async function openTicket(ticketId) {
   state.support.activeTicketId = ticketId;
 
-  // Highlight active ticket in list
+  // Highlight active ticket
   document.querySelectorAll('[data-support-ticket-id]').forEach((el) => {
-    el.classList.toggle('active', el.getAttribute('data-support-ticket-id') === ticketId);
+    const isActive = el.getAttribute('data-support-ticket-id') === ticketId;
+    el.classList.toggle('border-brand', isActive);
+    el.classList.toggle('bg-slate-800/80', isActive);
+    el.classList.toggle('border-slate-800/60', !isActive);
+    el.classList.toggle('bg-slate-900/40', !isActive);
   });
 
-  // Show chat, hide empty state
-  const emptyEl = document.getElementById('supportChatEmpty');
-  const activeEl = document.getElementById('supportChatActive');
-  if (emptyEl) { emptyEl.style.display = 'none'; emptyEl.classList.add('hidden'); }
-  if (activeEl) {
-    activeEl.classList.remove('hidden');
-    activeEl.style.removeProperty('display'); // let CSS class handle it
-    activeEl.style.display = 'flex';          // force show as flex
-  }
-
-  // Show loading in messages area
-  const chatMessages = document.getElementById('supportChatMessages');
-  if (chatMessages) chatMessages.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-2);">
-    <div class="spin" style="margin:auto;"></div><p style="margin-top:12px;font-size:13px;">Loading conversation…</p></div>`;
+  document.getElementById('supportChatEmpty').classList.add('hidden');
+  document.getElementById('supportChatActive').classList.remove('hidden');
+  document.getElementById('supportChatActive').classList.add('flex');
 
   await renderTicketChat(ticketId);
 
-  // Poll every 10 seconds
-  if (state.support.pollInterval) clearInterval(state.support.pollInterval);
+  // Clear old polling and set new one
+  if (state.support.pollInterval) {
+    clearInterval(state.support.pollInterval);
+  }
   state.support.pollInterval = setInterval(async () => {
     if (state.support.activeTicketId === ticketId && state.currentView === 'support') {
-      await renderTicketChat(ticketId, true);
+      await renderTicketChat(ticketId);
     }
-  }, 10000);
+  }, 30000);
 }
 
-async function renderTicketChat(ticketId, silent = false) {
+async function renderTicketChat(ticketId) {
   try {
     const ticket = await apiRequest(`/support/tickets/${encodeURIComponent(ticketId)}`);
 
-    // ─── Header ───
-    const nameEl = document.getElementById('chatUserName');
-    const subjectEl = document.getElementById('chatTicketSubject');
-    const metaEl = document.getElementById('chatTicketMeta');
-    const badgeEl = document.getElementById('chatTicketStatusBadge');
+    document.getElementById('chatTicketSubject').textContent = ticket.subject || 'No Subject';
+    document.getElementById('chatTicketMeta').textContent =
+      `ID: ${ticket.id} • ${ticket.email || ticket.userId || 'Unknown'} • ${ticket.category || 'General'}`;
+    document.getElementById('chatTicketStatusBadge').innerHTML = statusBadge(ticket.status || 'OPEN');
 
-    if (nameEl) {
-      // Try to get user email from ticket or fallback to userId
-      const userLabel = ticket.email || ticket.userEmail || ticket.userId || 'Unknown User';
-      nameEl.textContent = userLabel;
-      nameEl.title = userLabel;
-    }
-    if (subjectEl) subjectEl.textContent = ticket.subject || 'No Subject';
-    if (metaEl) metaEl.textContent = `ID: ${ticket.id} • Priority: ${ticket.priority || 'NORMAL'}`;
-    if (badgeEl) badgeEl.innerHTML = statusBadge(ticket.status || 'OPEN');
-
-    // ─── Messages ───
     const messages = Array.isArray(ticket.messages) ? ticket.messages : [];
     const chatMessages = document.getElementById('supportChatMessages');
-    const wasAtBottom = !chatMessages || (chatMessages.scrollHeight - chatMessages.clientHeight - chatMessages.scrollTop < 60);
 
-    if (chatMessages) {
-      chatMessages.innerHTML = messages.length === 0
-        ? `<div style="text-align:center;padding:48px 20px;color:var(--text-2);">
-            <div style="font-size:36px;margin-bottom:10px;">💬</div>
-            <p style="font-size:13px;font-weight:600;margin:0 0 4px;">No messages yet</p>
-            <p style="font-size:12px;opacity:.6;margin:0;">Start the conversation with the user</p>
-          </div>`
-        : messages.map((msg) => {
-            const isAdmin = msg.sender !== 'user';
-            const senderName = isAdmin
-              ? (msg.senderRole ? `${msg.sender || 'Admin'} (${msg.senderRole})` : (msg.sender || 'Admin'))
-              : '👤 User';
-            const text = String(msg.text || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            return `<div style="display:flex;flex-direction:column;max-width:80%;
-                    ${isAdmin ? 'align-self:flex-end;align-items:flex-end;' : 'align-self:flex-start;align-items:flex-start;'}">
-              <div style="background:${isAdmin ? 'rgba(240,185,11,0.13)' : 'var(--bg-card2)'};
-                           border:1px solid ${isAdmin ? 'rgba(240,185,11,0.3)' : 'var(--border)'};
-                           border-radius:${isAdmin ? '14px 14px 2px 14px' : '14px 14px 14px 2px'};
-                           padding:9px 14px;">
-                <p style="font-size:11px;font-weight:700;margin:0 0 4px;color:${isAdmin ? 'var(--accent)' : 'var(--green)'};">${senderName}</p>
-                <p style="font-size:13px;color:var(--text-1);margin:0;white-space:pre-wrap;line-height:1.55;">${text}</p>
-              </div>
-              <span style="font-size:10px;color:var(--text-2);margin-top:4px;opacity:.55;">${formatDate(msg.createdAt)}</span>
-            </div>`;
-          }).join('');
+    chatMessages.innerHTML = messages
+      .map((msg) => {
+        const isAdmin = msg.sender !== 'user';
+        const bgClass = isAdmin ? 'bg-brand/10 border-brand/20' : 'bg-slate-800 border-slate-700';
+        const alignClass = isAdmin ? 'ml-auto' : 'mr-auto';
+        const senderLabel = isAdmin ? (msg.sender || 'Admin') : 'User';
+        return `
+        <div class="max-w-[80%] ${alignClass}">
+          <div class="rounded-2xl border ${bgClass} px-4 py-3">
+            <p class="text-xs font-semibold ${isAdmin ? 'text-brand' : 'text-slate-300'} mb-1">${senderLabel}</p>
+            <p class="text-sm text-slate-200 whitespace-pre-wrap">${String(msg.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+          </div>
+          <p class="text-xs text-slate-600 mt-1 ${isAdmin ? 'text-right' : 'text-left'}">${formatDate(msg.createdAt)}</p>
+        </div>
+      `;
+      })
+      .join('');
 
-      if (wasAtBottom || !silent) chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 
-    // ─── Button states ───
+    // Update action buttons
     const isClosed = String(ticket.status || '').toUpperCase() === 'CLOSED';
-    const closeBtn  = document.getElementById('chatCloseTicketBtn');
+    const closeBtn = document.getElementById('chatCloseTicketBtn');
     const resolveBtn = document.getElementById('chatResolveBtn');
-    const sendBtn   = document.getElementById('sendReplyBtn');
-    const input     = document.getElementById('supportChatInput');
-    const qbar      = document.getElementById('quickRepliesBar');
+    const sendBtn = document.getElementById('sendReplyBtn');
+    const input = document.getElementById('supportChatInput');
 
-    if (closeBtn)   closeBtn.disabled   = isClosed;
-    if (resolveBtn) resolveBtn.disabled = isClosed;
-    if (sendBtn)    sendBtn.disabled    = isClosed;
-    if (qbar)       qbar.style.opacity  = isClosed ? '0.4' : '1';
+    if (closeBtn) {
+      closeBtn.disabled = isClosed;
+      closeBtn.classList.toggle('opacity-50', isClosed);
+    }
+    if (resolveBtn) {
+      resolveBtn.disabled = isClosed;
+      resolveBtn.classList.toggle('opacity-50', isClosed);
+    }
+    if (sendBtn) {
+      sendBtn.disabled = isClosed;
+    }
     if (input) {
       input.disabled = isClosed;
-      input.placeholder = isClosed ? '🔒 Ticket is closed — cannot reply' : 'Type your reply… (Ctrl+Enter to send)';
+      input.placeholder = isClosed ? 'Ticket is closed' : 'Type a reply...';
     }
-
-    if (silent) loadSupport();
   } catch (error) {
-    if (!silent) {
-      const chatMessages = document.getElementById('supportChatMessages');
-      if (chatMessages) chatMessages.innerHTML = `<div style="color:var(--red);text-align:center;padding:40px;font-size:13px;">
-        ❌ ${error.message || 'Failed to load conversation'}</div>`;
-      showMessage(error.message || 'Failed to load ticket.', 'error');
-    }
+    showMessage(error.message || 'Failed to load ticket.', 'error');
   }
-}
-
-function useQuickReply(text) {
-  const input = document.getElementById('supportChatInput');
-  if (!input || input.disabled) return;
-  input.value = text;
-  input.focus();
-  input.setSelectionRange(text.length, text.length);
 }
 
 async function sendAdminReply() {
   const ticketId = state.support.activeTicketId;
-  if (!ticketId) return;
+  if (!ticketId) {
+    return;
+  }
 
   const input = document.getElementById('supportChatInput');
   const message = String(input?.value || '').trim();
-  if (!message) { input?.focus(); return; }
+  if (!message) {
+    return;
+  }
 
   const sendBtn = document.getElementById('sendReplyBtn');
-  setActionButtonLoading(sendBtn, true, 'Sending…');
+  setActionButtonLoading(sendBtn, true, 'Sending...');
 
   try {
     await apiRequest(`/support/tickets/${encodeURIComponent(ticketId)}/reply`, {
       method: 'POST',
       body: JSON.stringify({ message })
     });
-    if (input) input.value = '';
+    if (input) {
+      input.value = '';
+    }
     await renderTicketChat(ticketId);
     await loadSupport();
   } catch (error) {
@@ -1040,22 +1090,40 @@ async function loadRevenue() {
   const payload = await apiRequest('/revenue/summary');
 
   renderCards('revenueCards', [
-    { icon: '📆', label: 'Total Revenue (Today)', value: `₹${formatNumber(payload.totalRevenue?.today || 0, 2)}` },
-    { icon: '📊', label: 'Total Revenue (Week)', value: `₹${formatNumber(payload.totalRevenue?.week || 0, 2)}` },
-    { icon: '💹', label: 'Total Revenue (Month)', value: `₹${formatNumber(payload.totalRevenue?.month || 0, 2)}` },
-    { icon: '🔁', label: 'Spot Fee Earnings', value: `₹${formatNumber(payload.spotFeeEarnings || 0, 2)}` },
-    { icon: '🤝', label: 'P2P Earnings', value: `₹${formatNumber(payload.p2pEarnings || 0, 2)}` },
-    { icon: '⚡', label: 'Withdrawal Fee Earnings', value: `₹${formatNumber(payload.withdrawalFeeEarnings || 0, 2)}` }
+    { label: 'Total Revenue (Today)', value: `₹${formatNumber(payload.totalRevenue?.today || 0, 2)}` },
+    { label: 'Total Revenue (Week)', value: `₹${formatNumber(payload.totalRevenue?.week || 0, 2)}` },
+    { label: 'Total Revenue (Month)', value: `₹${formatNumber(payload.totalRevenue?.month || 0, 2)}` },
+    { label: 'Spot Fee Earnings', value: `₹${formatNumber(payload.spotFeeEarnings || 0, 2)}` },
+    { label: 'P2P Earnings', value: `₹${formatNumber(payload.p2pEarnings || 0, 2)}` },
+    { label: 'Withdrawal Fee Earnings', value: `₹${formatNumber(payload.withdrawalFeeEarnings || 0, 2)}` }
   ]);
 
-  const trend = Array.isArray(payload.trend) ? payload.trend : [];
-  drawChart(
-    'revenue',
-    'revenueChart',
-    trend.map((point) => point.date),
-    trend.map((point) => Number(point.revenue || 0)),
-    '#38bdf8'
-  );
+  // Revenue Breakdown Donut
+  const spotFee   = Number(payload.spotFeeEarnings || 0);
+  const p2pEarn   = Number(payload.p2pEarnings || 0);
+  const wdFee     = Number(payload.withdrawalFeeEarnings || 0);
+  const totalRev  = spotFee + p2pEarn + wdFee || 1;
+
+  drawDonut('revenueDonutChart', [spotFee, p2pEarn, wdFee],
+    ['Spot Fees', 'P2P', 'Withdrawal Fees'],
+    ['#00E5C4','#38bdf8','#f59e0b']);
+  document.getElementById('revDonutCenter').textContent = '₹' + formatNumber(spotFee+p2pEarn+wdFee, 2);
+  document.getElementById('revDonutLegend').innerHTML =
+    [['#00E5C4','Spot Fees',spotFee],['#38bdf8','P2P',p2pEarn],['#f59e0b','WD Fees',wdFee]]
+    .map(([c,l,v])=>`<span class="flex items-center gap-1"><span style="background:${c};width:10px;height:10px;border-radius:50%;display:inline-block"></span>${l}: ₹${formatNumber(v,2)}</span>`).join('');
+
+  // Fee Sources Ring (today / week / month)
+  const today = Number(payload.totalRevenue?.today || 0);
+  const week  = Number(payload.totalRevenue?.week  || 0);
+  const month = Number(payload.totalRevenue?.month || 0);
+
+  drawDonut('revFeeRingChart', [today, week, month],
+    ['Today','Week','Month'],
+    ['#00E5C4','#818cf8','#f472b6']);
+  document.getElementById('revRingCenter').textContent = '₹' + formatNumber(month, 2);
+  document.getElementById('revRingLegend').innerHTML =
+    [['#00E5C4','Today',today],['#818cf8','Week',week],['#f472b6','Month',month]]
+    .map(([c,l,v])=>`<span class="flex items-center gap-1"><span style="background:${c};width:10px;height:10px;border-radius:50%;display:inline-block"></span>${l}: ₹${formatNumber(v,2)}</span>`).join('');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1265,14 +1333,11 @@ async function loadBlockchain() {
       cards.innerHTML = '<p class="text-sm text-slate-500 col-span-3">No scanner status data.</p>';
     } else {
       cards.innerHTML = scanners.map((s) => `
-        <div class="stat-card">
-          <div class="stat-icon">⛓️</div>
-          <div class="stat-info">
-            <div class="stat-label">${s.network || 'Scanner'}</div>
-            <div class="stat-value" style="font-size:13px;">${statusBadge(s.status || s.connected ? 'CONNECTED' : 'ERROR')}</div>
-            <div class="stat-meta">Block: ${s.latestBlock || s.blockHeight || '-'}</div>
-          </div>
-        </div>
+        <article class="card-item">
+          <p class="text-xs uppercase tracking-wide text-slate-400">${s.network || 'Scanner'}</p>
+          <p class="mt-2 stat-value text-base">${statusBadge(s.status || s.connected ? 'CONNECTED' : 'ERROR')}</p>
+          <p class="mt-1 text-xs text-slate-500">Block: ${s.latestBlock || s.blockHeight || '-'}</p>
+        </article>
       `).join('');
     }
   }
@@ -1386,10 +1451,10 @@ async function loadMonitoring() {
   ]);
 
   renderCards('monitoringCards', [
-    { icon: '👥', label: 'Active Users', value: Number(overview.activeUsers || 0) },
-    { icon: '🛡️', label: 'Active Admins', value: Number(overview.activeAdmins || 0) },
-    { icon: '⚠️', label: 'Failed Logins (10m)', value: Number(overview.failedLoginAttemptsLast10Min || 0) },
-    { icon: '🌐', label: 'API Requests (10m)', value: Number(overview.apiRequestsLast10Min || 0), meta: `DB: ${overview.dbConnected ? 'Connected' : 'Disconnected'}` }
+    { label: 'Active Users', value: Number(overview.activeUsers || 0) },
+    { label: 'Active Admins', value: Number(overview.activeAdmins || 0) },
+    { label: 'Failed Logins (10m)', value: Number(overview.failedLoginAttemptsLast10Min || 0) },
+    { label: 'API Requests (10m)', value: Number(overview.apiRequestsLast10Min || 0), meta: `DB: ${overview.dbConnected ? 'Connected' : 'Disconnected'}` }
   ]);
 
   const body = document.getElementById('monitoringApiLogsBody');
@@ -1492,32 +1557,18 @@ async function createAdmin(email, username, password, role) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function handleUsersAction(event) {
-  // Row click — open profile drawer
-  const row = event.target.closest('tr.user-row');
   const button = event.target.closest('[data-user-action]');
-
-  // If clicked on a button, handle that; otherwise open profile from row click
   if (!button) {
-    if (row) {
-      const profileId = row.getAttribute('data-profile-id');
-      if (profileId) openUserProfile(profileId);
-    }
     return;
   }
 
   const userId = button.getAttribute('data-user-id');
   const action = button.getAttribute('data-user-action');
 
-  // Profile button
-  if (action === 'profile') {
-    openUserProfile(userId);
-    return;
-  }
-
   try {
     if (action === 'freeze' || action === 'unfreeze' || action === 'ban') {
       const status = action === 'freeze' ? 'FROZEN' : action === 'ban' ? 'BANNED' : 'ACTIVE';
-      const reason = window.prompt(`Reason for ${status} (optional):`, '') || '';
+      const reason = await askRemarks(`Reason for ${status}`, 'Optional') || '';
       await apiRequest(`/users/${encodeURIComponent(userId)}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status, reason })
@@ -1528,8 +1579,8 @@ async function handleUsersAction(event) {
     }
 
     if (action === 'adjust') {
-      const amount = window.prompt('Enter adjustment amount (e.g. 100 or -50):', '0');
-      const reason = window.prompt('Reason for adjustment:', 'manual correction');
+      const amount = await askRemarks('Adjust Balance', 'Enter amount (e.g. 100 or -50)', '0');
+      const reason = await askRemarks('Reason for adjustment', 'e.g. manual correction', 'manual correction') || 'manual correction';
       if (!amount || !reason) {
         return;
       }
@@ -1543,7 +1594,7 @@ async function handleUsersAction(event) {
     }
 
     if (action === 'reset') {
-      const newPassword = window.prompt('Enter new password (min 8 chars):');
+      const newPassword = await askRemarks('Reset Password', 'Enter new password (min 8 chars)');
       if (!newPassword) {
         return;
       }
@@ -1557,11 +1608,11 @@ async function handleUsersAction(event) {
 
     if (action === 'kyc') {
       const payload = await apiRequest(`/users/${encodeURIComponent(userId)}/kyc`);
-      const decision = window.prompt(`Current KYC: ${payload.kycStatus}. Enter decision (APPROVED/REJECTED/PENDING):`, payload.kycStatus || 'PENDING');
+      const decision = await askRemarks('KYC Decision', 'Enter: APPROVED / REJECTED / PENDING', payload.kycStatus || 'PENDING');
       if (!decision) {
         return;
       }
-      const remarks = window.prompt('Remarks:', payload.remarks || '') || '';
+      const remarks = await askRemarks('Remarks', 'Optional', payload.remarks || '') || '';
       await reviewKyc(userId, decision, remarks);
       showMessage('KYC review saved.', 'success');
       await loadUsers();
@@ -1591,7 +1642,7 @@ async function handleKycAction(event) {
     }
 
     if (action === 'approve') {
-      const remarks = window.prompt('Approval remarks (optional):', '') || '';
+      const remarks = await askRemarks('Approval Remarks', 'Optional') || '';
       await reviewKyc(userId, 'APPROVED', remarks);
       showMessage('KYC approved.', 'success');
       await loadKyc();
@@ -1599,7 +1650,7 @@ async function handleKycAction(event) {
     }
 
     if (action === 'reject') {
-      const reason = window.prompt('Rejection reason:', '') || '';
+      const reason = await askRemarks('Rejection Reason', 'Required for rejection') || '';
       if (!reason) {
         return;
       }
@@ -1623,23 +1674,23 @@ async function handleKycDocAction(event) {
 
   try {
     if (action === 'approve') {
-      const remarks = window.prompt('Approval remarks (optional):', '') || '';
+      const remarks = await askRemarks('Approval Remarks', 'Optional') || '';
       await reviewKyc(userId, 'APPROVED', remarks);
       showMessage('KYC approved.', 'success');
-      document.getElementById('kycDocModal').classList.add('hidden');
-      document.getElementById('kycDocModal').classList.remove('flex');
+      document.getElementById('kycDocModal').style.display='none';
+      
       if (state.currentView === 'kyc') {
         await loadKyc();
       }
     } else if (action === 'reject') {
-      const reason = window.prompt('Rejection reason:', '');
+      const reason = await askRemarks('Rejection Reason', 'Required for rejection') || '';
       if (!reason) {
         return;
       }
       await reviewKyc(userId, 'REJECTED', reason);
       showMessage('KYC rejected.', 'success');
-      document.getElementById('kycDocModal').classList.add('hidden');
-      document.getElementById('kycDocModal').classList.remove('flex');
+      document.getElementById('kycDocModal').style.display='none';
+      
       if (state.currentView === 'kyc') {
         await loadKyc();
       }
@@ -1658,7 +1709,7 @@ async function handleWithdrawalAction(event) {
   const withdrawalId = button.getAttribute('data-withdrawal-id');
   const decision = action === 'approve' ? 'APPROVED' : 'REJECTED';
   const reason =
-    window.prompt(`Reason for ${decision}:`, decision === 'APPROVED' ? 'manual review approved' : 'manual review rejected') || '';
+    await askRemarks(`Reason for ${decision}`, 'Optional', decision === 'APPROVED' ? 'manual review approved' : 'manual review rejected') || '';
 
   try {
     setActionButtonLoading(button, true, decision === 'APPROVED' ? 'Approving...' : 'Rejecting...');
@@ -1685,7 +1736,7 @@ async function handleDepositAction(event) {
   const depositId = button.getAttribute('data-deposit-id');
   const decision = action === 'approve' ? 'APPROVED' : 'REJECTED';
   const reason =
-    window.prompt(`Reason for ${decision}:`, decision === 'APPROVED' ? 'manual review approved' : 'deposit review rejected') || '';
+    await askRemarks(`Reason for ${decision}`, 'Optional', decision === 'APPROVED' ? 'manual review approved' : 'deposit review rejected') || '';
 
   try {
     setActionButtonLoading(button, true, decision === 'APPROVED' ? 'Approving...' : 'Rejecting...');
@@ -1757,7 +1808,7 @@ async function handleP2PActions(event) {
     if (action === 'approve-ad' || action === 'suspend-ad' || action === 'reject-ad') {
       const decisionMap = { 'approve-ad': 'APPROVED', 'suspend-ad': 'SUSPENDED', 'reject-ad': 'REJECTED' };
       const decision = decisionMap[action];
-      const reason = window.prompt(`Reason for ${decision}:`, '') || '';
+      const reason = await askRemarks(`Reason for ${decision}`, 'Optional') || '';
       await apiRequest(`/p2p/ads/${encodeURIComponent(offerId)}/review`, {
         method: 'POST',
         body: JSON.stringify({ decision, reason })
@@ -1772,7 +1823,18 @@ async function handleP2PActions(event) {
         method: 'POST',
         body: JSON.stringify({})
       });
-      showMessage('Escrow released successfully.', 'success');
+      showMessage('Escrow released to buyer.', 'success');
+      await loadP2P();
+      return;
+    }
+
+    if (action === 'cancel-order') {
+      if (!confirm('Cancel this order? Crypto will be returned to the seller.')) return;
+      await apiRequest(`/p2p/orders/${encodeURIComponent(orderId)}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      showMessage('Order cancelled by admin. Crypto returned to seller.', 'success');
       await loadP2P();
       return;
     }
@@ -1857,474 +1919,19 @@ async function handleAdminUsersActions(event) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// User Profile Drawer
-// ─────────────────────────────────────────────────────────────────────────────
-
-let _upUserId = null;
-
-function _showPanel(tabId) {
-  // Must toggle hidden class (not just style.display) because CSS has display:none !important
-  const ALL_TABS = ['overview','balance','kyc','logins','devices','actions'];
-  ALL_TABS.forEach(t => {
-    const panel = document.getElementById(`upTab-${t}`);
-    if (!panel) return;
-    if (t === tabId) {
-      panel.classList.remove('hidden');
-      panel.style.removeProperty('display');
-    } else {
-      panel.classList.add('hidden');
-    }
-  });
-}
-
-function openUserProfile(userId) {
-  _upUserId = userId;
-
-  // Set loading state in header
-  const emailEl = document.getElementById('upEmail');
-  const uidEl   = document.getElementById('upUserId');
-  const badgeEl = document.getElementById('upStatusBadge');
-  if (emailEl) emailEl.textContent = 'Loading…';
-  if (uidEl)   uidEl.textContent   = userId;
-  if (badgeEl) badgeEl.innerHTML   = '';
-
-  // Pre-fill email from already-loaded user list (instant display)
-  const knownUser = Array.isArray(state.users) ? state.users.find(u => u.userId === userId) : null;
-  if (knownUser?.email && emailEl) emailEl.textContent = knownUser.email;
-
-  // Reset all tab content to loading spinner
-  ['upOverviewContent','upBalanceContent','upKycContent','upLoginsContent','upDevicesContent'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-2);">
-      <div class="spin" style="margin:auto;"></div></div>`;
-  });
-
-  // Show overlay (only left of drawer) and slide drawer in
-  const overlay = document.getElementById('userProfileOverlay');
-  const drawer  = document.getElementById('userProfileDrawer');
-  if (overlay) {
-    const drawerW = Math.min(560, window.innerWidth);
-    overlay.style.right = drawerW + 'px'; // don't cover the drawer
-    overlay.style.display = 'block';
-    overlay.classList.remove('hidden');
-  }
-  if (drawer)  { drawer.style.right = '0'; }
-
-  // Show overview tab by default
-  document.querySelectorAll('.up-tab').forEach(b =>
-    b.classList.toggle('active', b.getAttribute('data-up-tab') === 'overview')
-  );
-  _showPanel('overview');
-  loadUpTab('overview');
-}
-
-function closeUserProfile() {
-  const overlay = document.getElementById('userProfileOverlay');
-  const drawer  = document.getElementById('userProfileDrawer');
-  if (overlay) { overlay.style.display = 'none'; overlay.classList.add('hidden'); }
-  if (drawer)  { drawer.style.right = '-580px'; }
-  _upUserId = null;
-}
-
-function switchUpTab(tab) {
-  // Switch tab button active state
-  document.querySelectorAll('.up-tab').forEach(b =>
-    b.classList.toggle('active', b.getAttribute('data-up-tab') === tab)
-  );
-  // Show/hide panels via style.display (bypasses any CSS class conflicts)
-  _showPanel(tab);
-  // Load content
-  if (_upUserId) loadUpTab(tab);
-}
-
-async function loadUpTab(tab) {
-  try {
-    if (tab === 'overview') await loadUpOverview();
-    else if (tab === 'balance')  await loadUpBalance();
-    else if (tab === 'kyc')      await loadUpKyc();
-    else if (tab === 'logins')   await loadUpLogins();
-    else if (tab === 'devices')  await loadUpDevices();
-  } catch (err) {
-    const capTab = tab.charAt(0).toUpperCase() + tab.slice(1);
-    const el = document.getElementById(`up${capTab}Content`);
-    if (el) el.innerHTML = `<div style="color:var(--red);padding:20px;text-align:center;font-size:13px;">${err.message || 'Failed to load'}</div>`;
-  }
-}
-
-async function loadUpOverview() {
-  const data = await apiRequest(`/users/${encodeURIComponent(_upUserId)}`);
-  const user = data.user || data;
-  // Handle both flat and nested wallet structure
-  const bal     = Number(user.wallet?.balance ?? user.balance ?? 0);
-  const locked  = Number(user.wallet?.lockedBalance ?? user.lockedBalance ?? 0);
-  const p2pCnt  = user.stats?.p2pOrderCount ?? '-';
-  const tradeCnt = user.stats?.tradeOrderCount ?? '-';
-
-  document.getElementById('upEmail').textContent = user.email || '-';
-  document.getElementById('upStatusBadge').innerHTML = statusBadge(user.status || 'UNKNOWN');
-  const el = document.getElementById('upOverviewContent');
-  el.innerHTML = `
-    <div style="background:var(--bg-card);border-radius:10px;border:1px solid var(--border);padding:14px 16px;margin-bottom:10px;">
-      <div class="up-info-row"><span class="up-info-label">User ID</span><span class="up-info-value" style="font-family:monospace;color:var(--accent);font-size:11px;">${user.userId||'-'}</span></div>
-      <div class="up-info-row"><span class="up-info-label">Email</span><span class="up-info-value">${user.email||'-'}</span></div>
-      <div class="up-info-row"><span class="up-info-label">Role</span><span class="up-info-value">${statusBadge(user.role||'USER')}</span></div>
-      <div class="up-info-row"><span class="up-info-label">Account Status</span><span class="up-info-value">${statusBadge(user.status||'ACTIVE')}</span></div>
-      <div class="up-info-row"><span class="up-info-label">KYC Status</span><span class="up-info-value">${statusBadge(user.kycStatus||'NOT_SUBMITTED')}</span></div>
-      <div class="up-info-row"><span class="up-info-label">KYC Remarks</span><span class="up-info-value" style="color:var(--text-2);font-size:12px;">${user.kycRemarks||'-'}</span></div>
-      <div class="up-info-row"><span class="up-info-label">Flags</span><span class="up-info-value">${(user.flags||[]).length ? user.flags.map(f=>`<span class="badge badge-red" style="font-size:10px;">${f}</span>`).join(' ') : '<span style="color:var(--text-2);">None</span>'}</span></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-      <div class="stat-card"><div class="stat-icon">💎</div><div class="stat-info"><div class="stat-label">Available</div><div class="stat-value" style="color:var(--green);font-size:15px;">${formatNumber(bal,4)}</div><div class="stat-meta">USDT</div></div></div>
-      <div class="stat-card"><div class="stat-icon">🔒</div><div class="stat-info"><div class="stat-label">Locked</div><div class="stat-value" style="color:var(--red);font-size:15px;">${formatNumber(locked,4)}</div><div class="stat-meta">USDT</div></div></div>
-      <div class="stat-card"><div class="stat-icon">🔄</div><div class="stat-info"><div class="stat-label">P2P Orders</div><div class="stat-value" style="font-size:18px;">${p2pCnt}</div></div></div>
-      <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-info"><div class="stat-label">Trade Orders</div><div class="stat-value" style="font-size:18px;">${tradeCnt}</div></div></div>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn-primary" style="flex:1;" data-up-tab="kyc">🪪 View KYC</button>
-      <button class="btn-secondary" style="flex:1;" data-up-tab="logins">🔐 Login History</button>
-      <button class="btn-danger" style="flex:1;" data-up-tab="actions">⚙️ Actions</button>
-    </div>`;
-}
-
-async function loadUpBalance() {
-  const data = await apiRequest(`/users/${encodeURIComponent(_upUserId)}`);
-  const user = data.user || data;
-  const bal    = Number(user.wallet?.balance ?? user.balance ?? 0);
-  const locked = Number(user.wallet?.lockedBalance ?? user.lockedBalance ?? 0);
-  const el = document.getElementById('upBalanceContent');
-  el.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <div class="stat-card"><div class="stat-icon">💎</div><div class="stat-info"><div class="stat-label">Available</div><div class="stat-value" style="color:var(--green);font-size:17px;">${formatNumber(bal,4)}</div><div class="stat-meta">USDT</div></div></div>
-      <div class="stat-card"><div class="stat-icon">🔒</div><div class="stat-info"><div class="stat-label">Locked</div><div class="stat-value" style="color:var(--red);font-size:17px;">${formatNumber(locked,4)}</div><div class="stat-meta">USDT</div></div></div>
-    </div>
-    <div style="background:var(--bg-card);border-radius:10px;border:1px solid var(--border);padding:14px 16px;">
-      <div class="up-info-row"><span class="up-info-label">Available Balance</span><span class="up-info-value" style="color:var(--green);font-weight:700;">${formatNumber(bal,6)} USDT</span></div>
-      <div class="up-info-row"><span class="up-info-label">Locked Balance</span><span class="up-info-value" style="color:var(--red);">${formatNumber(locked,6)} USDT</span></div>
-      <div class="up-info-row"><span class="up-info-label">Total Balance</span><span class="up-info-value" style="font-weight:700;">${formatNumber(bal+locked,6)} USDT</span></div>
-    </div>
-    <div style="margin-top:12px;padding:10px 14px;background:var(--bg-card2);border-radius:8px;border:1px solid var(--border);">
-      <div style="font-size:11px;color:var(--text-2);margin-bottom:6px;">Quick Adjust Balance</div>
-      <div style="display:flex;gap:8px;">
-        <select id="upAdjustType2" class="input-dark" style="width:120px;height:34px;padding:4px 8px;font-size:12px;"><option value="ADD">➕ Add</option><option value="SUBTRACT">➖ Subtract</option></select>
-        <input id="upAdjustAmount2" class="input-dark" type="number" min="0" step="0.01" placeholder="Amount" style="flex:1;height:34px;" />
-        <button class="btn-primary" onclick="(function(){document.getElementById('upAdjustType').value=document.getElementById('upAdjustType2').value;document.getElementById('upAdjustAmount').value=document.getElementById('upAdjustAmount2').value;switchUpTab('actions');})()">Go →</button>
-      </div>
-    </div>`;
-}
-
-// Helper: ensure image src is a proper data URL
-function ensureDataUrl(raw) {
-  if (!raw) return null;
-  const s = String(raw).trim();
-  if (!s) return null;
-  // Already a data URL
-  if (s.startsWith('data:')) return s;
-  // Already an http URL
-  if (s.startsWith('http')) return s;
-  // Assume it's raw base64 JPEG
-  return `data:image/jpeg;base64,${s}`;
-}
-
-function kycImageBox(title, src) {
-  // src can be a /api/admin URL or a data URL
-  const imgSrc = src || null;
-  return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
-    <div style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);background:var(--bg-card2);">${title}</div>
-    <div style="min-height:160px;display:flex;align-items:center;justify-content:center;padding:10px;background:var(--bg-input);">
-      ${imgSrc
-        ? `<img src="${imgSrc}" style="max-width:100%;max-height:200px;border-radius:6px;object-fit:contain;cursor:zoom-in;"
-             onclick="window.open('${imgSrc}','_blank')"
-             onerror="this.parentElement.innerHTML='<div style=\\'color:var(--red);font-size:12px;text-align:center;padding:20px;\\'>⚠️ Image failed to load<br><small style=\\'opacity:.6;\\'>Decryption error or no data</small></div>'" />`
-        : '<div style="color:var(--text-2);font-size:12px;text-align:center;padding:24px;">📄 Not uploaded</div>'
-      }
-    </div>
-    ${imgSrc ? `<div style="padding:6px 10px;font-size:10px;color:var(--text-2);text-align:center;background:var(--bg-card2);">Click to open full size</div>` : ''}
-  </div>`;
-}
-
-async function loadUpKyc() {
-  const el = document.getElementById('upKycContent');
-  el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-2);"><div class="spin" style="margin:auto;"></div></div>`;
-  try {
-    const [kycData, docData] = await Promise.all([
-      apiRequest(`/users/${encodeURIComponent(_upUserId)}/kyc`),
-      apiRequest(`/users/${encodeURIComponent(_upUserId)}/kyc/documents`).catch(e => ({ _error: e.message }))
-    ]);
-
-    const kycStatus = kycData.kycStatus || kycData.status || 'NOT_SUBMITTED';
-    const remarks   = kycData.remarks   || kycData.kycRemarks || '';
-    const isPending = kycStatus === 'PENDING';
-    const isApproved = kycStatus === 'APPROVED';
-
-    const doc        = (docData && !docData._error) ? docData : {};
-    const docError   = docData?._error || null;
-    const aadhaarNum = doc.aadhaarMasked || '';
-    const submittedAt = doc.submittedAt || '';
-    // Use hasAadhaarFront/hasSelfie flags (new API) OR fall back to checking base64 blobs
-    const hasAadhaar = !!(doc.hasAadhaarFront || doc.aadhaarFront);
-    const hasSelfie  = !!(doc.hasSelfie || doc.selfie);
-    const hasAnyDoc  = hasAadhaar || hasSelfie;
-    // Use direct image URL endpoint (binary, no base64 size issues)
-    const aadhaarImgUrl = hasAadhaar ? `${API_BASE}/users/${encodeURIComponent(_upUserId)}/kyc/image/aadhaar` : null;
-    const selfieImgUrl  = hasSelfie  ? `${API_BASE}/users/${encodeURIComponent(_upUserId)}/kyc/image/selfie`  : null;
-
-    const statusColor = kycStatus === 'APPROVED' ? 'var(--green)' : kycStatus === 'REJECTED' ? 'var(--red)' : kycStatus === 'PENDING' ? 'var(--accent)' : 'var(--text-2)';
-
-    el.innerHTML = `
-      <!-- KYC Status Banner -->
-      <div style="background:${statusColor}14;border:1px solid ${statusColor}30;border-radius:10px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;">
-        <span style="font-size:26px;">${kycStatus==='APPROVED'?'✅':kycStatus==='REJECTED'?'❌':kycStatus==='PENDING'?'🕐':'📋'}</span>
-        <div>
-          <div style="font-size:14px;font-weight:700;color:${statusColor};">${kycStatus}</div>
-          <div style="font-size:12px;color:var(--text-2);margin-top:2px;">${remarks || (kycStatus==='APPROVED'?'Identity verified':'KYC ' + kycStatus.toLowerCase())}</div>
-        </div>
-      </div>
-
-      <!-- KYC Info -->
-      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:12px;">
-        <div class="up-info-row"><span class="up-info-label">KYC Status</span><span class="up-info-value">${statusBadge(kycStatus)}</span></div>
-        ${aadhaarNum ? `<div class="up-info-row"><span class="up-info-label">Aadhaar Number</span><span class="up-info-value" style="font-family:monospace;letter-spacing:1px;">${aadhaarNum}</span></div>` : ''}
-        ${submittedAt ? `<div class="up-info-row"><span class="up-info-label">Submitted At</span><span class="up-info-value">${formatDate(submittedAt)}</span></div>` : ''}
-        <div class="up-info-row"><span class="up-info-label">Remarks</span><span class="up-info-value" style="color:${remarks?'var(--text-1)':'var(--text-2)'};">${remarks||'—'}</span></div>
-        <div class="up-info-row"><span class="up-info-label">Aadhaar Doc</span><span class="up-info-value">${hasAadhaar?'<span style="color:var(--green);">✅ Uploaded</span>':'<span style="color:var(--text-2);">Not uploaded</span>'}</span></div>
-        <div class="up-info-row" style="border:none;"><span class="up-info-label">Selfie</span><span class="up-info-value">${hasSelfie?'<span style="color:var(--green);">✅ Uploaded</span>':'<span style="color:var(--text-2);">Not uploaded</span>'}</span></div>
-      </div>
-
-      ${docError ? `<div style="background:var(--red-dim);border:1px solid var(--red);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--red);">⚠️ Document fetch error: ${docError}</div>` : ''}
-
-      <!-- Document Images -->
-      ${hasAnyDoc ? `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-        ${kycImageBox('🪪 Aadhaar Front', aadhaarImgUrl)}
-        ${kycImageBox('🤳 Selfie with Doc', selfieImgUrl)}
-      </div>` : `
-      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:24px;text-align:center;margin-bottom:12px;">
-        <div style="font-size:32px;margin-bottom:8px;">📋</div>
-        <p style="font-size:13px;color:var(--text-2);margin:0;">${docError ? '⚠️ Could not load documents — ' + docError : 'No KYC documents uploaded yet'}</p>
-      </div>`}
-
-      <!-- Action Buttons -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        ${hasAnyDoc ? `<button class="btn-secondary" style="flex:1;" onclick="viewKycDocuments('${_upUserId}')">🔍 Full Screen</button>` : ''}
-        ${isPending ? `
-          <button class="btn-secondary" style="flex:1;" onclick="upApproveKyc()">✅ Approve KYC</button>
-          <button class="btn-danger"    style="flex:1;" onclick="upRejectKyc()">❌ Reject KYC</button>
-        ` : isApproved ? `
-          <button class="btn-secondary" style="flex:1;" onclick="upRejectKyc()">🔄 Re-review KYC</button>
-        ` : `
-          <button class="btn-secondary" style="flex:1;" onclick="upApproveKyc()">✅ Approve KYC</button>
-          <button class="btn-danger"    style="flex:1;" onclick="upRejectKyc()">❌ Reject KYC</button>
-        `}
-      </div>`;
-  } catch(err) {
-    el.innerHTML = `<div style="text-align:center;padding:40px;">
-      <div style="font-size:32px;margin-bottom:10px;">⚠️</div>
-      <p style="font-size:13px;color:var(--text-2);margin:0 0 4px;">KYC data unavailable</p>
-      <small style="color:var(--red);font-size:11px;">${err.message||'Unknown error'}</small>
-    </div>`;
-  }
-}
-
-async function upApproveKyc() {
-  try {
-    await reviewKyc(_upUserId, 'APPROVED', '');
-    showMessage('KYC Approved ✅', 'success');
-    await loadUpKyc();
-    await loadUpOverview();
-  } catch(err) { showMessage(err.message||'Failed','error'); }
-}
-
-async function upRejectKyc() {
-  const reason = window.prompt('Enter rejection reason:');
-  if (!reason || !reason.trim()) return;
-  try {
-    await reviewKyc(_upUserId, 'REJECTED', reason.trim());
-    showMessage('KYC Rejected', 'success');
-    await loadUpKyc();
-    await loadUpOverview();
-  } catch(err) { showMessage(err.message||'Failed','error'); }
-}
-
-async function loadUpLogins() {
-  const el = document.getElementById('upLoginsContent');
-  el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-2);"><div class="spin" style="margin:auto;"></div></div>`;
-  try {
-    const data = await apiRequest(`/users/${encodeURIComponent(_upUserId)}/login-history`);
-    // Handle both collection formats
-    const logs = Array.isArray(data.history)  ? data.history
-               : Array.isArray(data.logs)     ? data.logs
-               : Array.isArray(data.records)  ? data.records
-               : [];
-    const total = data.pagination?.total || logs.length;
-
-    if (!logs.length) {
-      el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-2);">
-        <div style="font-size:38px;margin-bottom:10px;">🔐</div>
-        <p style="font-size:13px;font-weight:600;margin:0 0 4px;">No login history</p>
-        <p style="font-size:11px;opacity:.6;margin:0;">This user hasn't logged in yet</p>
-      </div>`;
-      return;
-    }
-
-    el.innerHTML = `
-      <div style="font-size:11px;color:var(--text-2);margin-bottom:10px;padding:0 2px;">
-        Showing ${Math.min(logs.length,50)} of ${total} logins
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        ${logs.slice(0,50).map(log => {
-          const isSuccess = log.success === true || log.success === 'true' || log.status === 'SUCCESS' || (log.action === 'user_login' && log.success !== false);
-          const isFailed  = log.success === false || log.status === 'FAILED' || log.action === 'login_failed';
-          const ip        = log.ip || log.ipAddress || log.ipAddr || log.metadata?.ip || '-';
-          const country   = log.country || log.location || log.metadata?.country || log.geo?.country || '';
-          const city      = log.city || log.metadata?.city || log.geo?.city || '';
-          const device    = log.userAgent || log.deviceInfo || log.device || log.metadata?.userAgent || '';
-          const time      = log.createdAt || log.timestamp || log.loginAt || log.time;
-          const icon      = isSuccess ? '✅' : isFailed ? '❌' : '🔵';
-          const color     = isSuccess ? 'var(--green)' : isFailed ? 'var(--red)' : 'var(--text-2)';
-          const label     = isSuccess ? 'Login Success' : isFailed ? 'Login Failed' : (log.action || 'Activity');
-          return `<div class="up-login-row">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-              <span style="font-weight:600;font-size:12px;color:${color};">${icon} ${label}</span>
-              <span style="font-size:10px;color:var(--text-2);white-space:nowrap;">${formatDate(time)}</span>
-            </div>
-            <div style="display:flex;gap:16px;margin-top:5px;flex-wrap:wrap;">
-              <span style="font-size:11px;color:var(--text-2);">🌐 <span style="color:var(--text-1);font-family:monospace;">${ip}</span></span>
-              ${country ? `<span style="font-size:11px;color:var(--text-2);">📍 ${[city,country].filter(Boolean).join(', ')}</span>` : ''}
-            </div>
-            ${device ? `<div style="font-size:10px;color:var(--text-2);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.7;">${device}</div>` : ''}
-          </div>`;
-        }).join('')}
-      </div>`;
-  } catch(err) {
-    el.innerHTML = `<div style="text-align:center;padding:40px;">
-      <div style="font-size:32px;margin-bottom:10px;">⚠️</div>
-      <p style="color:var(--red);font-size:13px;margin:0 0 4px;">Failed to load history</p>
-      <small style="color:var(--text-2);">${err.message||'Unknown error'}</small>
-    </div>`;
-  }
-}
-
-async function loadUpDevices() {
-  const el = document.getElementById('upDevicesContent');
-  el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-2);"><div class="spin" style="margin:auto;"></div></div>`;
-  try {
-    const data = await apiRequest(`/users/${encodeURIComponent(_upUserId)}/devices`);
-    const devices = Array.isArray(data.devices) ? data.devices : Array.isArray(data) ? data : [];
-
-    if (!devices.length) {
-      el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-2);">
-        <div style="font-size:38px;margin-bottom:10px;">📱</div>
-        <p style="font-size:13px;font-weight:600;margin:0 0 4px;">No devices found</p>
-        <p style="font-size:11px;opacity:.6;margin:0;">User hasn't logged in from any tracked device</p>
-      </div>`;
-      return;
-    }
-
-    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;">` +
-      devices.map((d, i) => {
-        const osLower = (d.os || d.platform || '').toLowerCase();
-        const nameLower = (d.deviceName || d.name || '').toLowerCase();
-        const emoji = (osLower.includes('android') || nameLower.includes('android')) ? '🤖'
-                    : (osLower.includes('ios') || nameLower.includes('iphone') || nameLower.includes('ipad')) ? '🍎'
-                    : (osLower.includes('windows')) ? '🖥'
-                    : (osLower.includes('mac')) ? '🍎'
-                    : '💻';
-        const trusted = d.trusted || d.isTrusted || d.is_trusted;
-        const name    = d.deviceName || d.name || d.browser || `Device ${i + 1}`;
-        const ip      = d.ip || d.lastIp || d.ipAddress || '-';
-        const lastSeen = d.lastSeenAt || d.lastSeen || d.last_seen_at || d.updatedAt || d.createdAt;
-        return `<div class="up-device-card">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:22px;">${emoji}</span>
-              <div>
-                <div style="font-weight:700;color:var(--text-1);font-size:13px;">${name}</div>
-                <div style="font-size:10px;color:var(--text-2);">${d.os||d.platform||'Unknown OS'}</div>
-              </div>
-            </div>
-            <span class="badge ${trusted ? 'badge-green' : 'badge-gray'}">${trusted ? '✓ Trusted' : 'Untrusted'}</span>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
-            <div style="color:var(--text-2);">Browser: <span style="color:var(--text-1);">${d.browser || '-'}</span></div>
-            <div style="color:var(--text-2);">IP: <span style="color:var(--text-1);font-family:monospace;">${ip}</span></div>
-            <div style="color:var(--text-2);">Last seen: <span style="color:var(--text-1);">${formatDate(lastSeen)}</span></div>
-            <div style="color:var(--text-2);">Added: <span style="color:var(--text-1);">${formatDate(d.createdAt)}</span></div>
-          </div>
-          ${d.fingerprint ? `<div style="margin-top:8px;padding:5px 8px;background:var(--bg-input);border-radius:4px;font-size:10px;color:var(--text-2);font-family:monospace;overflow:hidden;text-overflow:ellipsis;">🔑 ${d.fingerprint}</div>` : ''}
-        </div>`;
-      }).join('') + `</div>`;
-  } catch(err) {
-    el.innerHTML = `<div style="text-align:center;padding:40px;">
-      <div style="font-size:32px;margin-bottom:10px;">⚠️</div>
-      <p style="color:var(--red);font-size:13px;margin:0 0 4px;">Failed to load devices</p>
-      <small style="color:var(--text-2);">${err.message||'Unknown error'}</small>
-    </div>`;
-  }
-}
-
-async function upAction(action) {
-  if (!_upUserId) return;
-  try {
-    if (action === 'freeze') {
-      await apiRequest(`/users/${encodeURIComponent(_upUserId)}/status`, { method:'PATCH', body:JSON.stringify({status:'FROZEN'}) });
-      showMessage('Account frozen.','success');
-      await loadUpOverview();
-    } else if (action === 'unfreeze') {
-      await apiRequest(`/users/${encodeURIComponent(_upUserId)}/status`, { method:'PATCH', body:JSON.stringify({status:'ACTIVE'}) });
-      showMessage('Account unfrozen.','success');
-      await loadUpOverview();
-    } else if (action === 'ban') {
-      if (!confirm('Ban this user permanently?')) return;
-      await apiRequest(`/users/${encodeURIComponent(_upUserId)}/status`, { method:'PATCH', body:JSON.stringify({status:'BANNED'}) });
-      showMessage('User banned.','success');
-      await loadUpOverview();
-    } else if (action === 'force-logout') {
-      await apiRequest(`/users/${encodeURIComponent(_upUserId)}/force-logout`, { method:'POST', body:JSON.stringify({}) });
-      showMessage('User force logged out.','success');
-    } else if (action === 'adjust') {
-      const type   = document.getElementById('upAdjustType').value;
-      const amount = parseFloat(document.getElementById('upAdjustAmount').value);
-      const reason = document.getElementById('upAdjustReason').value.trim();
-      if (!amount || amount <= 0) return showMessage('Enter a valid amount.','error');
-      if (!reason) return showMessage('Reason is required.','error');
-      await apiRequest(`/users/${encodeURIComponent(_upUserId)}/adjust-balance`, { method:'POST', body:JSON.stringify({type,amount,reason}) });
-      showMessage(`Balance ${type==='ADD'?'added':'subtracted'} successfully.`,'success');
-      document.getElementById('upAdjustAmount').value='';
-      document.getElementById('upAdjustReason').value='';
-      await loadUpOverview(); await loadUpBalance();
-    } else if (action === 'reset') {
-      const pwd = document.getElementById('upNewPassword').value.trim();
-      if (pwd.length < 8) return showMessage('Password must be at least 8 characters.','error');
-      await apiRequest(`/users/${encodeURIComponent(_upUserId)}/reset-password`, { method:'POST', body:JSON.stringify({newPassword:pwd}) });
-      showMessage('Password reset successfully.','success');
-      document.getElementById('upNewPassword').value='';
-    }
-  } catch (err) {
-    showMessage(err.message || 'Action failed.','error');
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Wire All Event Listeners
 // ─────────────────────────────────────────────────────────────────────────────
 
 function wireEventListeners() {
-  if (dom.menuToggleBtn) {
-    dom.menuToggleBtn.addEventListener('click', () => {
-      const isOpen = dom.sidebar.classList.contains('open');
-      setSidebarOpen(!isOpen);
-    });
-  }
-  if (dom.sidebarOverlay) {
-    dom.sidebarOverlay.addEventListener('click', () => setSidebarOpen(false));
-  }
+  dom.sidebarOpenBtn.addEventListener('click', () => setSidebarOpen(true));
+  dom.sidebarCloseBtn.addEventListener('click', () => setSidebarOpen(false));
+  dom.sidebarBackdrop.addEventListener('click', () => setSidebarOpen(false));
 
   dom.sidebarNav.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-view]');
     if (!button) {
       return;
     }
-    setSidebarOpen(false); // close on mobile after nav click
     await changeView(button.getAttribute('data-view'));
   });
 
@@ -2333,7 +1940,7 @@ function wireEventListeners() {
     showMessage('Section refreshed.', 'success');
   });
 
-  const doLogout = async () => {
+  dom.logoutBtn.addEventListener('click', async () => {
     try {
       await apiRequest('/auth/logout', { method: 'POST', body: JSON.stringify({}) });
     } catch (_error) {
@@ -2341,22 +1948,16 @@ function wireEventListeners() {
     } finally {
       window.location.href = '/admin/login';
     }
-  };
-
-  dom.logoutBtn.addEventListener('click', doLogout);
-  if (dom.logoutBtnSide) {
-    dom.logoutBtnSide.addEventListener('click', doLogout);
-  }
+  });
 
   // KYC modal close
   document.getElementById('kycDocModalClose').addEventListener('click', () => {
-    document.getElementById('kycDocModal').classList.add('hidden');
-    document.getElementById('kycDocModal').classList.remove('flex');
+    document.getElementById('kycDocModal').style.display='none';
+    
   });
   document.getElementById('kycDocModal').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) {
-      e.currentTarget.classList.add('hidden');
-      e.currentTarget.classList.remove('flex');
+      e.currentTarget.style.display = 'none';
     }
   });
 
@@ -2391,24 +1992,6 @@ function wireEventListeners() {
   document.getElementById('p2pAdsList').addEventListener('click', handleP2PActions);
   document.getElementById('p2pDisputesList').addEventListener('click', handleP2PActions);
   document.getElementById('p2pReloadBtn').addEventListener('click', async () => loadP2P());
-
-  // User profile drawer - tab switching + close via event delegation
-  document.getElementById('userProfileDrawer').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-up-tab]');
-    if (btn) {
-      switchUpTab(btn.getAttribute('data-up-tab'));
-      return;
-    }
-  });
-  document.getElementById('upCloseBtn').addEventListener('click', () => closeUserProfile());
-  document.getElementById('userProfileOverlay').addEventListener('click', () => closeUserProfile());
-
-  // Support ticket list - click delegation (ticket cards are rendered via innerHTML)
-  document.getElementById('supportTicketsList').addEventListener('click', (e) => {
-    const item = e.target.closest('[data-support-ticket-id]');
-    if (!item) return;
-    openTicket(item.getAttribute('data-support-ticket-id'));
-  });
 
   // Support chat
   document.getElementById('supportReloadBtn').addEventListener('click', async () => loadSupport());
@@ -2681,116 +2264,265 @@ function wireEventListeners() {
   document.getElementById('auditReloadBtn').addEventListener('click', async () => loadAudit());
 }
 
-// ─── Support ticket live-notify via SSE ─────────────────────────────────────
-let _lastKnownOpenTicketCount = 0;
-let _supportSSE = null;
+// ─────────────────────────────────────────────────────────────────────────────
+// User Profile Panel
+// ─────────────────────────────────────────────────────────────────────────────
 
-function connectSupportSSE() {
-  if (_supportSSE) { try { _supportSSE.close(); } catch(_) {} }
-  _supportSSE = new EventSource('/api/admin/support/live-notify');
-  _supportSSE.onmessage = (ev) => {
+let currentProfileUserId = null;
+
+async function openUserProfile(userId) {
+  currentProfileUserId = userId;
+  await changeView('user-profile');
+}
+
+async function loadUserProfilePanel() {
+  if (!currentProfileUserId) return;
+  const uid = currentProfileUserId;
+
+  // Fetch all data in parallel
+  const [userRes, kycRes, walletRes, tradesRes, depositsRes, withdrawalsRes, p2pRes] = await Promise.all([
+    apiRequest(`/users/${encodeURIComponent(uid)}`).catch(() => ({})),
+    apiRequest(`/users/${encodeURIComponent(uid)}/kyc`).catch(() => ({})),
+    apiRequestOptional(`/users/${encodeURIComponent(uid)}/wallet`, {}),
+    apiRequestOptional(`/users/${encodeURIComponent(uid)}/trades?limit=50`, { trades: [] }),
+    apiRequestOptional(`/users/${encodeURIComponent(uid)}/deposits?limit=50`, { deposits: [] }),
+    apiRequestOptional(`/users/${encodeURIComponent(uid)}/withdrawals?limit=50`, { withdrawals: [] }),
+    apiRequestOptional(`/users/${encodeURIComponent(uid)}/p2p-orders?limit=50`, { orders: [] })
+  ]);
+
+  const user = userRes.user || {};
+  const kyc = kycRes.kyc || kycRes || {};
+  const walletData = walletRes.wallet || walletRes.balances || walletRes || {};
+
+  // Update title
+  document.getElementById('userProfileTitle').textContent = `Profile: ${user.email || uid}`;
+  document.getElementById('profileCurrentStatus').textContent = user.status || '-';
+
+  // Top stat cards
+  const balances = walletData.balances || [];
+  const totalUSDT = Array.isArray(balances)
+    ? balances.find(b => b.coin === 'USDT')?.available || user.balance || 0
+    : (walletData.USDT?.available || user.balance || 0);
+
+  renderCards('userProfileCards', [
+    { label: 'USDT Balance', value: `$${formatNumber(totalUSDT, 2)}`, meta: `Locked: $${formatNumber(user.lockedBalance || 0, 2)}` },
+    { label: 'KYC Status', value: user.kycStatus || 'NONE', meta: `Role: ${user.role || '-'}` },
+    { label: 'Account Status', value: user.status || '-', meta: `2FA: ${user.twoFactorEnabled ? 'ON' : 'OFF'}` },
+    { label: 'Joined', value: formatDate(user.createdAt), meta: `UID: ${String(uid).slice(0,12)}...` }
+  ]);
+
+  // Overview tab
+  function infoRow(label, val) {
+    return `<div class="profile-info-row"><dt>${label}</dt><dd>${val || '-'}</dd></div>`;
+  }
+  document.getElementById('profileAccountInfo').innerHTML = [
+    infoRow('User ID', `<span class="font-mono text-xs">${uid}</span>`),
+    infoRow('Email', user.email),
+    infoRow('Role', statusBadge(user.role)),
+    infoRow('Status', statusBadge(user.status)),
+    infoRow('KYC Status', statusBadge(user.kycStatus)),
+    infoRow('Phone', user.phone),
+    infoRow('Country', user.country),
+    infoRow('Registered', formatDate(user.createdAt)),
+    infoRow('Last Active', formatDate(user.lastActiveAt || user.updatedAt))
+  ].join('');
+
+  document.getElementById('profileSecurityInfo').innerHTML = [
+    infoRow('2FA Enabled', user.twoFactorEnabled ? '<span class="text-green-400">Yes</span>' : '<span class="text-red-400">No</span>'),
+    infoRow('Email Verified', user.emailVerified ? '<span class="text-green-400">Yes</span>' : '<span class="text-red-400">No</span>'),
+    infoRow('KYC Level', kyc.level || kyc.kycLevel || '-'),
+    infoRow('KYC Updated', formatDate(kyc.updatedAt || kyc.reviewedAt)),
+    infoRow('Review Note', kyc.reviewNote || '-'),
+    infoRow('IP Address', user.lastIp || '-'),
+    infoRow('Device', user.lastDevice || '-')
+  ].join('');
+
+  // Wallet tab
+  const walletRows = Array.isArray(balances) && balances.length > 0 ? balances : [
+    { coin: 'USDT', available: user.balance || 0, locked: user.lockedBalance || 0 },
+    { coin: 'BTC', available: walletData.BTC?.available || 0, locked: walletData.BTC?.locked || 0 },
+    { coin: 'ETH', available: walletData.ETH?.available || 0, locked: walletData.ETH?.locked || 0 },
+    { coin: 'BNB', available: walletData.BNB?.available || 0, locked: walletData.BNB?.locked || 0 },
+    { coin: 'SOL', available: walletData.SOL?.available || 0, locked: walletData.SOL?.locked || 0 }
+  ];
+  document.getElementById('profileWalletTable').innerHTML = walletRows.map(b => `
+    <tr>
+      <td class="admin-td font-semibold">${escapeHtml(String(b.coin || '-'))}</td>
+      <td class="admin-td text-right text-green-400">${formatNumber(b.available || 0, 6)}</td>
+      <td class="admin-td text-right text-yellow-400">${formatNumber(b.locked || 0, 6)}</td>
+      <td class="admin-td text-right">${formatNumber((b.available || 0) + (b.locked || 0), 6)}</td>
+    </tr>
+  `).join('') || '<tr><td class="admin-td text-slate-500" colspan="4">No wallet data</td></tr>';
+
+  // KYC tab
+  document.getElementById('profileKycInfo').innerHTML = [
+    infoRow('Full Name', kyc.fullName),
+    infoRow('Date of Birth', kyc.dob),
+    infoRow('ID Type', kyc.idType || kyc.documentType),
+    infoRow('ID Number', kyc.idNumber || kyc.documentNumber),
+    infoRow('Status', statusBadge(kyc.status || user.kycStatus)),
+    infoRow('Submitted', formatDate(kyc.submittedAt || kyc.createdAt)),
+    infoRow('Reviewed By', kyc.reviewedBy),
+    infoRow('Review Note', kyc.reviewNote)
+  ].join('');
+
+  // Trades tab
+  const trades = tradesRes.trades || tradesRes.orders || [];
+  document.getElementById('profileTradesTable').innerHTML = trades.length ? trades.map(t => `
+    <tr>
+      <td class="admin-td font-mono text-xs">${String(t.id || t._id || '-').slice(0,12)}...</td>
+      <td class="admin-td">${escapeHtml(String(t.symbol || t.pair || '-'))}</td>
+      <td class="admin-td">${t.side === 'BUY' ? '<span class="text-green-400">BUY</span>' : '<span class="text-red-400">SELL</span>'}</td>
+      <td class="admin-td">${escapeHtml(String(t.type || '-'))}</td>
+      <td class="admin-td text-right">${formatNumber(t.amount || t.quantity || 0, 6)}</td>
+      <td class="admin-td text-right">${formatNumber(t.price || 0, 4)}</td>
+      <td class="admin-td">${statusBadge(t.status)}</td>
+      <td class="admin-td">${formatDate(t.createdAt)}</td>
+    </tr>
+  `).join('') : '<tr><td class="admin-td text-slate-500" colspan="8">No trade history</td></tr>';
+
+  // Deposits tab
+  const deposits = depositsRes.deposits || [];
+  document.getElementById('profileDepositsTable').innerHTML = deposits.length ? deposits.map(d => `
+    <tr>
+      <td class="admin-td font-mono text-xs">${String(d.id || '-').slice(0,10)}...</td>
+      <td class="admin-td">${escapeHtml(String(d.coin || '-'))}</td>
+      <td class="admin-td">${escapeHtml(String(d.network || '-'))}</td>
+      <td class="admin-td text-right text-green-400">+${formatNumber(d.amount || 0, 4)}</td>
+      <td class="admin-td">${statusBadge(d.status)}</td>
+      <td class="admin-td font-mono text-xs">${d.txHash ? String(d.txHash).slice(0,16)+'...' : '-'}</td>
+      <td class="admin-td">${formatDate(d.createdAt)}</td>
+    </tr>
+  `).join('') : '<tr><td class="admin-td text-slate-500" colspan="7">No deposit history</td></tr>';
+
+  // Withdrawals tab
+  const withdrawals = withdrawalsRes.withdrawals || [];
+  document.getElementById('profileWithdrawalsTable').innerHTML = withdrawals.length ? withdrawals.map(w => `
+    <tr>
+      <td class="admin-td font-mono text-xs">${String(w.id || '-').slice(0,10)}...</td>
+      <td class="admin-td">${escapeHtml(String(w.coin || '-'))}</td>
+      <td class="admin-td">${escapeHtml(String(w.network || '-'))}</td>
+      <td class="admin-td text-right text-red-400">-${formatNumber(w.amount || 0, 4)}</td>
+      <td class="admin-td font-mono text-xs">${w.address ? String(w.address).slice(0,14)+'...' : '-'}</td>
+      <td class="admin-td">${statusBadge(w.status)}</td>
+      <td class="admin-td">${formatDate(w.createdAt)}</td>
+    </tr>
+  `).join('') : '<tr><td class="admin-td text-slate-500" colspan="7">No withdrawal history</td></tr>';
+
+  // P2P tab
+  const p2pOrders = p2pRes.orders || [];
+  document.getElementById('profileP2PTable').innerHTML = p2pOrders.length ? p2pOrders.map(o => `
+    <tr>
+      <td class="admin-td font-mono text-xs">${String(o.id || '-').slice(0,10)}...</td>
+      <td class="admin-td">${o.isBuyer ? '<span class="text-green-400">BUY</span>' : '<span class="text-red-400">SELL</span>'}</td>
+      <td class="admin-td">${escapeHtml(String(o.coin || o.asset || '-'))}</td>
+      <td class="admin-td text-right">${formatNumber(o.amount || o.qty || 0, 4)}</td>
+      <td class="admin-td text-right">${formatNumber(o.price || 0, 2)}</td>
+      <td class="admin-td">${statusBadge(o.status)}</td>
+      <td class="admin-td">${escapeHtml(String(o.counterpartyEmail || o.counterparty || '-'))}</td>
+      <td class="admin-td">${formatDate(o.createdAt)}</td>
+    </tr>
+  `).join('') : '<tr><td class="admin-td text-slate-500" colspan="8">No P2P orders</td></tr>';
+}
+
+// Profile tab switching
+document.addEventListener('click', function(e) {
+  const tab = e.target.closest('.profile-tab');
+  if (!tab) return;
+  const tabName = tab.getAttribute('data-tab');
+  document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  document.querySelectorAll('.profile-tab-content').forEach(c => c.classList.add('hidden'));
+  const content = document.querySelector(`.profile-tab-content[data-content="${tabName}"]`);
+  if (content) content.classList.remove('hidden');
+});
+
+// Profile action buttons
+document.addEventListener('click', async function(e) {
+  // Back button
+  if (e.target.closest('#userProfileBackBtn')) {
+    currentProfileUserId = null;
+    await changeView('users');
+    return;
+  }
+
+  // Profile button in users table
+  const profileBtn = e.target.closest('[data-user-action="profile"]');
+  if (profileBtn) {
+    const uid = profileBtn.getAttribute('data-user-id');
+    await openUserProfile(uid);
+    return;
+  }
+
+  // Freeze/Unfreeze/Ban
+  if (e.target.id === 'profileFreezeBtn' || e.target.id === 'profileUnfreezeBtn' || e.target.id === 'profileBanBtn') {
+    if (!currentProfileUserId) return;
+    const action = e.target.id === 'profileFreezeBtn' ? 'FROZEN' : e.target.id === 'profileBanBtn' ? 'BANNED' : 'ACTIVE';
+    const reason = document.getElementById('profileStatusReason').value.trim();
     try {
-      const info = JSON.parse(ev.data);
-      // Update sidebar badge
-      _lastKnownOpenTicketCount++;
-      const badge = document.getElementById('supportBadge');
-      if (badge) { badge.style.display = ''; badge.textContent = _lastKnownOpenTicketCount; }
-      // Show popup with agent name
-      showSupportNotification(info);
-      // If on support view, refresh list
-      if (state.currentView === 'support' && !state.support.activeTicketId) {
-        loadSupport().catch(() => {});
-      }
-    } catch (_) {}
-  };
-  _supportSSE.onerror = () => {
-    // Reconnect after 5s on error
-    setTimeout(connectSupportSSE, 5000);
-  };
-}
+      await apiRequest(`/users/${encodeURIComponent(currentProfileUserId)}/status`, {
+        method: 'PATCH', body: JSON.stringify({ status: action, reason })
+      });
+      showMessage(`User ${action.toLowerCase()} successfully.`, 'success');
+      await loadUserProfilePanel();
+    } catch (err) { showMessage(err.message, 'error'); }
+    return;
+  }
 
-async function pollSupportTickets() {
-  try {
-    const payload = await apiRequest('/support/tickets?limit=50');
-    const tickets = Array.isArray(payload.tickets) ? payload.tickets : [];
-    const openCount = tickets.filter(t => (t.status || '').toUpperCase() !== 'CLOSED').length;
+  // KYC review
+  if (e.target.id === 'profileKycSubmit') {
+    if (!currentProfileUserId) return;
+    const status = document.getElementById('profileKycAction').value;
+    const note = document.getElementById('profileKycNote').value.trim();
+    try {
+      await apiRequest(`/users/${encodeURIComponent(currentProfileUserId)}/kyc/review`, {
+        method: 'POST', body: JSON.stringify({ status, reviewNote: note })
+      });
+      showMessage('KYC review submitted.', 'success');
+      await loadUserProfilePanel();
+    } catch (err) { showMessage(err.message, 'error'); }
+  }
+});
 
-    // Update sidebar badge
-    const badge = document.getElementById('supportBadge');
-    if (badge) {
-      badge.style.display = openCount > 0 ? '' : 'none';
-      badge.textContent = openCount;
-    }
-    _lastKnownOpenTicketCount = openCount;
+// Adjust balance form
+document.addEventListener('submit', async function(e) {
+  if (e.target.id === 'profileAdjustForm') {
+    e.preventDefault();
+    if (!currentProfileUserId) return;
+    const form = e.target;
+    try {
+      await apiRequest(`/users/${encodeURIComponent(currentProfileUserId)}/adjust-balance`, {
+        method: 'POST',
+        body: JSON.stringify({ coin: form.coin.value, amount: Number(form.amount.value), reason: form.reason.value })
+      });
+      showMessage('Balance adjusted.', 'success');
+      form.reset();
+      await loadUserProfilePanel();
+    } catch (err) { showMessage(err.message, 'error'); }
+  }
 
-    // If currently on support view, refresh list
-    if (state.currentView === 'support' && !state.support.activeTicketId) {
-      await loadSupport();
-    }
-  } catch (e) { /* silent */ }
-}
-
-function showSupportNotification(info) {
-  // info can be string (legacy) or object { ticketId, subject, agentName, email }
-  const isObj = info && typeof info === 'object';
-  const agentName = isObj ? (info.agentName || 'Support Agent') : '';
-  const subject   = isObj ? (info.subject || 'New support request') : String(info);
-  const ticketId  = isObj ? info.ticketId : null;
-  const userLabel = isObj ? (info.email || 'User') : '';
-
-  const n = document.createElement('div');
-  n.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;
-    background:var(--bg-card);border:1px solid var(--accent);border-radius:14px;
-    padding:14px 18px;display:flex;align-items:flex-start;gap:12px;cursor:pointer;
-    box-shadow:0 8px 32px rgba(0,0,0,0.6);animation:slideInRight 0.35s ease;max-width:320px;`;
-
-  const avatarColor = '#f0b90b';
-  n.innerHTML = `
-    <div style="width:38px;height:38px;border-radius:50%;background:${avatarColor}20;border:2px solid ${avatarColor}40;
-                display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🎧</div>
-    <div style="flex:1;min-width:0;">
-      <p style="margin:0 0 2px;font-size:12px;font-weight:700;color:var(--accent);">New Live Support Request</p>
-      ${agentName ? `<p style="margin:0 0 2px;font-size:13px;font-weight:600;color:var(--text-1);">Agent: ${agentName}</p>` : ''}
-      <p style="margin:0;font-size:11px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${subject}</p>
-      ${userLabel ? `<p style="margin:2px 0 0;font-size:10px;color:var(--text-2);opacity:.7;">${userLabel}</p>` : ''}
-      <p style="margin:4px 0 0;font-size:11px;color:var(--accent);font-weight:600;">👆 Click to respond</p>
-    </div>
-    <button onclick="event.stopPropagation();this.closest('[style]').remove();"
-      style="background:none;border:none;color:var(--text-2);cursor:pointer;font-size:16px;padding:0;flex-shrink:0;">✕</button>`;
-
-  n.addEventListener('click', (e) => {
-    if (e.target.tagName === 'BUTTON') return;
-    n.remove();
-    changeView('support').then(() => {
-      if (ticketId) setTimeout(() => openTicket(ticketId), 400);
-    });
-  });
-
-  document.body.appendChild(n);
-  // Pulse the sidebar badge
-  const badge = document.getElementById('supportBadge');
-  if (badge) { badge.style.animation = 'none'; badge.style.transform = 'scale(1.4)'; setTimeout(() => { badge.style.transform = ''; }, 300); }
-  setTimeout(() => { if (n.isConnected) n.remove(); }, 10000);
-}
+  if (e.target.id === 'profileResetPassForm') {
+    e.preventDefault();
+    if (!currentProfileUserId) return;
+    const form = e.target;
+    try {
+      await apiRequest(`/users/${encodeURIComponent(currentProfileUserId)}/reset-password`, {
+        method: 'POST', body: JSON.stringify({ newPassword: form.newPassword.value })
+      });
+      showMessage('Password reset done.', 'success');
+      form.reset();
+    } catch (err) { showMessage(err.message, 'error'); }
+  }
+});
 
 async function init() {
   try {
-    startLiveClock();
     await ensureAdminSession();
     wireEventListeners();
     await changeView('overview');
-
-    // Refresh current view every 30s
     setInterval(async () => {
       await loadCurrentView({ silent: true });
     }, 30000);
-
-    // SSE for instant new-ticket alerts
-    connectSupportSSE();
-    // Poll support tickets every 15s for badge count sync
-    await pollSupportTickets();
-    setInterval(pollSupportTickets, 15000);
-
     showMessage('Admin dashboard loaded.', 'success');
   } catch (error) {
     showMessage(error.message || 'Unable to load admin dashboard.', 'error');

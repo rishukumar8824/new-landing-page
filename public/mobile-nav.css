@@ -1,9 +1,7 @@
 :root {
-  --mn-bg: rgba(8, 11, 17, 0.95);
-  --mn-line: rgba(255, 255, 255, 0.1);
-  --mn-text: #8f9ab0;
-  --mn-active: #8dfb00;
-  --mn-shadow: 0 18px 38px rgba(0, 0, 0, 0.48);
+  --mn-bg: #000;
+  --mn-text: #6B7A99;
+  --mn-active: #00E5C4;
 }
 
 .mobile-app-nav {
@@ -12,58 +10,56 @@
 
 @media (max-width: 768px) {
   body.has-mobile-nav {
-    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
   }
 
   .mobile-app-nav {
     position: fixed;
-    left: 10px;
-    right: 10px;
-    bottom: calc(8px + env(safe-area-inset-bottom));
-    z-index: 95;
-    border: 1px solid var(--mn-line);
-    border-radius: 24px;
-    background: var(--mn-bg);
-    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.38);
-    backdrop-filter: none;
-    padding: 7px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 999;
+    background: #000;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .mobile-app-nav a {
-    min-height: 56px;
-    border-radius: 14px;
     text-decoration: none;
     color: var(--mn-text);
     display: inline-flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    transition: background 0.22s ease, color 0.22s ease, transform 0.22s ease;
-  }
-
-  .mobile-app-nav a:active {
-    transform: translateY(1px);
+    gap: 3px;
+    padding: 4px 0;
+    transition: color 0.18s;
   }
 
   .mobile-app-nav .nav-icon {
-    font-size: 1.05rem;
-    line-height: 1;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-app-nav .nav-icon svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
   }
 
   .mobile-app-nav .nav-label {
-    font-size: 0.76rem;
-    font-weight: 700;
+    font-size: 0.68rem;
+    font-weight: 500;
     letter-spacing: 0.01em;
   }
 
   .mobile-app-nav a.active,
   .mobile-app-nav a[aria-current='page'] {
-    color: #091108;
-    background: var(--mn-active);
-    box-shadow: 0 6px 18px rgba(141, 251, 0, 0.28);
+    color: var(--mn-active);
   }
 }

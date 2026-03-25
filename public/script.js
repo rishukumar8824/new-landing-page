@@ -1,16 +1,19 @@
-const BITEGIT_API = (window.BITEGIT_API_BASE || 'http://localhost:3000/api/v1');
-function bgFetch(path, opts) {
-  var token = localStorage.getItem('bitegit_token') || '';
-  opts = opts || {};
-  var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
-  if (token) headers['Authorization'] = 'Bearer ' + token;
-  return fetch(BITEGIT_API + path, Object.assign({}, opts, { headers: headers, credentials: 'include' }));
-}
-
 const form = document.getElementById('leadForm');
 const message = document.getElementById('message');
+const topLoginBtn = document.getElementById('topLoginBtn');
 const topSignupBtn = document.getElementById('topSignupBtn');
+const topAssetsBtn = document.getElementById('topAssetsBtn');
+const topLogoutBtn = document.getElementById('topLogoutBtn');
+const drawerLoginLink = document.getElementById('drawerLoginLink');
+const drawerSignupLink = document.getElementById('drawerSignupLink');
+const drawerAssetsLink = document.getElementById('drawerAssetsLink');
+const drawerLogoutBtn = document.getElementById('drawerLogoutBtn');
 const contactInput = document.getElementById('mobile');
+const heroGuestPanel = document.getElementById('heroGuestPanel');
+const heroUserPanel = document.getElementById('heroUserPanel');
+const heroUserName = document.getElementById('heroUserName');
+const heroUserMeta = document.getElementById('heroUserMeta');
+const heroLogoutBtn = document.getElementById('heroLogoutBtn');
 const heroUsers = document.getElementById('heroUsers');
 const marketList = document.getElementById('marketList');
 const marketTabs = document.getElementById('marketTabs');
@@ -21,6 +24,8 @@ const eventsTrack = document.getElementById('eventsTrack');
 const eventsCount = document.querySelector('.cf-events-count');
 const exchangeTickerTrack = document.getElementById('exchangeTickerTrack');
 const socialSignupButtons = Array.from(document.querySelectorAll('.social-pill[data-provider]'));
+const guestOnlyNodes = Array.from(document.querySelectorAll('[data-auth-guest-only]'));
+const userOnlyNodes = Array.from(document.querySelectorAll('[data-auth-user-only]'));
 
 const otpRow = document.getElementById('otpRow');
 const otpInput = document.getElementById('otpInput');
@@ -123,6 +128,7 @@ let marketTab = 'hotspot';
 let eventsAutoSlide = null;
 let marketRefreshTimer = null;
 let marketLoadSeq = 0;
+let currentSessionUser = null;
 
 const openSignupFromQuery = new URLSearchParams(window.location.search).get('signup') === '1';
 
@@ -146,6 +152,63 @@ function setSignupPromptMessage(text, type = '') {
   if (type) {
     signupPromptMessage.classList.add(type);
   }
+}
+
+function updateHomeAuthUi(user) {
+  currentSessionUser = user || null;
+  const loggedIn = Boolean(currentSessionUser);
+
+  guestOnlyNodes.forEach((node) => {
+    node.classList.toggle('hidden', loggedIn);
+  });
+  userOnlyNodes.forEach((node) => {
+    node.classList.toggle('hidden', !loggedIn);
+  });
+
+  if (heroGuestPanel) {
+    heroGuestPanel.classList.toggle('hidden', loggedIn);
+  }
+  if (heroUserPanel) {
+    heroUserPanel.classList.toggle('hidden', !loggedIn);
+  }
+
+  if (heroUserName) {
+    heroUserName.textContent = currentSessionUser?.username || currentSessionUser?.email || 'Bitegit User';
+  }
+  if (heroUserMeta) {
+    if (currentSessionUser?.email) {
+      const kycStatus = String(currentSessionUser?.kyc?.statusLabel || currentSessionUser?.kyc?.status || 'Not submitted')
+        .replace(/_/g, ' ')
+        .trim();
+      heroUserMeta.textContent = `${currentSessionUser.email} • KYC ${kycStatus || 'Not submitted'}`;
+    } else {
+      heroUserMeta.textContent = 'Your account is ready for markets, P2P and assets.';
+    }
+  }
+}
+
+async function loadHomeSession() {
+  try {
+    const response = await fetch('/api/p2p/me', { credentials: 'include' });
+    const data = await response.json().catch(() => ({}));
+    updateHomeAuthUi(response.ok && data?.loggedIn ? data.user : null);
+  } catch (_) {
+    updateHomeAuthUi(null);
+  }
+}
+
+async function logoutHomeSession() {
+  try {
+    await fetch('/api/p2p/logout', {
+      method: 'POST',
+      credentials: 'include'
+    });
+  } catch (_) {
+    // Ignore logout network failures and reset local UI state anyway.
+  }
+  updateHomeAuthUi(null);
+  setHomeNavOpen(false);
+  window.location.href = '/';
 }
 
 function syncHomeInteractionState() {
@@ -457,7 +520,7 @@ function renderOrderBook(data) {
 }
 
 async function loadMarketDepth(symbol) {
-  const response = await bgFetch(`/market/orderbook?symbol=${encodeURIComponent(symbol)}`);
+  const response = await fetch(`/api/p2p/market-depth?symbol=${encodeURIComponent(symbol)}`);
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.message || 'Market feed unavailable');
@@ -521,7 +584,7 @@ function openTradePage(symbol, marketType = 'spot') {
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '');
   const finalSymbol = safeSymbol.endsWith('USDTP') ? safeSymbol.replace(/USDTP$/, 'USDT') : safeSymbol;
-  window.location.href = `/trade/${market}/${encodeURIComponent(finalSymbol || 'BTCUSDT')}`;
+  window.location.href = `/chart.html?symbol=${encodeURIComponent(finalSymbol || 'BTCUSDT')}`;
 }
 
 function openCopyTradingChart(symbol) {
@@ -544,7 +607,7 @@ function renderMiniMarketRows(ticker) {
   }
 
   if (!Array.isArray(ticker) || ticker.length === 0) {
-    marketList.innerHTML = '<p class="bnx-loading">Market feed unavailable.</p>';
+    marketList.innerHTML = '<tr><td colspan="5" class="bnx-loading">Market feed unavailable.</td></tr>';
     return;
   }
 
@@ -566,19 +629,33 @@ function renderMiniMarketRows(ticker) {
       const cls = change >= 0 ? 'positive' : 'negative';
       const symbol = item.symbol;
       const base = symbol.replace('USDT', '');
-      const formattedPair = `${base}/USDT${isFuturesTab ? '-P' : ''}`;
+      const coinName = COIN_NAMES[symbol] || base;
+      const volume = Number(item.volume24h || 0);
+      const volumeFormatted = volume >= 1e6
+        ? (volume / 1e6).toFixed(2) + 'M'
+        : volume >= 1e3
+          ? (volume / 1e3).toFixed(2) + 'K'
+          : formatLarge(volume, 2);
+      const tradeHref = `/chart.html?symbol=${encodeURIComponent(symbol)}`;
+      const priceFmt = Number(item.lastPrice) >= 1
+        ? '$' + formatLarge(item.lastPrice, 2)
+        : '$' + formatLarge(item.lastPrice, 4);
       return `
-        <a class="cf-hot-market-row" href="/trade/${rowMarket}/${encodeURIComponent(symbol)}" data-market="${rowMarket}" data-symbol="${symbol}">
-          <div class="cf-hot-market-pair">
-            ${getCoinIconMarkup(base, 64, 'cf-hot-coin-dot')}
-            <p>${formattedPair}</p>
-          </div>
-          <div class="cf-hot-market-price">
-            <strong>${formatLarge(item.lastPrice, 4)}</strong>
-            <span>$ ${formatLarge(item.lastPrice, 4)}</span>
-          </div>
-          <p class="cf-hot-market-change ${cls}">${sign}${change.toFixed(2)}%</p>
-        </a>
+        <tr class="cf-gate-market-row" data-href="${tradeHref}" data-symbol="${symbol}" data-market="${rowMarket}" style="cursor:pointer">
+          <td class="cf-gate-coin-cell">
+            ${getCoinIconMarkup(base, 64, 'cf-gate-coin-icon')}
+            <div class="cf-gate-coin-names">
+              <span class="cf-gate-coin-sym">${base}</span>
+              <span class="cf-gate-coin-name">${coinName}</span>
+            </div>
+          </td>
+          <td class="cf-gate-price-cell">${priceFmt}</td>
+          <td class="cf-gate-change-cell ${cls}">${sign}${change.toFixed(2)}%</td>
+          <td class="cf-gate-vol-cell">${volumeFormatted}</td>
+          <td class="cf-gate-action-cell">
+            <a class="cf-gate-trade-btn" href="${tradeHref}">Trade</a>
+          </td>
+        </tr>
       `;
     })
     .join('');
@@ -605,7 +682,7 @@ function renderExchangeTicker(ticker) {
       const sign = hasNumericChange && change >= 0 ? '+' : '';
       const priceText = hasNumericPrice ? `$${formatLarge(item.lastPrice, Number(item.lastPrice) >= 100 ? 2 : 4)}` : '$--';
       const changeText = hasNumericChange ? `${sign}${change.toFixed(2)}%` : '--%';
-      return `<span class="cf-exchange-ticker-item ${cls}">${pair}<strong>${priceText}</strong><em>${changeText}</em></span>`;
+      return `<a class="cf-exchange-ticker-item ${cls}" href="/chart.html?symbol=${encodeURIComponent(symbol)}" style="text-decoration:none">${pair}<strong>${priceText}</strong><em>${changeText}</em></a>`;
     })
     .join('');
 
@@ -631,7 +708,7 @@ function renderOpportunities(ticker) {
           const sign = change >= 0 ? '+' : '';
 
           return `
-            <a class="cf-pair-row" href="/trade/spot/${encodeURIComponent(item.symbol)}" data-market="spot" data-symbol="${item.symbol}">
+            <a class="cf-pair-row" href="/chart.html?symbol=${encodeURIComponent(item.symbol)}" data-market="spot" data-symbol="${item.symbol}">
               <div class="cf-pair-main">
                 ${getCoinIconMarkup(base, 64, 'cf-pair-icon')}
                 <p>${base}/USDT</p>
@@ -657,7 +734,7 @@ function renderOpportunities(ticker) {
           const sign = change >= 0 ? '+' : '';
 
           return `
-            <a class="cf-pair-row" href="/trade/perp/${encodeURIComponent(item.symbol)}" data-market="perp" data-symbol="${item.symbol}">
+            <a class="cf-pair-row" href="/chart.html?symbol=${encodeURIComponent(item.symbol)}" data-market="perp" data-symbol="${item.symbol}">
               <div class="cf-pair-main">
                 ${getCoinIconMarkup(base, 64, 'cf-pair-icon')}
                 <p>${base}USDT-P</p>
@@ -673,7 +750,7 @@ function renderOpportunities(ticker) {
 }
 
 function setMarketTab(tab) {
-  const safeTab = ['hotspot', 'hotfutures'].includes(tab) ? tab : 'hotspot';
+  const safeTab = ['hotspot', 'hotfutures', 'new'].includes(tab) ? tab : 'hotspot';
   marketTab = safeTab;
 
   if (marketTabs) {
@@ -682,6 +759,10 @@ function setMarketTab(tab) {
       btn.classList.toggle('active', isActive);
       btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
+  }
+
+  if (safeTab === 'new' && marketList) {
+    marketList.innerHTML = '<tr><td colspan="5" class="bnx-loading">New listings coming soon.</td></tr>';
   }
 }
 
@@ -997,13 +1078,16 @@ async function fetchClientSideLiveTicker(symbols) {
 }
 
 async function loadMarket() {
+  if (marketTab === 'new') {
+    return;
+  }
   const requestId = ++marketLoadSeq;
   try {
     const params = new URLSearchParams({
       symbols: MARKET_SYMBOLS.join(',')
     });
     params.set('_t', String(Date.now()));
-    const response = await fetch(`${BITEGIT_API}/market/tickers?${params.toString()}`, {
+    const response = await fetch(`/api/p2p/exchange-ticker?${params.toString()}`, {
       cache: 'no-store'
     });
     const data = await response.json();
@@ -1068,22 +1152,23 @@ function buildSignupUrl({ provider = '', email = '', name = '' } = {}) {
 }
 
 async function sendOtp(contact, name) {
-  // bitegit-backend: register creates account and sends OTP
-  const response = await bgFetch('/auth/register', {
+  const response = await fetch('/api/signup/send-code', {
     method: 'POST',
-    body: JSON.stringify({ email: contact, password: 'TempSetLater1!', username: name })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contact, name })
   });
   const data = await response.json();
-  if (!response.ok && response.status !== 201) {
+  if (!response.ok) {
     throw new Error(data.message || 'Unable to send verification code.');
   }
   return data;
 }
 
 async function verifyOtp(contact, name, code) {
-  const response = await bgFetch('/auth/verify-email', {
+  const response = await fetch('/api/signup/verify-code', {
     method: 'POST',
-    body: JSON.stringify({ otp: code, token: code })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contact, name, code })
   });
   const data = await response.json();
   if (!response.ok) {
@@ -1098,9 +1183,6 @@ async function startEmailSignup(email, name = 'Website Lead') {
   pendingName = name;
   otpRow?.classList.remove('hidden');
   setMessage(data.message, 'success');
-  if (data.devCode) {
-    setMessage(`${data.message} Demo code: ${data.devCode}`, 'success');
-  }
   focusLeadForm();
   return data;
 }
@@ -1158,6 +1240,13 @@ if (topSignupBtn) {
   });
 }
 
+[topLogoutBtn, drawerLogoutBtn, heroLogoutBtn].forEach((button) => {
+  button?.addEventListener('click', async (event) => {
+    event.preventDefault();
+    await logoutHomeSession();
+  });
+});
+
 socialSignupButtons.forEach((button) => {
   button.addEventListener('click', (event) => {
     event.preventDefault();
@@ -1208,13 +1297,13 @@ signupPromptEmail?.addEventListener('keydown', (event) => {
 });
 
 if (marketList) {
-  marketList.addEventListener('click', (event) => {
-    const row = event.target.closest('[data-symbol]');
-    if (!row?.dataset?.symbol) {
-      return;
-    }
-    openTradePage(row.dataset.symbol, row.dataset.market === 'perp' ? 'perp' : 'spot');
-  });
+  const _mlNav = (e) => {
+    if (e.target.closest('a')) return;
+    const row = e.target.closest('tr[data-href]');
+    if (row) { if(e.type==='touchend') e.preventDefault(); window.location.href = row.dataset.href; }
+  };
+  marketList.addEventListener('click', _mlNav);
+  marketList.addEventListener('touchend', _mlNav, {passive:false});
 }
 
 if (marketTabs) {
@@ -1285,6 +1374,7 @@ setupHomeNav();
 setupEventsCarousel();
 setupCopyTradingCarousel();
 setupMediaPlaybackOptimization();
+loadHomeSession();
 renderExchangeTicker([]);
 setMarketTab('hotspot');
 animateCounter(309497423);
@@ -1309,3 +1399,223 @@ if (openSignupFromQuery) {
     window.location.href = '/auth.html?mode=signup';
   }, 120);
 }
+
+/* ══════════════════════════════════════
+   Homepage Full-width Market Section
+   ══════════════════════════════════════ */
+(function () {
+  const HM_SYMBOLS = [
+    'BTCUSDT','ETHUSDT','XRPUSDT','SOLUSDT','BNBUSDT',
+    'TRXUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','LINKUSDT',
+    'DOTUSDT','LTCUSDT','MATICUSDT','UNIUSDT','ATOMUSDT',
+    'NEARUSDT','APTUSDT','ARBUSDT','OPUSDT','WIFUSDT'
+  ];
+
+  const HM_NAMES = {
+    BTCUSDT:'Bitcoin', ETHUSDT:'Ethereum', BNBUSDT:'BNB',
+    XRPUSDT:'XRP', SOLUSDT:'Solana', TRXUSDT:'TRON',
+    ADAUSDT:'Cardano', DOGEUSDT:'Dogecoin', WIFUSDT:'Dogwifhat',
+    AVAXUSDT:'Avalanche', LINKUSDT:'Chainlink', DOTUSDT:'Polkadot',
+    LTCUSDT:'Litecoin', MATICUSDT:'Polygon', UNIUSDT:'Uniswap',
+    ATOMUSDT:'Cosmos', NEARUSDT:'NEAR', APTUSDT:'Aptos',
+    ARBUSDT:'Arbitrum', OPUSDT:'Optimism'
+  };
+
+  const HM_CODES = {
+    BTC:'btc', ETH:'eth', BNB:'bnb', XRP:'xrp', SOL:'sol',
+    TRX:'trx', ADA:'ada', DOGE:'doge', WIF:'wif', AVAX:'avax',
+    LINK:'link', DOT:'dot', LTC:'ltc', MATIC:'matic', UNI:'uni',
+    ATOM:'atom', NEAR:'near', APT:'apt', ARB:'arb', OP:'op'
+  };
+
+  const HM_GECKO = {
+    BTCUSDT:'bitcoin', ETHUSDT:'ethereum', BNBUSDT:'binancecoin',
+    XRPUSDT:'ripple', SOLUSDT:'solana', TRXUSDT:'tron',
+    ADAUSDT:'cardano', DOGEUSDT:'dogecoin', WIFUSDT:'dogwifcoin',
+    AVAXUSDT:'avalanche-2', LINKUSDT:'chainlink', DOTUSDT:'polkadot',
+    LTCUSDT:'litecoin', MATICUSDT:'matic-network', UNIUSDT:'uniswap',
+    ATOMUSDT:'cosmos', NEARUSDT:'near', APTUSDT:'aptos',
+    ARBUSDT:'arbitrum', OPUSDT:'optimism'
+  };
+
+  const hmTabs   = document.getElementById('homeMktTabs');
+  const hmCatTabsEl = document.getElementById('homeCatTabs');
+  const hmBody   = document.getElementById('homeMktBody');
+
+  if (!hmBody) return;
+
+  // Delegated click — works on iOS Safari too
+  // Track touch start position to distinguish tap vs scroll
+  let _hmTouchStartX = 0, _hmTouchStartY = 0;
+  hmBody.addEventListener('touchstart', (e) => {
+    _hmTouchStartX = e.touches[0].clientX;
+    _hmTouchStartY = e.touches[0].clientY;
+  }, {passive: true});
+  hmBody.addEventListener('touchend', (e) => {
+    if (e.target.closest('a')) return;
+    const dx = Math.abs(e.changedTouches[0].clientX - _hmTouchStartX);
+    const dy = Math.abs(e.changedTouches[0].clientY - _hmTouchStartY);
+    if (dx > 8 || dy > 8) return; // was a scroll, not a tap
+    const row = e.target.closest('tr[data-href]');
+    if (row) { e.preventDefault(); window.location.href = row.dataset.href; }
+  }, {passive:false});
+  hmBody.addEventListener('click', (e) => {
+    if (e.target.closest('a')) return;
+    const row = e.target.closest('tr[data-href]');
+    if (row) window.location.href = row.dataset.href;
+  });
+
+  let hmRows   = [];
+  let hmTab    = 'spot';
+  let hmCatTab = 'popular';
+  let hmTimer  = null;
+
+  function hmFmtPrice(v) {
+    const n = Number(v);
+    if (!n || !isFinite(n)) return '$--';
+    if (n >= 10000) return '$' + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    if (n >= 1)     return '$' + n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    if (n >= 0.01)  return '$' + n.toFixed(4);
+    return '$' + n.toFixed(6);
+  }
+
+  function hmFmtVol(v) {
+    const n = Number(v || 0);
+    if (!isFinite(n)) return '--';
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
+    return n.toFixed(2);
+  }
+
+  function hmCoinIco(base) {
+    const code = HM_CODES[base];
+    const fb = (base || '?').slice(0, 1);
+    const img = code
+      ? `<img src="https://assets.coincap.io/assets/icons/${code}@2x.png" alt="${base}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.display='none'" />`
+      : '';
+    return `<span class="cf-fullmkt-coin-ico">${img}</span>`;
+  }
+
+  function hmRender() {
+    if (hmCatTab === 'newcoin') {
+      hmBody.innerHTML = `<tr class="cf-fullmkt-loading"><td colspan="3">New listings coming soon — stay tuned.</td></tr>`;
+      return;
+    }
+
+    let rows = [...hmRows];
+
+    // Sort by category
+    if (hmCatTab === 'popular') {
+      rows.sort((a, b) => Number(b.volume24h || 0) - Number(a.volume24h || 0));
+    } else if (hmCatTab === 'trends') {
+      rows.sort((a, b) => Number(b.change24h || 0) - Number(a.change24h || 0));
+    } else if (hmCatTab === 'change24h') {
+      rows.sort((a, b) => Math.abs(Number(b.change24h || 0)) - Math.abs(Number(a.change24h || 0)));
+    }
+
+    if (!rows.length) {
+      hmBody.innerHTML = `<tr class="cf-fullmkt-loading"><td colspan="3">Loading...</td></tr>`;
+      return;
+    }
+
+    hmBody.innerHTML = rows.slice(0, 7).map(item => {
+      const base = item.symbol.replace('USDT', '');
+      const name = HM_NAMES[item.symbol] || base;
+      const chg  = Number(item.change24h || 0);
+      const sign = chg >= 0 ? '+' : '';
+      const cls  = chg >= 0 ? 'up' : 'dn';
+      const href = `/chart.html?symbol=${encodeURIComponent(item.symbol)}`;
+      return `<tr class="cf-fullmkt-row" data-href="${href}" style="cursor:pointer">
+        <td>
+          <div class="cf-fullmkt-coin-cell">
+            ${hmCoinIco(base)}
+            <div class="cf-fullmkt-coin-names">
+              <span class="cf-fullmkt-coin-sym">${base}/USDT</span>
+              <span class="cf-fullmkt-coin-name">${name}</span>
+            </div>
+          </div>
+        </td>
+        <td><span class="cf-fullmkt-price">${hmFmtPrice(item.lastPrice)}</span></td>
+        <td><span class="cf-fullmkt-chg ${cls}">${sign}${chg.toFixed(2)}%</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function hmLoad() {
+    if (hmCatTab === 'newcoin') { hmRender(); return; }
+    try {
+      const params = new URLSearchParams({ symbols: HM_SYMBOLS.join(','), _t: Date.now() });
+      const res  = await fetch(`/api/p2p/exchange-ticker?${params}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data?.ticker) && data.ticker.length) {
+        hmRows = data.ticker;
+        hmRender();
+        return;
+      }
+    } catch (_) {}
+    // CoinGecko fallback
+    try {
+      const ids = HM_SYMBOLS.map(s => HM_GECKO[s]).filter(Boolean).join(',');
+      const res = await fetch(
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=50&sparkline=false&price_change_percentage=24h`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        const idToSym = {};
+        for (const [sym, id] of Object.entries(HM_GECKO)) idToSym[id] = sym;
+        hmRows = data.map(c => ({
+          symbol: idToSym[c.id] || c.symbol.toUpperCase() + 'USDT',
+          lastPrice: c.current_price,
+          change24h: c.price_change_percentage_24h,
+          volume24h: c.total_volume
+        }));
+        hmRender();
+      }
+    } catch (_) {}
+  }
+
+  function hmSetTab(tab) {
+    hmTab = ['spot', 'futures'].includes(tab) ? tab : 'spot';
+    if (hmTabs) {
+      hmTabs.querySelectorAll('button[data-hmtab]').forEach(btn => {
+        const active = btn.dataset.hmtab === hmTab;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+    }
+    clearInterval(hmTimer);
+    hmLoad();
+    if (hmCatTab !== 'newcoin') hmTimer = setInterval(hmLoad, 6000);
+  }
+
+  function hmSetCatTab(cat) {
+    hmCatTab = ['popular','trends','change24h','newcoin'].includes(cat) ? cat : 'popular';
+    if (hmCatTabsEl) {
+      hmCatTabsEl.querySelectorAll('button[data-cattab]').forEach(btn => {
+        const active = btn.dataset.cattab === hmCatTab;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+    }
+    clearInterval(hmTimer);
+    hmLoad();
+    if (hmCatTab !== 'newcoin') hmTimer = setInterval(hmLoad, 6000);
+  }
+
+  // Sub-tabs (Spot / Futures)
+  hmTabs?.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-hmtab]');
+    if (btn) hmSetTab(btn.dataset.hmtab);
+  });
+
+  // Category tabs
+  hmCatTabsEl?.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-cattab]');
+    if (btn) hmSetCatTab(btn.dataset.cattab);
+  });
+
+  // Init
+  hmSetTab('spot');
+})();

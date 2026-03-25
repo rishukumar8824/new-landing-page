@@ -1,13 +1,3 @@
-const BITEGIT_API = (window.BITEGIT_API_BASE || 'http://localhost:3000/api/v1');
-
-function authFetch(path, opts) {
-  opts = opts || {};
-  var token = localStorage.getItem('bitegit_token') || '';
-  var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
-  if (token) headers['Authorization'] = 'Bearer ' + token;
-  return fetch(BITEGIT_API + path, Object.assign({}, opts, { headers: headers, credentials: 'include' }));
-}
-
 const authForm = document.getElementById('authForm');
 const authTitle = document.getElementById('authTitle');
 const authTopModeBtn = document.getElementById('authTopModeBtn');
@@ -38,6 +28,16 @@ const authQrModal = document.getElementById('authQrModal');
 const authQrBackdrop = document.getElementById('authQrBackdrop');
 const authQrClose = document.getElementById('authQrClose');
 const authQrImage = document.getElementById('authQrImage');
+const captchaModal = document.getElementById('captchaModal');
+const captchaBackdrop = document.getElementById('captchaBackdrop');
+const captchaCloseBtn = document.getElementById('captchaCloseBtn');
+const captchaStatus = document.getElementById('captchaStatus');
+const captchaTrack = document.getElementById('captchaTrack');
+const captchaTrackProgress = document.getElementById('captchaTrackProgress');
+const captchaTrackMarker = document.getElementById('captchaTrackMarker');
+const captchaSlider = document.getElementById('captchaSlider');
+const captchaRefreshBtn = document.getElementById('captchaRefreshBtn');
+const captchaVerifyBtn = document.getElementById('captchaVerifyBtn');
 
 const authThemeToggle = document.getElementById('authThemeToggle');
 const authDrawerThemeToggle = document.getElementById('authDrawerThemeToggle');
@@ -49,7 +49,7 @@ const authNavClose = document.getElementById('authNavClose');
 const urlParams = new URLSearchParams(window.location.search);
 
 function resolveSafeRedirect(rawRedirect) {
-  const fallback = '/home';
+  const fallback = '/';
   const value = String(rawRedirect || '').trim();
   if (!value) {
     return fallback;
@@ -61,14 +61,12 @@ function resolveSafeRedirect(rawRedirect) {
   if (value.startsWith('//')) {
     return fallback;
   }
-  if (value === '/' || value === '/index.html' || value === '/auth.html') {
-    return fallback;
-  }
   return value;
 }
 
 const redirectTo = resolveSafeRedirect(urlParams.get('redirect'));
 const urlMode = String(urlParams.get('mode') || '').trim().toLowerCase();
+const prefilledEmail = String(urlParams.get('email') || '').trim().toLowerCase();
 
 const MODE_LOGIN = 'login';
 const MODE_SIGNUP = 'signup';
@@ -82,8 +80,12 @@ const state = {
   loading: false,
   otpPurpose: null,
   otpWaitUntilMs: 0,
-  otpTimerId: null
+  otpTimerId: null,
+  captchaChallenge: null,
+  captchaOfflineMode: false
 };
+
+let captchaResolve = null;
 
 function setAuthNavOpen(open) {
   if (!authNavDrawer || !authNavOverlay || !authMenuToggle) {
@@ -123,11 +125,67 @@ function setAuthQrOpen(open) {
   document.body.classList.toggle('auth-qr-open', shouldOpen);
 }
 
+function setCaptchaStatus(message, type = '') {
+  if (!captchaStatus) {
+    return;
+  }
+  captchaStatus.textContent = message || '';
+  captchaStatus.classList.remove('error', 'success');
+  if (type) {
+    captchaStatus.classList.add(type);
+  }
+}
+
+function resetCaptchaUi() {
+  state.captchaChallenge = null;
+  state.captchaOfflineMode = false;
+  if (captchaSlider) {
+    captchaSlider.value = '0';
+    captchaSlider.disabled = true;
+  }
+  if (captchaTrackProgress) {
+    captchaTrackProgress.style.width = '0%';
+  }
+  if (captchaTrackMarker) {
+    captchaTrackMarker.style.left = '0%';
+  }
+  if (captchaVerifyBtn) {
+    captchaVerifyBtn.disabled = true;
+  }
+}
+
+function closeCaptchaFlow(result = null) {
+  if (captchaModal) {
+    captchaModal.classList.add('hidden');
+    captchaModal.setAttribute('aria-hidden', 'true');
+  }
+  document.body.classList.remove('auth-captcha-open');
+  const resolver = captchaResolve;
+  captchaResolve = null;
+  resetCaptchaUi();
+  if (typeof resolver === 'function') {
+    resolver(result);
+  }
+}
+
+function setCaptchaOpen(open) {
+  if (!captchaModal) {
+    return;
+  }
+  const shouldOpen = Boolean(open);
+  captchaModal.classList.toggle('hidden', !shouldOpen);
+  captchaModal.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  document.body.classList.toggle('auth-captcha-open', shouldOpen);
+  if (!shouldOpen) {
+    resetCaptchaUi();
+  }
+}
+
 function openQrLoginModal() {
   if (!authQrImage) {
     return;
   }
-  const loginUrl = `${window.location.origin}/?mode=login&redirect=${encodeURIComponent(redirectTo)}`;
+  const loginUrl = `${window.location.origin}/auth.html?mode=login&redirect=${encodeURIComponent(redirectTo)}`;
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&data=${encodeURIComponent(loginUrl)}`;
   authQrImage.src = qrSrc;
   setStatus('Scan QR on another device to open login.', 'success');
@@ -199,22 +257,27 @@ function setMode(nextMode) {
 
   if (authTitle) {
     authTitle.textContent = isSignup
-      ? 'Create your Bitegit account'
+      ? 'Welcome to Bitegit'
       : isForgot
         ? 'Reset your password'
-        : 'Welcome to Bitegit';
+        : 'Log In to Bitegit';
+  }
+
+  const authSubtitle = document.getElementById('authSubtitle');
+  if (authSubtitle) {
+    authSubtitle.style.display = isSignup ? 'block' : 'none';
   }
 
   if (authSwitchPrefix) {
-    authSwitchPrefix.textContent = isSignup ? 'Already have account?' : isForgot ? 'Remember password?' : 'No account?';
+    authSwitchPrefix.textContent = isSignup ? 'Already have an account?' : isForgot ? 'Remember password?' : 'No account yet?';
   }
 
   if (authSwitchBtn) {
-    authSwitchBtn.textContent = isSignup || isForgot ? 'Log In' : 'Sign Up';
+    authSwitchBtn.textContent = isSignup || isForgot ? 'Log In' : 'Register Now';
   }
 
   if (authTopModeBtn) {
-    authTopModeBtn.textContent = isSignup || isForgot ? 'Log In' : 'Sign Up';
+    authTopModeBtn.textContent = isSignup || isForgot ? 'Log In' : 'Register';
   }
 
   document.body.classList.toggle('auth-login-mode', isLogin);
@@ -229,6 +292,11 @@ function setMode(nextMode) {
   if (forgotBtn) {
     forgotBtn.classList.toggle('hidden', !isLogin);
   }
+
+  const referralSection = document.getElementById('referralSection');
+  if (referralSection) referralSection.classList.toggle('hidden', !isSignup);
+  const termsRow = document.getElementById('termsRow');
+  if (termsRow) termsRow.classList.toggle('hidden', !isSignup);
 
   if (otpSection) {
     otpSection.classList.toggle('hidden', !(isSignup || isForgot));
@@ -263,7 +331,7 @@ function setMode(nextMode) {
   updateOtpButton();
 
   if (submitAuthBtn) {
-    submitAuthBtn.textContent = isSignup ? 'Sign Up' : isForgot ? 'Reset Password' : 'Log In';
+    submitAuthBtn.textContent = isSignup ? 'Register' : isForgot ? 'Reset Password' : 'Next';
   }
 }
 
@@ -305,9 +373,9 @@ async function checkExistingSession() {
     return;
   }
   try {
-    const response = await authFetch('/auth/me');
+    const response = await fetch('/api/p2p/me');
     const data = await response.json();
-    if (response.ok && (data?.success || data?.user)) {
+    if (response.ok && data?.loggedIn) {
       window.location.href = redirectTo;
     }
   } catch (_) {
@@ -315,19 +383,114 @@ async function checkExistingSession() {
   }
 }
 
-async function postJson(path, payload) {
-  const url = path.startsWith('http') ? path : BITEGIT_API + path;
-  const token = localStorage.getItem('bitegit_token') || '';
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = 'Bearer ' + token;
+async function postJson(url, payload) {
   const response = await fetch(url, {
     method: 'POST',
-    headers,
-    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify(payload || {})
   });
   const data = await response.json().catch(() => ({}));
   return { response, data };
+}
+
+function clampSliderValue(value, challenge) {
+  const min = Number(challenge?.minPosition ?? 0);
+  const max = Number(challenge?.maxPosition ?? 100);
+  return Math.min(max, Math.max(min, Math.round(Number(value) || 0)));
+}
+
+function buildLocalCaptchaChallenge() {
+  return {
+    challengeId: `local_${Date.now()}`,
+    token: 'local',
+    minPosition: 0,
+    maxPosition: 100,
+    targetPosition: 16 + Math.floor(Math.random() * 68),
+    tolerance: 5
+  };
+}
+
+function updateCaptchaSliderUi(rawValue) {
+  const challenge = state.captchaChallenge;
+  if (!challenge || !captchaSlider) {
+    return;
+  }
+
+  const value = clampSliderValue(rawValue, challenge);
+  const min = Number(challenge.minPosition || 0);
+  const max = Number(challenge.maxPosition || 100);
+  const total = Math.max(1, max - min);
+  const progress = ((value - min) / total) * 100;
+  const marker = ((Number(challenge.targetPosition || 0) - min) / total) * 100;
+  const aligned = Math.abs(value - Number(challenge.targetPosition || 0)) <= Number(challenge.tolerance || 4);
+
+  captchaSlider.value = String(value);
+  if (captchaTrackProgress) {
+    captchaTrackProgress.style.width = `${progress}%`;
+  }
+  if (captchaTrackMarker) {
+    captchaTrackMarker.style.left = `${marker}%`;
+  }
+  if (captchaVerifyBtn) {
+    captchaVerifyBtn.disabled = !aligned;
+  }
+  setCaptchaStatus(
+    aligned ? 'Perfect. Tap verify to finish signup.' : 'Move the slider closer to the white marker.',
+    aligned ? 'success' : ''
+  );
+}
+
+async function startSignupCaptchaChallenge(email) {
+  resetCaptchaUi();
+  setCaptchaStatus('Preparing security challenge...');
+
+  try {
+    const { response, data } = await postJson('/auth/captcha/slider/start', { email });
+    if (!response.ok || !data?.captcha) {
+      throw new Error(data?.message || 'Unable to prepare security challenge.');
+    }
+
+    state.captchaChallenge = {
+      challengeId: String(data.captcha.challengeId || ''),
+      token: String(data.captcha.token || ''),
+      minPosition: Number(data.captcha.minPosition ?? 0),
+      maxPosition: Number(data.captcha.maxPosition ?? 100),
+      targetPosition: Number(data.captcha.targetPosition ?? 0),
+      tolerance: Number(data.captcha.tolerance ?? 4)
+    };
+    state.captchaOfflineMode = false;
+    if (captchaSlider) {
+      captchaSlider.disabled = false;
+      captchaSlider.min = String(state.captchaChallenge.minPosition);
+      captchaSlider.max = String(state.captchaChallenge.maxPosition);
+    }
+    updateCaptchaSliderUi(state.captchaChallenge.minPosition);
+    return;
+  } catch (_) {
+    state.captchaChallenge = buildLocalCaptchaChallenge();
+    state.captchaOfflineMode = true;
+    if (captchaSlider) {
+      captchaSlider.disabled = false;
+      captchaSlider.min = String(state.captchaChallenge.minPosition);
+      captchaSlider.max = String(state.captchaChallenge.maxPosition);
+    }
+    updateCaptchaSliderUi(state.captchaChallenge.minPosition);
+    setCaptchaStatus('Server sync is slow, so a secure local slider is ready instead.');
+  }
+}
+
+async function requestSignupCaptcha(email) {
+  if (!captchaModal) {
+    return null;
+  }
+
+  return new Promise(async (resolve) => {
+    captchaResolve = resolve;
+    setCaptchaOpen(true);
+    await startSignupCaptchaChallenge(email);
+  });
 }
 
 async function handleSendOtp() {
@@ -344,18 +507,13 @@ async function handleSendOtp() {
     return;
   }
 
-  // For signup: register account first (this sends verification OTP to email)
-  // For forgot: just send forgot-password email
-  const isForgot = state.otpPurpose === 'forgot';
-  const endpoint = isForgot ? '/auth/forgot-password' : '/auth/register';
-  const password = String(passwordInput?.value || '').trim();
-  const payload = isForgot ? { email } : { email, password: password || 'TempSetLater1!' };
+  const endpoint = state.otpPurpose === 'forgot' ? '/auth/forgot-password/send-otp' : '/auth/signup/send-otp';
 
   try {
     sendOtpBtn.disabled = true;
     sendOtpBtn.textContent = 'Sending...';
     setOtpHelp('');
-    const { response, data } = await postJson(endpoint, payload);
+    const { response, data } = await postJson(endpoint, { email });
     if (!response.ok) {
       setOtpHelp('');
       setStatus(data?.message || 'Unable to send verification code.', 'error');
@@ -364,8 +522,7 @@ async function handleSendOtp() {
     }
 
     const statusMsg = data?.message || 'Verification code sent.';
-    const debugCode = data?.devCode ? ` Demo code: ${data.devCode}` : '';
-    setStatus(statusMsg + debugCode, 'success');
+    setStatus(statusMsg, 'success');
     const ttl = Number(data?.expiresInSeconds || 600);
     setOtpHelp(`Code sent. Valid for ${Math.max(1, Math.floor(ttl / 60))} minutes.`);
     startOtpCooldown(OTP_RESEND_WAIT_SECONDS);
@@ -414,12 +571,16 @@ async function handleSubmit(event) {
   let payload = { email, password };
 
   if (state.mode === MODE_SIGNUP) {
-    // In bitegit-backend, signup flow: register (sends OTP) → verify-email (with OTP)
-    endpoint = '/auth/verify-email';
-    payload = { otp: otpCode, token: otpCode };
+    const captchaPayload = await requestSignupCaptcha(email);
+    if (!captchaPayload) {
+      setStatus('Security verification is required to create your account.', 'error');
+      return;
+    }
+    endpoint = '/auth/register';
+    payload = { email, password, otpCode, geetest: captchaPayload };
   } else if (state.mode === MODE_FORGOT) {
-    endpoint = '/auth/reset-password';
-    payload = { token: otpCode, otp: otpCode, newPassword: password };
+    endpoint = '/auth/forgot-password/reset';
+    payload = { email, otpCode, newPassword: password };
   }
 
   try {
@@ -429,12 +590,6 @@ async function handleSubmit(event) {
     if (!response.ok) {
       setStatus(data?.message || 'Auth failed. Try again.', 'error');
       return;
-    }
-
-    if (state.mode === MODE_LOGIN && (data?.accessToken || data?.token)) {
-      const tok = data.accessToken || data.token;
-      localStorage.setItem('bitegit_token', tok);
-      if (data.refreshToken) localStorage.setItem('bitegit_refresh_token', data.refreshToken);
     }
 
     if (state.mode === MODE_FORGOT) {
@@ -495,6 +650,34 @@ forgotBtn?.addEventListener('click', () => {
 
 sendOtpBtn?.addEventListener('click', handleSendOtp);
 authForm?.addEventListener('submit', handleSubmit);
+captchaSlider?.addEventListener('input', (event) => {
+  updateCaptchaSliderUi(event.target?.value);
+});
+captchaVerifyBtn?.addEventListener('click', () => {
+  const challenge = state.captchaChallenge;
+  if (!challenge || !captchaSlider) {
+    return;
+  }
+  const position = clampSliderValue(captchaSlider.value, challenge);
+  const payload = state.captchaOfflineMode
+    ? {
+        fallback_type: 'slider_local',
+        position
+      }
+    : {
+        fallback_type: 'slider',
+        challenge_id: challenge.challengeId,
+        position,
+        token: challenge.token
+      };
+  closeCaptchaFlow(payload);
+});
+captchaRefreshBtn?.addEventListener('click', async () => {
+  const email = String(contactInput?.value || '').trim().toLowerCase();
+  await startSignupCaptchaChallenge(email);
+});
+captchaCloseBtn?.addEventListener('click', () => closeCaptchaFlow(null));
+captchaBackdrop?.addEventListener('click', () => closeCaptchaFlow(null));
 socialGoogleBtn?.addEventListener('click', () => {
   window.open('https://accounts.google.com/', '_blank', 'noopener,noreferrer');
   setStatus('Google auth window opened. Continue with your Google email.', 'success');
@@ -520,6 +703,9 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     setAuthQrOpen(false);
     setAuthNavOpen(false);
+    if (captchaModal && !captchaModal.classList.contains('hidden')) {
+      closeCaptchaFlow(null);
+    }
   }
 });
 
@@ -529,4 +715,12 @@ if (window.BitegitTheme?.initThemeToggle) {
 
 setMode(state.mode);
 setChannel('email');
+
+document.getElementById('referralToggle')?.addEventListener('click', () => {
+  const f = document.getElementById('referralField');
+  if (f) f.classList.toggle('hidden');
+});
+if (prefilledEmail && contactInput && isValidEmail(prefilledEmail)) {
+  contactInput.value = prefilledEmail;
+}
 checkExistingSession();

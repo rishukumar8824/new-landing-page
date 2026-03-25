@@ -956,6 +956,8 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
 
     return {
       userId: normalizedUserId,
+      email: String(profile?.email || '').trim().toLowerCase(),
+      username: String(profile?.username || profile?.email || '').trim(),
       kycStatus: String(profile?.kycStatus || 'PENDING').toUpperCase(),
       remarks: String(profile?.kycRemarks || ''),
       documents: Array.isArray(document?.documents) ? document.documents : []
@@ -984,6 +986,7 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     }
 
     let aadhaarFront = null;
+    let aadhaarBack = null;
     let selfie = null;
 
     if (kycRequest.aadhaarFrontImage) {
@@ -991,6 +994,14 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
         aadhaarFront = decryptText(kycRequest.aadhaarFrontImage);
       } catch (_err) {
         aadhaarFront = null;
+      }
+    }
+
+    if (kycRequest.aadhaarBackImage) {
+      try {
+        aadhaarBack = decryptText(kycRequest.aadhaarBackImage);
+      } catch (_err) {
+        aadhaarBack = null;
       }
     }
 
@@ -1009,6 +1020,7 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       userId: normalizedUserId,
       status: String(profile?.kycStatus || kycRequest.status || 'PENDING').toUpperCase(),
       aadhaarFront,
+      aadhaarBack,
       selfie,
       aadhaarLast4,
       aadhaarMasked,
@@ -1047,6 +1059,19 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       },
       { upsert: true }
     );
+
+    // Sync KYC decision to p2pCredentials so P2P app sees the change
+    const p2pKycStatusMap = { APPROVED: 'VERIFIED', REJECTED: 'REJECTED', PENDING: 'PENDING_REVIEW' };
+    const p2pKycStatus = p2pKycStatusMap[normalizedDecision] || 'PENDING_REVIEW';
+    const credUpdate = { kycStatus: p2pKycStatus, kycRemarks: String(remarks || ''), kycReviewedAt: Date.now() };
+    if (normalizedDecision === 'REJECTED') {
+      credUpdate.kycRejectionReason = String(remarks || '');
+      credUpdate.kycRejectedAt = Date.now();
+    } else if (normalizedDecision === 'APPROVED') {
+      credUpdate.kycVerifiedAt = Date.now();
+      credUpdate.kycRejectionReason = '';
+    }
+    await p2pCredentials.updateOne({ userId: normalizedUserId }, { $set: credUpdate });
 
     return getUserKyc(normalizedUserId);
   }
@@ -1138,12 +1163,11 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       { returnDocument: 'after' }
     );
 
-    const _doc = result?.value ?? result;
-    if (!_doc) {
+    if (!result.value) {
       throw new Error('Deposit request not found');
     }
 
-    return _doc;
+    return result.value;
   }
 
   async function listWithdrawals(params = {}) {
@@ -1181,12 +1205,11 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       { returnDocument: 'after' }
     );
 
-    const _doc = result?.value ?? result;
-    if (!_doc) {
+    if (!result.value) {
       throw new Error('Withdrawal request not found');
     }
 
-    return _doc;
+    return result.value;
   }
 
   async function setCoinWithdrawalConfig(coin, payload) {
@@ -1374,12 +1397,11 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       { returnDocument: 'after' }
     );
 
-    const _doc = result?.value ?? result;
-    if (!_doc) {
+    if (!result.value) {
       throw new Error('Trade order not found');
     }
 
-    return _doc;
+    return result.value;
   }
 
   async function listSpotTrades(params = {}) {
@@ -1461,12 +1483,11 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       { returnDocument: 'after' }
     );
 
-    const _doc = result?.value ?? result;
-    if (!_doc) {
+    if (!result.value) {
       throw new Error('P2P offer not found');
     }
 
-    return _doc;
+    return result.value;
   }
 
   async function listP2PDisputes(params = {}) {
@@ -1493,6 +1514,18 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     });
 
     return released;
+  }
+
+  async function manualCancelOrder(orderId, actor) {
+    const order = await p2pOrders.findOne({ id: String(orderId || '').trim() });
+    if (!order) {
+      throw new Error('Order not found');
+    }
+    const cancelled = await walletService.cancelOrder(order.id, {
+      userId: String(order.sellerUserId || ''),
+      username: `admin:${actor.email}`
+    }, 'CANCELLED');
+    return cancelled;
   }
 
   async function freezeEscrow(orderId, actor) {
@@ -1892,9 +1925,11 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       { returnDocument: 'after' }
     );
 
-    const doc = result?.value ?? result;
-    if (!doc) throw new Error('Ticket not found');
-    return doc;
+    if (!result.value) {
+      throw new Error('Ticket not found');
+    }
+
+    return result.value;
   }
 
   async function updateSupportTicketStatus(ticketId, status) {
@@ -1914,9 +1949,11 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       { returnDocument: 'after' }
     );
 
-    const doc = result?.value ?? result;
-    if (!doc) throw new Error('Ticket not found');
-    return doc;
+    if (!result.value) {
+      throw new Error('Ticket not found');
+    }
+
+    return result.value;
   }
 
   async function assignSupportTicket(ticketId, adminId) {
@@ -1931,17 +1968,11 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
       { returnDocument: 'after' }
     );
 
-    const doc = result?.value ?? result;
-    if (!doc) throw new Error('Ticket not found');
-    return doc;
-  }
-
-  async function getSupportTicket(ticketId) {
-    const ticket = await adminSupportTickets.findOne({ id: String(ticketId || '').trim() });
-    if (!ticket) {
-      throw Object.assign(new Error('Ticket not found'), { status: 404 });
+    if (!result.value) {
+      throw new Error('Ticket not found');
     }
-    return ticket;
+
+    return result.value;
   }
 
   async function getMonitoringOverview() {
@@ -2026,6 +2057,7 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     reviewP2PAd,
     listP2PDisputes,
     manualReleaseEscrow,
+    manualCancelOrder,
     freezeEscrow,
     getP2PSettings,
     updateP2PSettings,
@@ -2037,7 +2069,6 @@ function createAdminStore({ collections, repos, walletService, tokenService, isD
     createComplianceFlag,
     exportTransactionsCsv,
     listSupportTickets,
-    getSupportTicket,
     ensureDemoSupportTicket,
     replySupportTicket,
     updateSupportTicketStatus,

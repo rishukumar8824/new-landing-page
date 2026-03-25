@@ -1,3 +1,5 @@
+const { sendKycApprovedEmail, sendKycRejectedEmail } = require('../../services/p2p-email-service');
+
 function createInMemoryRateLimiter({ windowMs, maxAttempts }) {
   const attempts = new Map();
 
@@ -370,6 +372,27 @@ function createAdminControllers({
       meta: { decision, remarks }
     });
 
+    // Send KYC result email (non-blocking)
+    setImmediate(async () => {
+      try {
+        let userEmail = String(data?.email || '').trim().toLowerCase();
+        let username = String(data?.username || '').trim();
+        // Fallback: fetch email from p2pCredentials if adminUserProfiles didn't have it
+        if (!userEmail) {
+          const cred = await repos.getP2PCredentialByUserId(req.params.userId);
+          userEmail = String(cred?.email || '').trim().toLowerCase();
+          username = username || String(cred?.username || cred?.email || '').trim();
+        }
+        if (userEmail) {
+          if (decision === 'APPROVED') {
+            await sendKycApprovedEmail(userEmail, username || userEmail);
+          } else if (decision === 'REJECTED') {
+            await sendKycRejectedEmail(userEmail, username || userEmail, remarks);
+          }
+        }
+      } catch (_) { /* email failure should not affect API response */ }
+    });
+
     return res.json({ message: 'KYC review saved.', data });
   }
 
@@ -540,6 +563,22 @@ function createAdminControllers({
     return res.json({ message: 'Escrow released manually.', order: data });
   }
 
+  async function manualCancelP2POrder(req, res) {
+    const data = await adminStore.manualCancelOrder(req.params.orderId, {
+      id: req.adminAuth.adminId,
+      email: req.adminAuth.adminEmail
+    });
+
+    await logAudit(req, {
+      module: 'p2p',
+      action: 'manual_cancel_order',
+      entityType: 'p2p_order',
+      entityId: req.params.orderId
+    });
+
+    return res.json({ message: 'Order cancelled by admin.', order: data });
+  }
+
   async function freezeEscrow(req, res) {
     const data = await adminStore.freezeEscrow(req.params.orderId, {
       id: req.adminAuth.adminId,
@@ -658,11 +697,6 @@ function createAdminControllers({
     return res.json(data);
   }
 
-  async function getSupportTicket(req, res) {
-    const ticket = await adminStore.getSupportTicket(req.params.ticketId);
-    return res.json(ticket);
-  }
-
   async function replySupportTicket(req, res) {
     const message = String(req.body?.message || '').trim();
     if (!message) {
@@ -771,6 +805,7 @@ function createAdminControllers({
     reviewP2PAd,
     listP2PDisputes,
     manualReleaseP2POrder,
+    manualCancelP2POrder,
     freezeEscrow,
     getP2PSettings,
     updateP2PSettings,
@@ -782,7 +817,6 @@ function createAdminControllers({
     createComplianceFlag,
     exportComplianceTransactions,
     listSupportTickets,
-    getSupportTicket,
     replySupportTicket,
     updateSupportTicketStatus,
     assignSupportTicket,

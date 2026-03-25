@@ -1,62 +1,43 @@
-# USDT Buy/Sell Landing Page Lead System
+# Bitegit Exchange Backend
 
-Fresh full-stack project structure:
+This repository is prepared for direct deployment on Render Web Service from GitHub.
 
-- `frontend/` -> Next.js + TailwindCSS (deploy to Vercel)
-- `backend/` -> Node.js + Express + MongoDB Atlas (deploy to Render)
+## Runtime
 
-## Features
+- Node.js 18+
+- Start command: `node index.js`
+- NPM script: `npm start`
+- Server bind: `0.0.0.0`
+- Port: `process.env.PORT || 5000`
 
-- Landing form fields: Name, Mobile Number, Preference
-- Form flow:
-  1. Frontend calls `POST /api/lead`
-  2. Backend saves lead to MongoDB
-  3. Frontend redirects to WhatsApp with pre-filled message
-- Health endpoint: `GET /api/health`
-
-## Required Environment Variables (Backend)
+## Required Environment Variables
 
 - `MONGO_URI`
-- `WHATSAPP_NUMBER`
-- `FRONTEND_URL`
+- `JWT_SECRET`
+- `PORT`
+
+Optional compatibility variable:
+
+- `MONGODB_URI`
+
+## Local Run
+
+```bash
+npm install
+npm start
+```
+
+## Render Deploy
+
+Use `render.yaml` or configure manually:
+
+- Build command: `npm install`
+- Start command: `node index.js`
+- Health check path: `/api/health`
+
+Set these env vars on Render:
+
+- `MONGO_URI`
+- `JWT_SECRET`
+- `PORT`
 - `NODE_ENV=production`
-
-## Local Setup
-
-### Backend
-
-```bash
-cd backend
-npm install
-cp .env.example .env
-npm run dev
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-cp .env.example .env.local
-npm run dev
-```
-
-Frontend: `http://localhost:3000`
-Backend: `http://localhost:5001`
-
-## Deployment
-
-### Backend on Render
-
-- Root Directory: `backend`
-- Build Command: `npm install`
-- Start Command: `npm start`
-- Health Check Path: `/api/health`
-- Add env vars: `MONGO_URI`, `WHATSAPP_NUMBER`, `FRONTEND_URL`, `NODE_ENV`
-
-### Frontend on Vercel
-
-- Root Directory: `frontend`
-- Set env vars:
-  - `NEXT_PUBLIC_API_URL=https://<your-render-service>.onrender.com`
-  - `NEXT_PUBLIC_WHATSAPP_NUMBER=919999999999`

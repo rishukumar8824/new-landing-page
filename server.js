@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const crypto = require('crypto');
+const { localFaceMatch } = require('./services/local-face-match');
 const express = require('express');
 const path = require('path');
 const { connectToMongo, getCollections, getMongoClient, getMongoConfig, isDbConnected } = require('./lib/db');
@@ -15,22 +16,36 @@ const { registerP2POrderRoutes } = require('./routes/p2p-orders');
 const { createAuditLogService } = require('./services/audit-log-service');
 const { createP2POrderExpiryService } = require('./services/p2p-order-expiry-service');
 const { createAuthEmailService } = require('./services/auth-email-service');
+const { createP2PEmailService } = require('./services/p2p-email-service');
 const tokenService = require('./services/tokenService');
+const { readAuthOtpConfig } = require('./modules/auth-otp/config');
+const { createMySqlAuthStore } = require('./modules/auth-otp/mysql-store');
+const { createGeetestService } = require('./modules/auth-otp/geetest-service');
+const { createOtpEmailService } = require('./modules/auth-otp/email-service');
+const { createOtpAuthService } = require('./modules/auth-otp/otp-service');
+const { createRepoFallbackOtpAuthService } = require('./modules/auth-otp/repo-fallback-service');
+const { registerOtpAuthRoutes } = require('./routes/otp-auth');
+const { readUserCenterConfig } = require('./modules/user-center/config');
+const { createUserCenterStore } = require('./modules/user-center/mysql-store');
+const { createUserCenterService } = require('./modules/user-center/service');
+const { registerUserCenterRoutes } = require('./routes/user-center');
+const { readSocialFeedConfig } = require('./modules/social-feed/config');
+const { createSocialFeedStore } = require('./modules/social-feed/mysql-store');
+const { createSocialFeedFallbackStore } = require('./modules/social-feed/fallback-store');
+const { createSocialFeedService } = require('./modules/social-feed/service');
+const { registerSocialFeedRoutes } = require('./routes/social-feed');
 const { createP2POrderController } = require('./controllers/p2p-order-controller');
 const { createAdminStore } = require('./admin/services/admin-store');
+const { createAdminExtendedStore } = require('./admin/services/admin-extended-store');
 const { createAdminAuthMiddleware } = require('./admin/middleware/admin-auth');
 const { createAdminControllers } = require('./admin/controllers/admin-controller');
 const { registerAdminRoutes } = require('./admin/routes/admin-routes');
-const { createAdminExtendedStore } = require('./admin/services/admin-extended-store');
 const { registerAdminExtendedRoutes } = require('./admin/routes/admin-extended-routes');
 
 const app = express();
-const PORT = Number.parseInt(process.env.PORT, 10);
+const PORT = process.env.PORT || 10000;
+const HOST = '0.0.0.0';
 app.set('trust proxy', 1);
-const publicDir = path.join(__dirname, 'public');
-const publicIndexFile = path.join(publicDir, 'index.html');
-const publicAuthFile = path.join(publicDir, 'auth.html');
-const publicGateHomeFile = path.join(publicDir, 'gate-home.html');
 
 const ADMIN_SEED_USERNAME = String(process.env.ADMIN_USERNAME || 'admin')
   .trim()
@@ -62,11 +77,23 @@ const P2P_ORDER_ACTIVE_STATUSES = ['CREATED', 'PENDING', 'PAID', 'PAYMENT_SENT',
 const IS_PRODUCTION = String(process.env.NODE_ENV || '')
   .trim()
   .toLowerCase() === 'production';
-const ALLOW_DEMO_OTP = String(process.env.ALLOW_DEMO_OTP || '')
+const ENABLE_DEV_TEST_ROUTES = String(process.env.ENABLE_DEV_TEST_ROUTES || '')
   .trim()
   .toLowerCase() === 'true' && !IS_PRODUCTION;
 
 const p2pOrderStreams = new Map();
+// Per-user SSE streams: userId → Set of res objects
+const p2pUserStreams = new Map();
+function getUserStreams(userId) {
+  if (!p2pUserStreams.has(userId)) p2pUserStreams.set(userId, new Set());
+  return p2pUserStreams.get(userId);
+}
+function broadcastUserEvent(userId, eventName, payload) {
+  const streams = p2pUserStreams.get(userId);
+  if (!streams || streams.size === 0) return;
+  const data = `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
+  for (const stream of streams) stream.write(data);
+}
 const DEFAULT_TICKER_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'];
 const DEFAULT_SYMBOL_PRICES = {
   BTCUSDT: 63000,
@@ -146,66 +173,51 @@ let auditLogService = null;
 let p2pOrderExpiryService = null;
 let p2pOrderController = null;
 let authEmailService = null;
+let p2pEmailService = null;
+let otpAuthStore = null;
+let otpAuthService = null;
+let userCenterStore = null;
+let userCenterService = null;
+let socialFeedStore = null;
+let socialFeedService = null;
 let persistenceReady = false;
 let httpServer = null;
 let shuttingDown = false;
+let bootRetryTimer = null;
+let p2pExpirySweepTimer = null;
+const socialFeedBootstrapConfig = readSocialFeedConfig();
+const socialFeedBootstrapStore = createSocialFeedFallbackStore();
+const socialFeedBootstrapInitPromise = socialFeedBootstrapStore
+  .initialize()
+  .catch((error) => {
+    console.error(
+      '[social-feed] Failed to initialize bootstrap fallback store:',
+      error?.message || error
+    );
+  });
+const socialFeedBootstrapService = createSocialFeedService({
+  store: socialFeedBootstrapStore,
+  config: socialFeedBootstrapConfig.app
+});
 
 const validation = validationRules();
-app.get('/', (req, res) => {
-  res.sendFile(publicGateHomeFile);
-});
-
-app.get('/index.html', (req, res) => {
-  res.sendFile(publicGateHomeFile);
-});
-
-app.get('/exchange-app', (req, res) => {
-  res.sendFile(publicIndexFile);
-});
-
-app.get('/home', (req, res) => {
-  res.sendFile(publicGateHomeFile);
-});
-
-app.get('/promo-home', (req, res) => {
-  res.sendFile(publicGateHomeFile);
-});
-
-app.get('/auth', (req, res) => {
-  res.sendFile(publicAuthFile);
-});
-
-// CORS — allow landing site + any tunnelmole URL
-app.use(function(req, res, next) {
-  const origin = req.headers.origin || '';
-  const allowed = [
-    'http://localhost:4200',
-    'http://127.0.0.1:4200',
-    'http://localhost:3000',
-  ];
-  // Allow any tunnelmole.net or ngrok URL
-  if (allowed.includes(origin) || /tunnelmole\.net$/.test(origin) || /ngrok/.test(origin) || !origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
-  }
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  next();
-});
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(sanitizeRequestPayload);
 applySecurityHardening(app);
-app.use(express.static(publicDir, {
-  index: false,
+app.use('/downloads', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+app.use(express.static(path.join(__dirname, 'public'), {
   etag: false,
   maxAge: 0,
   setHeaders: function(res) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('Surrogate-Control', 'no-store');
   }
 }));
 
@@ -218,17 +230,18 @@ function readLeads() {
 
 function validateStartupConfig() {
   const missing = [];
+  const parsedPort = Number(PORT);
   const isProductionEnv = String(process.env.NODE_ENV || '')
     .trim()
     .toLowerCase() === 'production';
 
-  if (!String(process.env.MONGODB_URI || '').trim()) {
-    missing.push('MONGODB_URI');
+  if (!String(process.env.MONGO_URI || process.env.MONGODB_URI || '').trim()) {
+    missing.push('MONGO_URI or MONGODB_URI');
   }
   if (!String(process.env.JWT_SECRET || '').trim()) {
     missing.push('JWT_SECRET');
   }
-  if (!Number.isFinite(PORT) || PORT <= 0) {
+  if (!Number.isFinite(parsedPort) || parsedPort <= 0) {
     missing.push('PORT');
   }
   if (isProductionEnv && !String(process.env.ADMIN_USERNAME || '').trim()) {
@@ -268,7 +281,6 @@ function logEmailProviderRuntimeEnv() {
 
   console.log('Email provider env status:', {
     nodeEnv: String(process.env.NODE_ENV || 'development'),
-    allowDemoOtp: ALLOW_DEMO_OTP,
     hasResendApiKey: Boolean(String(process.env.RESEND_API_KEY || '').trim()),
     hasResendAliasKey: Boolean(String(process.env.RESEND || '').trim()),
     hasResendFromEmail: Boolean(String(process.env.RESEND_FROM_EMAIL || '').trim()),
@@ -356,17 +368,7 @@ async function getUsdtDepositConfigForUser() {
   }
 
   const defaultNetwork = normalizeUsdtNetwork(config?.defaultNetwork || fallbackDefaultNetwork);
-  // Merge: use MongoDB networks if they have addresses, fallback to env per-network
-  const rawNetworks = Array.isArray(config?.networks) && config.networks.length > 0
-    ? config.networks.map((n) => {
-        if (!n.address) {
-          // fallback to env for this network
-          const fb = fallbackNetworks.find((f) => f.network === normalizeUsdtNetwork(n.network || n.chain || n.name));
-          if (fb && fb.address) return { ...n, address: fb.address, enabled: true };
-        }
-        return n;
-      })
-    : fallbackNetworks;
+  const rawNetworks = Array.isArray(config?.networks) ? config.networks : fallbackNetworks;
 
   const networks = rawNetworks
     .map((item) => {
@@ -374,7 +376,8 @@ async function getUsdtDepositConfigForUser() {
       const address = String(item?.address || '').trim();
       const minConfirmations = Math.max(1, Number.parseInt(String(item?.minConfirmations || item?.confirmations || 1), 10) || 1);
       const enabled = item?.enabled !== undefined ? Boolean(item.enabled) : Boolean(address);
-      return { network, address, minConfirmations, enabled };
+      const qrCodeUrl = String(item?.qrCodeUrl || item?.qrUrl || item?.qr || '').trim();
+      return { network, address, minConfirmations, enabled, qrCodeUrl };
     })
     .filter((item, index, arr) => arr.findIndex((candidate) => candidate.network === item.network) === index);
 
@@ -398,6 +401,72 @@ async function getUsdtDepositConfigForUser() {
     activeNetwork,
     depositAddress: activeNetwork.address || ''
   };
+}
+
+async function getDepositWalletCatalogForUser() {
+  const fallbackUsdtConfig = await getUsdtDepositConfigForUser();
+
+  if (!adminStore || typeof adminStore.listUserDepositWalletCatalog !== 'function') {
+    return [fallbackUsdtConfig];
+  }
+
+  try {
+    const rows = await adminStore.listUserDepositWalletCatalog();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return [fallbackUsdtConfig];
+    }
+
+    const normalized = rows
+      .map((item) => {
+        const coin = String(item?.coin || '').trim().toUpperCase();
+        if (!coin) {
+          return null;
+        }
+        const networks = (Array.isArray(item?.networks) ? item.networks : [])
+          .map((networkItem) => ({
+            network: String(networkItem?.network || '').trim().toUpperCase(),
+            address: String(networkItem?.address || '').trim(),
+            minConfirmations: Math.max(1, Number.parseInt(String(networkItem?.minConfirmations || 1), 10) || 1),
+            enabled: networkItem?.enabled !== false,
+            qrCodeUrl: String(networkItem?.qrCodeUrl || '').trim()
+          }))
+          .filter((networkItem) => Boolean(networkItem.network))
+          .filter((networkItem) => networkItem.enabled && Boolean(networkItem.address));
+
+        if (networks.length === 0) {
+          return null;
+        }
+
+        const defaultNetwork = String(item?.defaultNetwork || '').trim().toUpperCase() || networks[0].network;
+        const activeNetwork =
+          networks.find((networkItem) => networkItem.network === defaultNetwork && networkItem.enabled && networkItem.address) ||
+          networks.find((networkItem) => networkItem.enabled && networkItem.address) ||
+          networks[0];
+
+        return {
+          coin,
+          token: coin,
+          depositsEnabled: item?.depositsEnabled !== false,
+          defaultNetwork,
+          networks,
+          activeNetwork,
+          depositAddress: String(activeNetwork?.address || '').trim()
+        };
+      })
+      .filter(Boolean);
+
+    if (normalized.length === 0) {
+      return [fallbackUsdtConfig];
+    }
+
+    if (!normalized.some((item) => item.coin === 'USDT')) {
+      normalized.unshift(fallbackUsdtConfig);
+    }
+
+    return normalized;
+  } catch (error) {
+    return [fallbackUsdtConfig];
+  }
 }
 
 function normalizeKycStatus(rawStatus) {
@@ -484,16 +553,35 @@ async function runKycFaceMatch({ aadhaarFrontImage, selfieWithDocumentImage }) {
   const apiKey = String(process.env.KYC_FACE_MATCH_API_KEY || '').trim();
   const timeoutMs = Math.max(3000, Number.parseInt(String(process.env.KYC_FACE_MATCH_TIMEOUT_MS || '12000'), 10) || 12000);
 
+  // ── Local face match (no external API needed) ──────────────────────────────
   if (!endpoint) {
-    return {
-      provider: 'none',
-      available: false,
-      passed: false,
-      score: null,
-      reason: 'face_match_provider_not_configured'
-    };
+    try {
+      const result = await localFaceMatch(
+        aadhaarFrontImage.dataUrl,
+        selfieWithDocumentImage.dataUrl,
+        KYC_FACE_MATCH_THRESHOLD
+      );
+      console.log(`[KYC local-face-match] score=${result.score} passed=${result.passed} reason=${result.reason}`);
+      return {
+        provider: 'local',
+        available: true,
+        passed: result.passed,
+        score: result.score,
+        reason: result.reason
+      };
+    } catch (localErr) {
+      console.error('[KYC local-face-match error]', localErr?.message);
+      return {
+        provider: 'local',
+        available: false,
+        passed: false,
+        score: null,
+        reason: String(localErr?.message || 'local_face_match_failed')
+      };
+    }
   }
 
+  // ── External API face match ────────────────────────────────────────────────
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -559,7 +647,7 @@ function buildP2PKycProfileFromCredential(credential = {}) {
     updatedAt: credential?.kycUpdatedAt ? new Date(credential.kycUpdatedAt).toISOString() : null,
     verifiedAt: credential?.kycVerifiedAt ? new Date(credential.kycVerifiedAt).toISOString() : null,
     rejectedAt: credential?.kycRejectedAt ? new Date(credential.kycRejectedAt).toISOString() : null,
-    rejectionReason: String(credential?.kycRejectionReason || '').trim()
+    rejectionReason: String(credential?.kycRejectionReason || credential?.kycRemarks || '').trim()
   };
 }
 
@@ -859,8 +947,8 @@ function getRequestIp(req) {
 }
 
 const loginAttemptLimiter = createIpAttemptLimiter({
-  maxAttempts: 5,
-  windowMs: 10 * 60 * 1000
+  maxAttempts: 100,
+  windowMs: 1 * 60 * 1000
 });
 
 async function createSession() {
@@ -905,6 +993,83 @@ async function requiresAdminSession(req, res, next) {
     return res.status(500).json({ message: 'Server error while validating admin session.' });
   }
 }
+
+function isLegacyAdminIdentifier(identifier) {
+  const normalized = String(identifier || '').trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (normalized === ADMIN_SEED_EMAIL) {
+    return true;
+  }
+  if (normalized === ADMIN_SEED_USERNAME) {
+    return true;
+  }
+  return normalized === `${ADMIN_SEED_USERNAME}@admin.local`;
+}
+
+async function handleLegacyAdminLogin(req, res) {
+  const ipAddress = getRequestIp(req);
+  const limiter = loginAttemptLimiter(`admin_legacy_login:${ipAddress}`);
+  if (!limiter.allowed) {
+    res.setHeader('Retry-After', String(limiter.retryAfterSeconds));
+    return res.status(429).json({
+      message: 'Too many login attempts. Please try again later.',
+      retryAfterSeconds: limiter.retryAfterSeconds
+    });
+  }
+
+  const identifier = String(req.body?.email || req.body?.username || req.body?.identifier || '')
+    .trim()
+    .toLowerCase();
+  const password = String(req.body?.password || '').trim();
+
+  if (!identifier || !password) {
+    return res.status(400).json({ message: 'Admin email/username and password are required.' });
+  }
+
+  if (!repos) {
+    return res.status(503).json({ message: 'Admin service is initializing. Please try again.' });
+  }
+
+  if (!isLegacyAdminIdentifier(identifier) || password !== ADMIN_PASSWORD) {
+    return res.status(401).json({ message: 'Invalid login credentials.' });
+  }
+
+  const sessionToken = await createSession();
+  setCookie(res, SESSION_COOKIE_NAME, sessionToken, Math.floor(SESSION_TTL_MS / 1000), {
+    sameSite: 'Lax',
+    secure: IS_PRODUCTION,
+    httpOnly: true
+  });
+
+  return res.json({
+    message: 'Admin login successful.',
+    admin: {
+      id: 'admin_legacy',
+      username: ADMIN_SEED_USERNAME,
+      email: ADMIN_SEED_EMAIL,
+      role: ADMIN_SEED_ROLE,
+      status: 'ACTIVE'
+    },
+    legacySession: true
+  });
+}
+
+// Keep admin login available even if modular admin routes are delayed (e.g. external DB module timeouts).
+app.post('/api/admin/auth/login', async (req, res, next) => {
+  if (adminControllers && adminAuthMiddleware) {
+    return next();
+  }
+  return handleLegacyAdminLogin(req, res);
+});
+
+app.post('/api/admin/login', async (req, res, next) => {
+  if (adminControllers && adminAuthMiddleware) {
+    return next();
+  }
+  return handleLegacyAdminLogin(req, res);
+});
 
 function buildP2PUserFromEmail(email, role = 'USER') {
   const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -996,6 +1161,8 @@ async function getP2PUserFromRequest(req) {
     return null;
   }
 
+  if (!repos) return null; // DB not ready yet
+
   const session = await repos.getP2PUserSession(token);
   if (!session || !session.expiresAt) {
     return null;
@@ -1073,7 +1240,7 @@ function normalizeOrderState(order) {
     price: order.price,
     amountInr: order.amountInr,
     assetAmount: order.assetAmount,
-    paymentMethod: order.paymentMethod,
+    paymentMethod: order.paymentMethod || 'UPI',
     participants: order.participants,
     participantsLabel: getParticipantsText(order),
     sellerUserId: order.sellerUserId,
@@ -1081,6 +1248,7 @@ function normalizeOrderState(order) {
     buyerUserId: order.buyerUserId,
     buyerUsername: order.buyerUsername,
     escrowAmount: order.escrowAmount,
+    isParticipant: true,
     createdAt: new Date(order.createdAt).toISOString(),
     expiresAt: new Date(order.expiresAt).toISOString(),
     updatedAt: new Date(order.updatedAt).toISOString(),
@@ -1111,12 +1279,17 @@ function addSystemMessage(order, text) {
 }
 
 function toClientMessages(messages) {
-  return messages.map((msg) => ({
-    id: msg.id,
-    sender: msg.sender,
-    text: msg.text,
-    createdAt: new Date(msg.createdAt).toISOString()
-  }));
+  return messages.map((msg) => {
+    const m = {
+      id: msg.id,
+      sender: msg.sender,
+      text: msg.text,
+      createdAt: new Date(msg.createdAt).toISOString()
+    };
+    if (msg.imageBase64) m.imageBase64 = msg.imageBase64;
+    if (msg.role) m.role = msg.role; // 'buyer' | 'seller' | undefined=all
+    return m;
+  });
 }
 
 function getOrderStreams(orderId) {
@@ -1303,8 +1476,8 @@ app.post('/api/signup/send-code', async (req, res) => {
 
   await repos.upsertSignupOtp(contactInfo.value, otpState);
 
-  let delivery = 'simulated';
-  let deliveryMessage = 'Verification code generated.';
+  let delivery = 'email';
+  let deliveryMessage = 'Verification code sent to your email.';
 
   if (contactInfo.type === 'email') {
     const sendResult = await trySendSignupEmailOtp(contactInfo.value, code);
@@ -1312,26 +1485,19 @@ app.post('/api/signup/send-code', async (req, res) => {
       delivery = 'email';
       deliveryMessage = 'Verification code sent to your email.';
     } else {
-      if (!ALLOW_DEMO_OTP) {
-        await repos.deleteSignupOtp(contactInfo.value);
-        const failureReason = String(sendResult.reason || 'email_provider_unavailable').trim();
-        return res.status(503).json({
-          message: 'Unable to send email OTP right now.',
-          reason: failureReason
-        });
-      }
-      delivery = 'simulated';
-      deliveryMessage = 'Email provider not configured, using demo verification code.';
-    }
-  } else {
-    if (!ALLOW_DEMO_OTP) {
       await repos.deleteSignupOtp(contactInfo.value);
+      const failureReason = String(sendResult.reason || 'email_provider_unavailable').trim();
       return res.status(503).json({
-        message: 'SMS OTP service is not configured.',
-        reason: 'missing_sms_provider_config'
+        message: 'Unable to send email OTP right now.',
+        reason: failureReason
       });
     }
-    deliveryMessage = 'SMS provider not configured, using demo verification code.';
+  } else {
+    await repos.deleteSignupOtp(contactInfo.value);
+    return res.status(503).json({
+      message: 'SMS OTP service is not configured.',
+      reason: 'missing_sms_provider_config'
+    });
   }
 
   const payload = {
@@ -1340,10 +1506,6 @@ app.post('/api/signup/send-code', async (req, res) => {
     expiresInSeconds: Math.floor(SIGNUP_OTP_TTL_MS / 1000),
     delivery
   };
-
-  if (delivery !== 'email' && ALLOW_DEMO_OTP) {
-    payload.devCode = code;
-  }
 
   return res.json(payload);
 });
@@ -1398,6 +1560,46 @@ app.post('/api/signup/verify-code', async (req, res) => {
     return res.status(201).json({ message: 'Signup verified successfully.' });
   } catch (error) {
     return res.status(500).json({ message: 'Server error while saving signup.' });
+  }
+});
+
+// ===== P2P PASSWORD RESET =====
+app.post('/api/p2p/forgot-password', async (req, res) => {
+  if (!repos) return res.status(503).json({ message: 'Service unavailable.' });
+  const email = String(req.body.email || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) return res.status(400).json({ message: 'Valid email required.' });
+  try {
+    const credential = await repos.getP2PCredential(email);
+    // Always return success to avoid email enumeration
+    if (credential && authEmailService) {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      await repos.upsertSignupOtp(email, { code, type: 'email', attempts: 0, expiresAt: new Date(Date.now() + 10 * 60 * 1000), payload: {} }, { purpose: 'p2p_password_reset' });
+      await authEmailService.sendForgotPasswordOtpEmail(email, code, { expiresInMinutes: 10 }).catch(() => {});
+    }
+    return res.json({ message: 'If that email is registered, a reset code has been sent.' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+app.post('/api/p2p/reset-password', async (req, res) => {
+  if (!repos) return res.status(503).json({ message: 'Service unavailable.' });
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const code = String(req.body.code || '').trim();
+  const newPassword = String(req.body.newPassword || '').trim();
+  if (!email || !code || !newPassword) return res.status(400).json({ message: 'Email, code and new password required.' });
+  if (newPassword.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters.' });
+  try {
+    const otp = await repos.getSignupOtp(email, { purpose: 'p2p_password_reset' });
+    if (!otp || otp.code !== code || new Date(otp.expiresAt) < new Date()) {
+      return res.status(400).json({ message: 'Invalid or expired reset code.' });
+    }
+    const hash = repos.hashPassword(newPassword);
+    await repos.updateP2PCredentialPassword(email, hash);
+    await repos.deleteSignupOtp(email, { purpose: 'p2p_password_reset' });
+    return res.json({ message: 'Password reset successfully. Please login.' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error.' });
   }
 });
 
@@ -1491,10 +1693,12 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
 
   let aadhaarDigits = '';
   let aadhaarFrontImage = null;
+  let aadhaarBackImage = null;
   let selfieWithDocumentImage = null;
   try {
     aadhaarDigits = normalizeAadhaarNumber(req.body?.aadhaarNumber);
     aadhaarFrontImage = extractKycImageData(req.body?.aadhaarFrontImage, 'Aadhaar front');
+    aadhaarBackImage = req.body?.aadhaarBackImage ? extractKycImageData(req.body?.aadhaarBackImage, 'Aadhaar back') : null;
     selfieWithDocumentImage = extractKycImageData(req.body?.selfieWithDocumentImage, 'Selfie with document');
   } catch (error) {
     return res.status(400).json({ message: error.message || 'Invalid KYC submission payload.' });
@@ -1521,15 +1725,21 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
       selfieWithDocumentImage
     });
 
-    let nextStatus = 'PENDING_REVIEW';
+    // Auto-approve when face match is available AND passed.
+    // Auto-reject when face match is available AND failed (score too low).
+    // Fall back to manual PENDING_REVIEW when face match provider is unavailable.
+    let nextStatus;
     let rejectionReason = '';
-    if (faceMatch.available) {
-      if (faceMatch.passed) {
-        nextStatus = 'VERIFIED';
-      } else {
-        nextStatus = 'REJECTED';
-        rejectionReason = 'AI face match failed. Upload clear Aadhaar front and selfie with document.';
-      }
+    if (faceMatch.available && faceMatch.passed) {
+      nextStatus = 'VERIFIED';
+    } else if (faceMatch.available && !faceMatch.passed) {
+      nextStatus = 'REJECTED';
+      rejectionReason = faceMatch.reason === 'face_very_different'
+        ? 'Face in selfie does not match the Aadhaar photo. Please re-submit with a clear selfie.'
+        : `Face similarity score (${faceMatch.score}/100) is below the required threshold (${KYC_FACE_MATCH_THRESHOLD}/100). Please re-submit with a clearer photo.`;
+    } else {
+      // Face match service unavailable — queue for manual admin review
+      nextStatus = 'PENDING_REVIEW';
     }
 
     await repos.upsertP2PKycRequest(userId, email, {
@@ -1538,6 +1748,7 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
       aadhaarMasked: maskAadhaar(aadhaarDigits),
       aadhaarHash: hashSensitive(aadhaarDigits),
       aadhaarFrontImage: encryptText(aadhaarFrontImage.dataUrl),
+      aadhaarBackImage: aadhaarBackImage ? encryptText(aadhaarBackImage.dataUrl) : '',
       selfieWithDocumentImage: encryptText(selfieWithDocumentImage.dataUrl),
       rejectionReason,
       faceMatch: {
@@ -1583,12 +1794,12 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
     }
 
     const statusMessageByState = {
-      VERIFIED: 'KYC verified successfully. You can now place P2P buy orders.',
-      REJECTED: 'KYC rejected due to face mismatch. Re-upload clear Aadhaar and selfie with document.',
-      PENDING_REVIEW: 'KYC submitted successfully. Verification is pending review.'
+      VERIFIED: 'KYC verified successfully! You can now trade on Bitegit.',
+      REJECTED: rejectionReason || 'KYC verification failed. Please re-submit with clearer photos.',
+      PENDING_REVIEW: 'KYC submitted successfully. Our team will review your documents shortly.'
     };
 
-    return res.status(nextStatus === 'VERIFIED' ? 200 : 202).json({
+    return res.status(202).json({
       message: statusMessageByState[nextStatus] || 'KYC submitted successfully.',
       kyc: kycProfile,
       faceMatch: {
@@ -1601,20 +1812,23 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('[KYC submit error]', error?.message, error?.stack);
     return res.status(500).json({ message: 'Server error while submitting KYC verification.' });
   }
 });
 
-app.get('/api/security/protected-sample', requiresP2PUser, (req, res) => {
-  return res.json({
-    message: 'Protected route access granted.',
-    user: {
-      id: req.p2pUser.id,
-      username: req.p2pUser.username,
-      role: req.p2pUser.role
-    }
+if (ENABLE_DEV_TEST_ROUTES) {
+  app.get('/api/security/protected-sample', requiresP2PUser, (req, res) => {
+    return res.json({
+      message: 'Protected route access granted.',
+      user: {
+        id: req.p2pUser.id,
+        username: req.p2pUser.username,
+        role: req.p2pUser.role
+      }
+    });
   });
-});
+}
 
 app.get(
   '/api/security/object/:id',
@@ -1634,14 +1848,23 @@ app.get('/api/p2p/wallet', requiresP2PUser, async (req, res) => {
       username: req.p2pUser.username
     });
     const depositConfig = await getUsdtDepositConfigForUser();
+    const depositWallets = await getDepositWalletCatalogForUser();
+    const assetBalances =
+      ensured && ensured.assets && typeof ensured.assets === 'object'
+        ? ensured.assets
+        : {
+            USDT: Number(ensured.availableBalance || ensured.balance || 0)
+          };
     return res.json({
       wallet: {
         ...ensured,
         depositAddress: depositConfig.depositAddress,
         depositNetwork: depositConfig.activeNetwork?.network || depositConfig.defaultNetwork,
-        depositNetworks: depositConfig.networks
+        depositNetworks: depositConfig.networks,
+        assetBalances
       },
-      depositConfig
+      depositConfig,
+      depositWallets
     });
   } catch (error) {
     return res.status(500).json({ message: 'Server error while loading wallet.' });
@@ -1654,6 +1877,13 @@ app.get('/api/wallet/summary', requiresP2PUser, async (req, res) => {
       username: req.p2pUser.username
     });
     const depositConfig = await getUsdtDepositConfigForUser();
+    const depositWallets = await getDepositWalletCatalogForUser();
+    const assetBalances =
+      wallet && wallet.assets && typeof wallet.assets === 'object'
+        ? wallet.assets
+        : {
+            USDT: Number(wallet.availableBalance || wallet.balance || 0)
+          };
 
     return res.json({
       summary: {
@@ -1662,6 +1892,7 @@ app.get('/api/wallet/summary', requiresP2PUser, async (req, res) => {
         locked_balance: Number(wallet.lockedBalance || wallet.p2pLocked || 0),
         spot_balance: Number(wallet.availableBalance || wallet.balance || 0),
         funding_balance: Number(wallet.availableBalance || wallet.balance || 0),
+        asset_balances: assetBalances,
         deposit_address: depositConfig.depositAddress,
         deposit_network: depositConfig.activeNetwork?.network || depositConfig.defaultNetwork,
         deposit_networks: depositConfig.networks
@@ -1670,14 +1901,160 @@ app.get('/api/wallet/summary', requiresP2PUser, async (req, res) => {
         ...wallet,
         depositAddress: depositConfig.depositAddress,
         depositNetwork: depositConfig.activeNetwork?.network || depositConfig.defaultNetwork,
-        depositNetworks: depositConfig.networks
+        depositNetworks: depositConfig.networks,
+        assetBalances
       },
-      depositConfig
+      depositConfig,
+      depositWallets
     });
   } catch (error) {
     return res.status(500).json({ message: 'Server error while loading wallet summary.' });
   }
 });
+
+app.get('/api/deposits/active', requiresP2PUser, async (req, res) => {
+  if (!adminStore || typeof adminStore.getPendingDepositByUser !== 'function') {
+    return res.status(503).json({ message: 'Deposit service is not available right now.' });
+  }
+
+  try {
+    const pending = await adminStore.getPendingDepositByUser(req.p2pUser.id);
+    return res.json({
+      hasActiveDeposit: Boolean(pending),
+      deposit: pending || null
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while loading active deposit session.' });
+  }
+});
+
+app.get('/api/deposits/wallets', requiresP2PUser, async (req, res) => {
+  try {
+    const coins = await getDepositWalletCatalogForUser();
+    return res.json({
+      total: coins.length,
+      coins
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while loading deposit wallets.' });
+  }
+});
+
+app.get('/api/deposits', requiresP2PUser, async (req, res) => {
+  if (!adminStore || typeof adminStore.listUserDeposits !== 'function') {
+    return res.status(503).json({ message: 'Deposit service is not available right now.' });
+  }
+
+  const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || 20), 10) || 20));
+  try {
+    const deposits = await adminStore.listUserDeposits(req.p2pUser.id, { limit });
+    return res.json({
+      total: deposits.length,
+      deposits
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while fetching deposits.' });
+  }
+});
+
+app.post(
+  '/api/deposits',
+  requiresP2PUser,
+  validateRequest([
+    validation.required('coin'),
+    validation.required('network'),
+    validation.required('address'),
+    validation.required('amount'),
+    validation.amount('amount')
+  ]),
+  async (req, res) => {
+    if (!adminStore || typeof adminStore.createDepositRequest !== 'function') {
+      return res.status(503).json({ message: 'Deposit service is not available right now.' });
+    }
+
+    const coin = String(req.body.coin || '').trim().toUpperCase();
+    const network = String(req.body.network || req.body.chain || '').trim().toUpperCase();
+    const amount = Number(req.body.amount);
+    const address = String(req.body.address || '').trim();
+    const txHash = String(req.body.txHash || req.body.txid || '').trim();
+    const proofUrl = String(
+      req.body.proofUrl || req.body.depositProof || req.body.proofFileUrl || req.body.screenshotUrl || ''
+    ).trim();
+    const requestIp = getRequestIp(req);
+
+    if (coin === 'USDT') {
+      const normalizedNetwork = normalizeUsdtNetwork(network);
+      if (!isValidAddressForNetwork(address, normalizedNetwork)) {
+        return res.status(400).json({
+          message: `Invalid ${normalizedNetwork} deposit address format.`
+        });
+      }
+    }
+
+    try {
+      const deposit = await adminStore.createDepositRequest({
+        userId: req.p2pUser.id,
+        email: req.p2pUser.email,
+        username: req.p2pUser.username,
+        coin,
+        network,
+        address,
+        amount,
+        txHash,
+        proofUrl,
+        metadata: {
+          source: 'api.deposits',
+          ipAddress: requestIp,
+          userAgent: String(req.headers['user-agent'] || '').trim()
+        }
+      });
+
+      if (auditLogService) {
+        await auditLogService.safeLog({
+          userId: req.p2pUser.id,
+          action: 'deposit_request_created',
+          ipAddress: requestIp,
+          metadata: {
+            depositId: deposit.id,
+            coin: deposit.coin,
+            network: deposit.network,
+            amount: deposit.amount
+          }
+        });
+      }
+
+      return res.status(201).json({
+        message: 'Deposit request created. Awaiting admin confirmation.',
+        deposit
+      });
+    } catch (error) {
+      if (auditLogService) {
+        await auditLogService.safeLog({
+          userId: req.p2pUser.id,
+          action: 'deposit_request_failed',
+          ipAddress: requestIp,
+          metadata: {
+            coin,
+            network,
+            amount,
+            address,
+            errorCode: String(error.code || 'DEPOSIT_REQUEST_ERROR'),
+            errorMessage: String(error.message || 'Deposit request failed')
+          }
+        });
+      }
+
+      const message = String(error?.message || 'Server error while creating deposit request.');
+      if (message.toLowerCase().includes('active deposit request')) {
+        return res.status(409).json({ message });
+      }
+      if (message.toLowerCase().includes('unsupported')) {
+        return res.status(400).json({ message });
+      }
+      return res.status(500).json({ message });
+    }
+  }
+);
 
 app.post(
   '/api/withdrawals',
@@ -2103,6 +2480,8 @@ app.get('/api/p2p/offers', async (req, res) => {
   const payment = String(req.query.payment || '').trim().toLowerCase();
   const advertiser = String(req.query.advertiser || '').trim().toLowerCase();
   const amount = Number(req.query.amount || 0);
+  const pageSize = Math.min(Math.max(Number(req.query.limit || 10), 1), 50);
+  const pageOffset = Math.max(Number(req.query.offset || 0), 0);
 
   const normalizedSide = side === 'sell' ? 'sell' : 'buy';
 
@@ -2144,15 +2523,79 @@ app.get('/api/p2p/offers', async (req, res) => {
         return b.price - a.price;
       });
 
+    const totalCount = filtered.length;
+    const paginated = filtered.slice(pageOffset, pageOffset + pageSize);
+
+    // Enrich each offer with advertiser reputation
+    const enriched = await Promise.all(paginated.map(async (offer) => {
+      try {
+        const userId = offer.createdByUserId;
+        if (!userId) return offer;
+        const rep = await repos.getUserReputation(userId);
+        if (!rep) return offer;
+        return { ...offer, reputation: rep };
+      } catch (_) { return offer; }
+    }));
+
     return res.json({
       side: normalizedSide,
       asset,
-      total: filtered.length,
+      total: totalCount,
+      offset: pageOffset,
+      limit: pageSize,
+      hasMore: pageOffset + pageSize < totalCount,
       updatedAt: new Date().toISOString(),
-      offers: filtered
+      offers: enriched
     });
   } catch (error) {
     return res.status(500).json({ message: 'Server error while fetching offers.' });
+  }
+});
+
+// ===== PAYMENT METHODS =====
+app.get('/api/p2p/payment-methods', requiresP2PUser, async (req, res) => {
+  try {
+    const methods = await repos.listPaymentMethods(req.p2pUser.userId);
+    return res.json({ methods });
+  } catch (e) { return res.status(500).json({ message: 'Server error.' }); }
+});
+
+app.post('/api/p2p/payment-methods', requiresP2PUser, async (req, res) => {
+  try {
+    const { type, nickname, upiId, bankName, accountNumber, ifsc, accountHolder, details } = req.body;
+    if (!type) return res.status(400).json({ message: 'type is required.' });
+    const existing = await repos.listPaymentMethods(req.p2pUser.userId);
+    if (existing.length >= 20) return res.status(400).json({ message: 'Max 20 payment methods allowed.' });
+    const method = await repos.addPaymentMethod(req.p2pUser.userId, { type, nickname, upiId, bankName, accountNumber, ifsc, accountHolder, details });
+    return res.json({ method });
+  } catch (e) { return res.status(500).json({ message: 'Server error.' }); }
+});
+
+app.patch('/api/p2p/payment-methods/:pmId', requiresP2PUser, async (req, res) => {
+  try {
+    const updated = await repos.updatePaymentMethod(req.params.pmId, req.p2pUser.userId, req.body);
+    if (!updated) return res.status(404).json({ message: 'Payment method not found.' });
+    return res.json({ method: updated });
+  } catch (e) { return res.status(500).json({ message: 'Server error.' }); }
+});
+
+app.delete('/api/p2p/payment-methods/:pmId', requiresP2PUser, async (req, res) => {
+  try {
+    const deleted = await repos.deletePaymentMethod(req.params.pmId, req.p2pUser.userId);
+    if (!deleted) return res.status(404).json({ message: 'Payment method not found.' });
+    return res.json({ success: true });
+  } catch (e) { return res.status(500).json({ message: 'Server error.' }); }
+});
+// ===== END PAYMENT METHODS =====
+
+// GET /api/p2p/users/:userId/reputation
+app.get('/api/p2p/users/:userId/reputation', async (req, res) => {
+  try {
+    const rep = await repos.getUserReputation(req.params.userId);
+    if (!rep) return res.status(404).json({ message: 'User not found.' });
+    return res.json(rep);
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error.' });
   }
 });
 
@@ -2183,6 +2626,43 @@ app.get('/api/p2p/ads', async (req, res) => {
   }
 });
 
+// Get single ad by ID
+app.get('/api/p2p/ads/:adId', async (req, res) => {
+  try {
+    const offer = await repos.getOfferById(req.params.adId);
+    if (!offer) return res.status(404).json({ message: 'Ad not found.' });
+    return res.json({ success: true, ad: offer });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// Convenience: mark order paid
+app.post('/api/p2p/orders/:orderId/mark-paid', requiresP2PUser, async (req, res) => {
+  try {
+    await walletService.expireOrders();
+    const updatedOrder = await walletService.markOrderPaid(req.params.orderId, req.p2pUser);
+    const normalizedOrder = normalizeOrderState(updatedOrder);
+    broadcastOrderEvent(updatedOrder.id, 'order_update', { order: normalizedOrder });
+    return res.json({ success: true, order: normalizedOrder });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || 'Server error.' });
+  }
+});
+
+// Convenience: cancel order
+app.post('/api/p2p/orders/:orderId/cancel', requiresP2PUser, async (req, res) => {
+  try {
+    await walletService.expireOrders();
+    const updatedOrder = await walletService.cancelOrder(req.params.orderId, req.p2pUser, 'CANCELLED');
+    const normalizedOrder = normalizeOrderState(updatedOrder);
+    broadcastOrderEvent(updatedOrder.id, 'order_update', { order: normalizedOrder });
+    return res.json({ success: true, order: normalizedOrder });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || 'Server error.' });
+  }
+});
+
 async function createP2PAdController(req, res) {
   try {
     const savedOffer = await walletService.createEscrowAd({
@@ -2198,14 +2678,24 @@ async function createP2PAdController(req, res) {
   } catch (error) {
     const knownStatus = Number(error?.status || 0);
     const knownCode = String(error?.code || '').trim().toUpperCase();
+    const knownMessage = String(error?.message || '');
+    if (
+      knownCode.includes('INSUFFICIENT') ||
+      knownMessage.toLowerCase().includes('insufficient')
+    ) {
+      return res.status(400).json({
+        message: 'Insufficient USDT balance',
+        code: 'INSUFFICIENT_USDT_BALANCE'
+      });
+    }
     if (knownStatus >= 400 && knownStatus < 500) {
       return res.status(knownStatus).json({
-        message: String(error.message || 'Request validation failed.'),
+        message: knownMessage || 'Request validation failed.',
         code: knownCode || 'P2P_AD_CREATE_FAILED'
       });
     }
 
-    const validationLikeMessage = String(error?.message || '').toLowerCase();
+    const validationLikeMessage = knownMessage.toLowerCase();
     if (
       validationLikeMessage.includes('must') ||
       validationLikeMessage.includes('invalid') ||
@@ -2223,6 +2713,60 @@ async function createP2PAdController(req, res) {
 // Backward compatible + new secure endpoint.
 app.post('/api/p2p/offers', requiresP2PUser, createP2PAdController);
 app.post('/api/p2p/ads', requiresP2PUser, createP2PAdController);
+
+// GET my ads
+app.get('/api/p2p/my-ads', requiresP2PUser, async (req, res) => {
+  try {
+    const userId = req.p2pUser.userId;
+    const allOffers = await repos.listOffers({ excludeDemo: true });
+    const mine = allOffers.filter(o => o.createdByUserId === userId);
+    return res.json({ offers: mine });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// PATCH /api/p2p/offers/:offerId — edit price/limits/payments/status(pause/resume)
+app.patch('/api/p2p/offers/:offerId', requiresP2PUser, async (req, res) => {
+  try {
+    const userId = req.p2pUser.userId;
+    const { offerId } = req.params;
+    const offer = await repos.getOfferById(offerId);
+    if (!offer) return res.status(404).json({ message: 'Offer not found.' });
+    if (offer.createdByUserId !== userId) return res.status(403).json({ message: 'Not your ad.' });
+
+    const { price, minLimit, maxLimit, payments, status, remark } = req.body;
+    // Validate status transitions
+    if (status && !['ACTIVE', 'PAUSED'].includes(status)) {
+      return res.status(400).json({ message: 'Status must be ACTIVE or PAUSED.' });
+    }
+    const updated = await repos.updateOffer(offerId, userId, { price, minLimit, maxLimit, payments, status, remark });
+    if (!updated) return res.status(404).json({ message: 'Update failed.' });
+    return res.json({ offer: updated });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// DELETE /api/p2p/offers/:offerId
+app.delete('/api/p2p/offers/:offerId', requiresP2PUser, async (req, res) => {
+  try {
+    const userId = req.p2pUser.userId;
+    const { offerId } = req.params;
+    const offer = await repos.getOfferById(offerId);
+    if (!offer) return res.status(404).json({ message: 'Offer not found.' });
+    if (offer.createdByUserId !== userId) return res.status(403).json({ message: 'Not your ad.' });
+    // Check no active orders on this offer
+    const activeOrders = await repos.listP2PLiveOrders({ asset: offer.asset, side: offer.side });
+    const hasActive = activeOrders.some(o => (o.adId === offerId || o.offerId === offerId) && ['CREATED','PAYMENT_SENT','DISPUTED'].includes(o.status));
+    if (hasActive) return res.status(409).json({ message: 'Cannot delete ad with active orders.' });
+    const deleted = await repos.deleteOffer(offerId, userId);
+    if (!deleted) return res.status(404).json({ message: 'Delete failed.' });
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
 
 app.post('/api/merchant/activate', requiresP2PUser, async (req, res) => {
   try {
@@ -2250,6 +2794,29 @@ app.post('/api/merchant/activate', requiresP2PUser, async (req, res) => {
       success: false,
       message: 'Server error while activating merchant.'
     });
+  }
+});
+
+// Returns only the current user's own active orders (for mobile Active tab)
+app.get('/api/p2p/orders/my-active', requiresP2PUser, async (req, res) => {
+  try {
+    await walletService.expireOrders();
+    const userId = req.p2pUser.id;
+    const username = req.p2pUser.username;
+    const result = await repos.listP2POrderHistory(userId, { limit: 50, offset: 0 });
+    console.log(`[my-active] user=${username} id=${userId} total_orders=${result.total}`);
+    const activeStatuses = ['CREATED', 'PENDING', 'PAID', 'PAYMENT_SENT', 'DISPUTED'];
+    const activeOrders = result.orders
+      .filter((o) => activeStatuses.includes(o.status))
+      .map((order) => {
+        const normalized = normalizeOrderState(order);
+        return { ...normalized, isParticipant: true, paymentMethod: order.paymentMethod };
+      });
+    console.log(`[my-active] active_orders=${activeOrders.length}`);
+    return res.json({ orders: activeOrders });
+  } catch (error) {
+    console.error('[my-active] error:', error);
+    return res.status(500).json({ message: 'Server error fetching active orders.' });
   }
 });
 
@@ -2282,6 +2849,18 @@ app.get('/api/p2p/orders/live', requiresP2PUser, async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ message: 'Server error while fetching live orders.' });
+  }
+});
+
+app.get('/api/p2p/orders/history', requiresP2PUser, async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit || 10), 1), 50);
+  const offset = Math.max(Number(req.query.offset || 0), 0);
+  try {
+    const result = await repos.listP2POrderHistory(req.p2pUser.id, { limit, offset });
+    const orders = result.orders.map((o) => normalizeOrderState(o));
+    return res.json({ total: result.total, hasMore: result.hasMore, offset, limit, orders });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error.' });
   }
 });
 
@@ -2375,6 +2954,39 @@ app.post('/api/p2p/orders/:orderId/status', requiresP2PUser, async (req, res) =>
     broadcastOrderEvent(updatedOrder.id, 'order_update', { order: normalizedOrder });
     broadcastOrderEvent(updatedOrder.id, 'message_update', { messages: normalizedMessages });
 
+    // Send email notifications (non-blocking)
+    if (p2pEmailService) {
+      setImmediate(async () => {
+        try {
+          const [sellerCred, buyerCred] = await Promise.all([
+            repos.getP2PCredentialByUserId(updatedOrder.sellerUserId),
+            repos.getP2PCredentialByUserId(updatedOrder.buyerUserId)
+          ]);
+          const sellerEmail = sellerCred?.email;
+          const buyerEmail = buyerCred?.email;
+          if (action === 'mark_paid') {
+            // Buyer paid — notify seller to release
+            if (sellerEmail) await p2pEmailService.sendOrderPaid(sellerEmail, updatedOrder);
+          } else if (action === 'release') {
+            // Seller released — notify buyer (USDT received) and seller (confirmation)
+            if (buyerEmail) await p2pEmailService.sendOrderReleased(buyerEmail, updatedOrder);
+            if (sellerEmail && sellerEmail !== buyerEmail) await p2pEmailService.sendOrderReleased(sellerEmail, updatedOrder);
+          } else if (action === 'cancel') {
+            if (sellerEmail) await p2pEmailService.sendOrderCancelled(sellerEmail, updatedOrder);
+            if (buyerEmail && buyerEmail !== sellerEmail) await p2pEmailService.sendOrderCancelled(buyerEmail, updatedOrder);
+          } else if (action === 'dispute') {
+            // Notify admin + both parties
+            const adminEmail = String(process.env.ADMIN_EMAIL || '').trim();
+            if (adminEmail) await p2pEmailService.sendDisputeRaised(adminEmail, updatedOrder, req.p2pUser.username || req.p2pUser.email);
+            if (sellerEmail) await p2pEmailService.sendDisputeRaised(sellerEmail, updatedOrder, req.p2pUser.username || req.p2pUser.email);
+            if (buyerEmail && buyerEmail !== sellerEmail) await p2pEmailService.sendDisputeRaised(buyerEmail, updatedOrder, req.p2pUser.username || req.p2pUser.email);
+          }
+        } catch (emailErr) {
+          console.warn('[p2p-email] notification failed:', emailErr.message);
+        }
+      });
+    }
+
     return res.json({
       message: 'Order updated.',
       order: normalizedOrder
@@ -2410,9 +3022,10 @@ app.get('/api/p2p/orders/:orderId/messages', requiresP2PUser, async (req, res) =
 
 app.post('/api/p2p/orders/:orderId/messages', requiresP2PUser, async (req, res) => {
   const text = String(req.body.text || '').trim();
+  const imageBase64 = req.body.imageBase64 || null;
 
-  if (!text) {
-    return res.status(400).json({ message: 'Message text is required.' });
+  if (!text && !imageBase64) {
+    return res.status(400).json({ message: 'Message text or image is required.' });
   }
 
   try {
@@ -2427,12 +3040,14 @@ app.post('/api/p2p/orders/:orderId/messages', requiresP2PUser, async (req, res) 
       }
 
       const now = Date.now();
-      next.messages.push({
+      const msgObj = {
         id: `msg_${now}_${Math.floor(Math.random() * 1000)}`,
         sender: req.p2pUser.username,
-        text,
+        text: text || '',
         createdAt: now
-      });
+      };
+      if (imageBase64) msgObj.imageBase64 = imageBase64;
+      next.messages.push(msgObj);
       next.updatedAt = now;
       return {};
     });
@@ -2496,12 +3111,35 @@ app.get('/api/p2p/orders/:orderId/stream', requiresP2PUser, async (req, res) => 
   }
 });
 
+// Per-user SSE: notifies seller when a new order arrives for their ad
+app.get('/api/p2p/me/stream', requiresP2PUser, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+  const userId = req.p2pUser.id;
+  const streams = getUserStreams(userId);
+  streams.add(res);
+  res.write(`event: connected\ndata: ${JSON.stringify({ message: 'user-stream-connected' })}\n\n`);
+  // Keepalive ping every 20s
+  const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch(e) {} }, 20000);
+  req.on('close', () => {
+    clearInterval(ping);
+    streams.delete(res);
+    if (streams.size === 0) p2pUserStreams.delete(userId);
+  });
+});
+
 app.get('/admin-login', (req, res) => {
   return res.redirect('/admin/login');
 });
 
 app.get('/admin/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin-login.html'));
+  res.sendFile(path.join(__dirname, 'public', 'bitegit-admin-login.html'));
+});
+
+app.get('/bitegit-admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'bitegit-admin-login.html'));
 });
 
 app.get('/admin', async (req, res) => {
@@ -2531,8 +3169,31 @@ app.get('/admin', async (req, res) => {
   }
 });
 
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+app.get('/markets', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'markets.html'));
+});
+app.get('/assets', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'assets.html'));
+});
+app.get('/chart', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'chart.html'));
+});
+app.get('/auth', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'auth.html'));
+});
 app.get('/p2p', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'p2p.html'));
+});
+
+app.get('/p2p-buy', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'p2p-buy.html'));
+});
+
+app.get('/kyc', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'kyc.html'));
 });
 
 app.get('/trade', (req, res) => {
@@ -2550,248 +3211,241 @@ app.get('/trade/:market/:symbol', (req, res) => {
 });
 
 app.get('/healthz', (req, res) => {
-  if (!persistenceReady || !isDbConnected()) {
-    return res.status(503).json({ status: 'error', db: 'disconnected' });
-  }
-  return res.status(200).json({ status: 'ok', db: 'connected' });
+  return res.status(200).json({
+    status: 'ok',
+    ready: persistenceReady,
+    db: isDbConnected() ? 'connected' : 'disconnected'
+  });
 });
 
 app.get('/api/health', (req, res) => {
-  if (!persistenceReady || !isDbConnected()) {
-    return res.status(503).json({ status: 'error', db: 'disconnected' });
-  }
-  return res.status(200).json({ status: 'ok', db: 'connected' });
+  return res.status(200).json({ status: 'OK', service: 'bitegit-backend' });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Public Support Ticket API (no admin auth required — user-facing)
-// Tickets are stored in admin_support_tickets collection so admin panel sees them
-// ─────────────────────────────────────────────────────────────────────────────
-
-function makeSupportTicketId() {
-  return `tkt_${Date.now()}_${require('crypto').randomBytes(4).toString('hex')}`;
-}
-
-function makeSupportMessageId() {
-  return `tmsg_${Date.now()}_${require('crypto').randomBytes(3).toString('hex')}`;
-}
-
-// Chinese-style CS agent names for live support
-const CS_AGENT_NAMES = [
-  'Wei Chen', 'Li Ming', 'Zhang Yu', 'Liu Fang', 'Wang Jing',
-  'Zhao Hui', 'Lin Mei', 'Wu Jing', 'Sun Li', 'Xu Yan',
-  'Zhou Ming', 'He Qing', 'Huang Wei', 'Yang Ting', 'Chen Xiao',
-  'Gao Lei', 'Luo Yan', 'Ma Rui', 'Feng Lin', 'Tang Yu',
-  'Dong Wei', 'Xiao Jing', 'Jiang Min', 'Zhu Fei', 'Han Yue'
-];
-
-function pickAgentName() {
-  return CS_AGENT_NAMES[Math.floor(Math.random() * CS_AGENT_NAMES.length)];
-}
-
-// SSE streams for admin new-ticket notifications
-const adminNotifyStreams = new Set();
-
-function broadcastNewTicket(ticketInfo) {
-  const data = JSON.stringify(ticketInfo);
-  for (const res of adminNotifyStreams) {
-    try { res.write(`data: ${data}\n\n`); } catch (_) { adminNotifyStreams.delete(res); }
+// Keep social feed live even before full boot/module registration completes.
+app.get('/api/social/feed', async (req, res, next) => {
+  if (socialFeedService) {
+    return next();
   }
-}
-
-// Admin SSE endpoint to receive live new-ticket notifications
-app.get('/api/admin/support/live-notify', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
-  res.write(': connected\n\n');
-  adminNotifyStreams.add(res);
-  req.on('close', () => adminNotifyStreams.delete(res));
-});
-
-app.post('/api/v1/support/tickets', async (req, res) => {
-  if (!persistenceReady) {
-    return res.status(503).json({ message: 'Service temporarily unavailable.' });
-  }
-
-  const subject = String(req.body?.subject || '').trim();
-  const message = String(req.body?.message || '').trim();
-  const category = String(req.body?.category || 'General').trim();
-  const userId = String(req.body?.userId || '').trim();
-  const email = String(req.body?.email || '').trim().toLowerCase();
-
-  if (!subject || subject.length < 3) {
-    return res.status(400).json({ message: 'Subject is required (min 3 characters).' });
-  }
-  if (!message || message.length < 10) {
-    return res.status(400).json({ message: 'Message is required (min 10 characters).' });
-  }
-
   try {
-    const collections = getCollections();
-    const adminSupportTickets = collections.adminSupportTickets;
-
-    const ticketId = makeSupportTicketId();
-    const agentName = pickAgentName();
-    const now = new Date();
-
-    await adminSupportTickets.insertOne({
-      id: ticketId,
-      userId: userId || '',
-      email: email || '',
-      subject,
-      category,
-      status: 'OPEN',
-      priority: 'NORMAL',
-      assignedTo: agentName,
-      agentName,
-      messages: [
-        {
-          id: makeSupportMessageId(),
-          sender: 'user',
-          senderEmail: email || userId || 'user',
-          text: message,
-          createdAt: now
-        }
-      ],
-      createdAt: now,
-      updatedAt: now
+    await socialFeedBootstrapInitPromise;
+    const authUser = await getP2PUserFromRequest(req).catch(() => null);
+    const feed = await socialFeedBootstrapService.getFeed({
+      tab: req.query?.tab,
+      page: req.query?.page,
+      pageSize: req.query?.pageSize,
+      authUser
     });
-
-    // Notify all connected admin dashboards
-    broadcastNewTicket({ ticketId, subject, agentName, email: email || userId || 'User', createdAt: now.toISOString() });
-
-    return res.status(201).json({
-      ticketId,
-      agentName,
-      message: 'Support ticket created successfully. We will respond within 24 hours.',
-      status: 'OPEN',
-      createdAt: now.toISOString()
-    });
-  } catch (error) {
-    return res.status(500).json({ message: 'Failed to create support ticket. Please try again.' });
-  }
-});
-
-app.get('/api/v1/support/tickets/:ticketId', async (req, res) => {
-  if (!persistenceReady) {
-    return res.status(503).json({ message: 'Service temporarily unavailable.' });
-  }
-
-  const ticketId = String(req.params.ticketId || '').trim();
-  if (!ticketId) {
-    return res.status(400).json({ message: 'ticketId is required.' });
-  }
-
-  try {
-    const collections = getCollections();
-    const ticket = await collections.adminSupportTickets.findOne({ id: ticketId });
-
-    if (!ticket) {
-      return res.status(404).json({ message: 'Ticket not found.' });
-    }
-
     return res.json({
-      ticketId: ticket.id,
-      subject: ticket.subject,
-      category: ticket.category || 'General',
-      status: ticket.status,
-      priority: ticket.priority || 'NORMAL',
-      assignedTo: ticket.assignedTo || null,
-      messages: (ticket.messages || []).map((msg) => ({
-        id: msg.id,
-        sender: msg.sender,
-        text: msg.text,
-        createdAt: msg.createdAt
-      })),
-      createdAt: ticket.createdAt,
-      updatedAt: ticket.updatedAt
+      success: true,
+      source: 'bootstrap-fallback',
+      ...feed
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to fetch ticket.' });
+    return res.status(503).json({
+      success: false,
+      message: String(error?.message || 'Social feed temporarily unavailable.'),
+      code: 'SOCIAL_FEED_BOOTSTRAP_ERROR'
+    });
   }
 });
 
-app.post('/api/v1/support/tickets/:ticketId/messages', async (req, res) => {
-  if (!persistenceReady) {
-    return res.status(503).json({ message: 'Service temporarily unavailable.' });
+app.get('/api/social/suggested-creators', async (req, res, next) => {
+  if (socialFeedService) {
+    return next();
   }
-
-  const ticketId = String(req.params.ticketId || '').trim();
-  const message = String(req.body?.message || '').trim();
-
-  if (!ticketId) {
-    return res.status(400).json({ message: 'ticketId is required.' });
-  }
-  if (!message || message.length < 1) {
-    return res.status(400).json({ message: 'message is required.' });
-  }
-
   try {
-    const collections = getCollections();
-    const adminSupportTickets = collections.adminSupportTickets;
+    await socialFeedBootstrapInitPromise;
+    const authUser = await getP2PUserFromRequest(req).catch(() => null);
+    const items = await socialFeedBootstrapService.getSuggestedCreators({
+      limit: req.query?.limit,
+      authUser
+    });
+    return res.json({
+      success: true,
+      source: 'bootstrap-fallback',
+      items
+    });
+  } catch (error) {
+    return res.status(503).json({
+      success: false,
+      message: String(error?.message || 'Suggested creators temporarily unavailable.'),
+      code: 'SOCIAL_CREATOR_BOOTSTRAP_ERROR'
+    });
+  }
+});
 
-    const ticket = await adminSupportTickets.findOne({ id: ticketId });
-    if (!ticket) {
-      return res.status(404).json({ message: 'Ticket not found.' });
+app.get('/api/social/copy-traders', async (req, res, next) => {
+  if (socialFeedService) {
+    return next();
+  }
+  try {
+    await socialFeedBootstrapInitPromise;
+    const items = await socialFeedBootstrapService.getCopyTraders({
+      limit: req.query?.limit
+    });
+    return res.json({
+      success: true,
+      source: 'bootstrap-fallback',
+      items
+    });
+  } catch (error) {
+    return res.status(503).json({
+      success: false,
+      message: String(error?.message || 'Copy traders temporarily unavailable.'),
+      code: 'SOCIAL_TRADER_BOOTSTRAP_ERROR'
+    });
+  }
+});
+
+app.post('/api/social/creators/:creatorId/follow', async (req, res, next) => {
+  if (socialFeedService) {
+    return next();
+  }
+  try {
+    await socialFeedBootstrapInitPromise;
+    const authUser = await getP2PUserFromRequest(req).catch(() => null);
+    if (!authUser) {
+      return res.status(401).json({
+        success: false,
+        message: 'Login required to follow creators.',
+        code: 'AUTH_REQUIRED'
+      });
     }
+    const result = await socialFeedBootstrapService.followCreator({
+      authUser,
+      creatorId: req.params.creatorId
+    });
+    return res.json({
+      success: true,
+      source: 'bootstrap-fallback',
+      ...result
+    });
+  } catch (error) {
+    return res.status(503).json({
+      success: false,
+      message: String(error?.message || 'Unable to follow creator right now.'),
+      code: 'SOCIAL_FOLLOW_BOOTSTRAP_ERROR'
+    });
+  }
+});
 
-    if (String(ticket.status || '').toUpperCase() === 'CLOSED') {
-      return res.status(400).json({ message: 'Cannot add messages to a closed ticket.' });
+if (ENABLE_DEV_TEST_ROUTES) {
+  app.get('/api/test/encryption', (req, res) => {
+    try {
+      const input = String(req.query.text || 'test-message');
+      const encrypted = encryptText(input);
+      const decrypted = decryptText(encrypted);
+
+      return res.status(200).json({
+        status: 'ok',
+        input,
+        encrypted,
+        decrypted
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: 'error',
+        message: String(error?.message || 'Encryption test failed')
+      });
     }
+  });
+}
 
-    const now = new Date();
-    const newMsg = {
-      id: makeSupportMessageId(),
-      sender: 'user',
-      senderEmail: String(req.body?.email || ticket.email || 'user').trim(),
-      text: message,
-      createdAt: now
-    };
-
-    await adminSupportTickets.updateOne(
-      { id: ticketId },
-      {
-        $push: { messages: newMsg },
-        $set: { updatedAt: now }
+function registerShutdownHandlers() {
+  ['SIGINT', 'SIGTERM'].forEach((signal) => {
+    process.on(signal, () => {
+      if (shuttingDown) {
+        return;
       }
-    );
+      shuttingDown = true;
+      console.log(`${signal} received, shutting down HTTP server...`);
 
-    return res.json({
-      messageId: newMsg.id,
-      ticketId,
-      message: 'Message sent successfully.',
-      createdAt: now.toISOString()
-    });
-  } catch (error) {
-    return res.status(500).json({ message: 'Failed to send message.' });
-  }
-});
+      if (bootRetryTimer) {
+        clearTimeout(bootRetryTimer);
+        bootRetryTimer = null;
+      }
 
-app.get('/api/test/encryption', (req, res) => {
-  try {
-    const input = String(req.query.text || 'test-message');
-    const encrypted = encryptText(input);
-    const decrypted = decryptText(encrypted);
+      if (p2pExpirySweepTimer) {
+        clearInterval(p2pExpirySweepTimer);
+        p2pExpirySweepTimer = null;
+      }
 
-    return res.status(200).json({
-      status: 'ok',
-      input,
-      encrypted,
-      decrypted
+      const forceExitTimer = setTimeout(() => {
+        console.log('Shutdown timeout reached. Forcing process exit.');
+        process.exit(0);
+      }, 8000);
+      if (typeof forceExitTimer.unref === 'function') {
+        forceExitTimer.unref();
+      }
+
+      const finalizeShutdown = async () => {
+        const closeTasks = [];
+
+        if (userCenterStore && typeof userCenterStore.close === 'function') {
+          closeTasks.push(
+            userCenterStore.close().then(() => {
+              console.log('[user-center] MySQL store closed.');
+            })
+          );
+        }
+        if (socialFeedStore && typeof socialFeedStore.close === 'function') {
+          closeTasks.push(
+            socialFeedStore.close().then(() => {
+              console.log('[social-feed] MySQL store closed.');
+            })
+          );
+        }
+        if (otpAuthStore && typeof otpAuthStore.close === 'function') {
+          closeTasks.push(
+            otpAuthStore.close().then(() => {
+              console.log('[auth-otp] MySQL store closed.');
+            })
+          );
+        }
+
+        let mongoClient = null;
+        try {
+          mongoClient = getMongoClient();
+        } catch (error) {
+          mongoClient = null;
+        }
+        if (mongoClient && typeof mongoClient.close === 'function') {
+          closeTasks.push(
+            mongoClient.close().then(() => {
+              console.log('MongoDB client closed.');
+            })
+          );
+        }
+
+        await Promise.allSettled(closeTasks);
+        clearTimeout(forceExitTimer);
+        console.log('Shutdown complete.');
+        process.exit(0);
+      };
+
+      if (!httpServer) {
+        finalizeShutdown().catch(() => process.exit(0));
+        return;
+      }
+
+      httpServer.close(() => {
+        console.log('HTTP server closed.');
+        finalizeShutdown().catch(() => process.exit(0));
+      });
     });
-  } catch (error) {
-    return res.status(500).json({
-      status: 'error',
-      message: String(error?.message || 'Encryption test failed')
-    });
-  }
-});
+  });
+}
 
 async function boot() {
   try {
+    if (!httpServer) {
+      httpServer = app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on port ${PORT}`);
+      });
+      registerShutdownHandlers();
+    }
+
     validateStartupConfig();
     tokenService.ensureJwtSecret();
     const mongoConfig = getMongoConfig();
@@ -2803,6 +3457,7 @@ async function boot() {
     repos = createRepositories(collections);
     auditLogService = createAuditLogService(collections);
     authEmailService = createAuthEmailService();
+    p2pEmailService = createP2PEmailService();
     logEmailProviderRuntimeEnv();
     walletService = createWalletService(collections, getMongoClient(), {
       hooks: {
@@ -2857,6 +3512,9 @@ async function boot() {
       }
     });
 
+    const otpAuthConfig = readAuthOtpConfig();
+    const geetestService = createGeetestService(otpAuthConfig.geetest);
+
     registerAuthRoutes(app, {
       repos,
       walletService,
@@ -2874,14 +3532,144 @@ async function boot() {
       p2pUserTtlMs: P2P_USER_TTL_MS,
       auditLogService,
       authEmailService,
+      captchaVerifier: geetestService,
       otpTtlMs: SIGNUP_OTP_TTL_MS,
-      allowDemoOtp: ALLOW_DEMO_OTP
+      enableLegacyOtpEndpoints: false,
+      onLoginSuccess: async ({ user, ipAddress, userAgent }) => {
+        if (!userCenterService) {
+          return;
+        }
+        await userCenterService.recordLoginEvent(user, {
+          ip: ipAddress,
+          device: userAgent
+        });
+      }
+    });
+
+    const buildFallbackOtpAuthService = () =>
+      createRepoFallbackOtpAuthService({
+        repos,
+        tokenService,
+        geetestService,
+        authEmailService,
+        buildP2PUserFromEmail,
+        otpConfig: otpAuthConfig.otp
+      });
+
+    if (otpAuthConfig.mysql.enabled) {
+      try {
+        otpAuthStore = createMySqlAuthStore(otpAuthConfig.mysql);
+        await otpAuthStore.initialize();
+        const otpEmailService = createOtpEmailService(otpAuthConfig.smtp);
+        otpAuthService = createOtpAuthService({
+          store: otpAuthStore,
+          geetestService,
+          emailService: otpEmailService,
+          tokenService,
+          otpConfig: otpAuthConfig.otp
+        });
+        console.log('[auth-otp] Modular OTP auth enabled with MySQL + Geetest + SMTP');
+      } catch (error) {
+        otpAuthStore = null;
+        otpAuthService = buildFallbackOtpAuthService();
+        console.error(
+          '[auth-otp] MySQL initialization failed. Falling back to repository OTP auth:',
+          error?.message || error
+        );
+      }
+    } else {
+      otpAuthService = buildFallbackOtpAuthService();
+      console.log('[auth-otp] MySQL config missing; fallback OTP auth enabled with repository store + Geetest + SMTP.');
+    }
+
+    registerOtpAuthRoutes(app, {
+      otpAuthService,
+      setCookie,
+      tokenService,
+      cookieNames: otpAuthConfig.cookieNames,
+      isProduction: IS_PRODUCTION,
+      onLoginSuccess: async ({ user, ipAddress, userAgent }) => {
+        if (!userCenterService) {
+          return;
+        }
+        await userCenterService.recordLoginEvent(user, {
+          ip: ipAddress,
+          device: userAgent
+        });
+      }
+    });
+
+    const userCenterConfig = readUserCenterConfig();
+    if (userCenterConfig.mysql.enabled) {
+      try {
+        userCenterStore = createUserCenterStore(userCenterConfig.mysql);
+        await userCenterStore.initialize();
+        userCenterService = createUserCenterService({
+          store: userCenterStore,
+          config: userCenterConfig.app
+        });
+        console.log('[user-center] Modular User Center enabled');
+      } catch (error) {
+        userCenterStore = null;
+        userCenterService = null;
+        console.error(
+          '[user-center] MySQL initialization failed. User Center APIs will run in degraded mode (503):',
+          error?.message || error
+        );
+      }
+    } else {
+      console.log('[user-center] MySQL config missing; User Center APIs will return 503.');
+    }
+
+    registerUserCenterRoutes(app, {
+      requiresP2PUser,
+      userCenterService
+    });
+
+    const socialFeedConfig = readSocialFeedConfig();
+    async function enableSocialFeedFallback(reason) {
+      socialFeedStore = createSocialFeedFallbackStore();
+      await socialFeedStore.initialize();
+      socialFeedService = createSocialFeedService({
+        store: socialFeedStore,
+        config: socialFeedConfig.app
+      });
+      console.warn(`[social-feed] ${reason}. Using in-memory fallback store for live feed APIs.`);
+    }
+
+    if (socialFeedConfig.mysql.enabled) {
+      try {
+        socialFeedStore = createSocialFeedStore(socialFeedConfig.mysql);
+        await socialFeedStore.initialize();
+        socialFeedService = createSocialFeedService({
+          store: socialFeedStore,
+          config: socialFeedConfig.app
+        });
+        console.log('[social-feed] Social feed module enabled');
+      } catch (error) {
+        console.error(
+          '[social-feed] MySQL initialization failed:',
+          error?.message || error
+        );
+        await enableSocialFeedFallback('MySQL store unavailable');
+      }
+    } else {
+      await enableSocialFeedFallback('MySQL config missing');
+    }
+
+    registerSocialFeedRoutes(app, {
+      socialFeedService,
+      requiresP2PUser,
+      getP2PUserFromRequest,
+      requiresAdminSession
     });
 
     p2pOrderController = createP2POrderController({
       repos,
       walletService,
-      orderTtlMs: P2P_ORDER_TTL_MS
+      orderTtlMs: P2P_ORDER_TTL_MS,
+      p2pEmailService,
+      broadcastUserEvent
     });
     registerP2POrderRoutes(app, {
       requiresP2PUser,
@@ -2913,6 +3701,11 @@ async function boot() {
       cookieNames: {
         accessToken: ADMIN_ACCESS_COOKIE_NAME,
         refreshToken: ADMIN_REFRESH_COOKIE_NAME
+      },
+      userCookieNames: {
+        accessToken: P2P_ACCESS_COOKIE_NAME,
+        refreshToken: P2P_REFRESH_COOKIE_NAME,
+        legacyP2PSession: P2P_USER_COOKIE_NAME
       }
     });
 
@@ -2923,9 +3716,7 @@ async function boot() {
       auditLogService
     });
 
-    // Extended admin panel routes (2FA, notifications, risk, features, blockchain, apikeys)
     const extendedStore = createAdminExtendedStore({ collections });
-    await extendedStore.ensureExtendedIndexes();
     registerAdminExtendedRoutes(app, {
       adminStore,
       extendedStore,
@@ -2946,7 +3737,13 @@ async function boot() {
     await repos.ensureSeedOffers([]);
 
     await adminStore.ensureDefaults();
-    await adminStore.ensureDemoSupportTicket();
+    const enableDemoSeedData =
+      String(process.env.ENABLE_DEMO_SEED_DATA || '')
+        .trim()
+        .toLowerCase() === 'true';
+    if (enableDemoSeedData) {
+      await adminStore.ensureDemoSupportTicket();
+    }
     const seededAdmin = await adminStore.seedAdminUser({
       username: ADMIN_SEED_USERNAME,
       email: ADMIN_SEED_EMAIL,
@@ -2969,18 +3766,18 @@ async function boot() {
       console.log(`Admin seed ensured for ${seededAdmin.email} (${seededAdmin.role})`);
     }
 
-    app.get('*', (req, res, next) => {
-      if (String(req.path || '').startsWith('/api/')) {
-        return next();
-      }
-      return res.sendFile(publicGateHomeFile);
-    });
-
     app.use(apiNotFoundHandler);
+
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    });
 
     app.use(errorHandler);
 
-    setInterval(async () => {
+    if (p2pExpirySweepTimer) {
+      clearInterval(p2pExpirySweepTimer);
+    }
+    p2pExpirySweepTimer = setInterval(async () => {
       try {
         const result = await p2pOrderExpiryService.runExpirySweep();
         if (result.cancelledCount > 0) {
@@ -2990,39 +3787,29 @@ async function boot() {
         console.error('Failed to run P2P expiry sweep:', error.message);
       }
     }, P2P_EXPIRY_SWEEP_INTERVAL_MS);
+    if (typeof p2pExpirySweepTimer.unref === 'function') {
+      p2pExpirySweepTimer.unref();
+    }
 
     persistenceReady = true;
-    httpServer = app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`MongoDB connected to ${mongoConfig.dbName}`);
-    });
-
-    ['SIGINT', 'SIGTERM'].forEach((signal) => {
-      process.on(signal, () => {
-        if (shuttingDown) {
-          return;
-        }
-        shuttingDown = true;
-        console.log(`${signal} received, shutting down HTTP server...`);
-
-        if (!httpServer) {
-          return;
-        }
-
-        httpServer.close(() => {
-          console.log('HTTP server closed.');
-        });
-
-        // Ensure shutdown does not hang forever.
-        setTimeout(() => {
-          console.log('Shutdown timeout reached.');
-        }, 8000).unref();
-      });
-    });
+    console.log(`MongoDB connected to ${mongoConfig.dbName}`);
   } catch (error) {
     console.error('Failed to start server:', error.message);
     if (!IS_PRODUCTION && error.stack) {
       console.error(error.stack);
+    }
+
+    if (!persistenceReady && !bootRetryTimer) {
+      bootRetryTimer = setTimeout(() => {
+        bootRetryTimer = null;
+        boot().catch((bootError) => {
+          console.error('Boot retry failed:', bootError?.message || bootError);
+        });
+      }, 15000);
+      if (typeof bootRetryTimer.unref === 'function') {
+        bootRetryTimer.unref();
+      }
+      console.log('Will retry startup in 15 seconds...');
     }
   }
 }

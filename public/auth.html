@@ -1,18 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
+    <meta charset="UTF-8" /><meta name="theme-color" content="#000000"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Bitegit Auth</title>
     <link rel="stylesheet" href="/auth.css?v=20260302a" />
-    <script src="/bitegit-config.js"></script>
-  </head>
+  <script src="/app-nav.js" defer></script></head>
   <body class="auth-page">
     <header class="auth-topbar">
-      <a class="auth-brand" href="/home">BITEGIT</a>
+      <a class="auth-brand" href="/">
+        <span class="auth-brand-mark" aria-hidden="true"></span>
+        <span class="auth-brand-word">Bitegit</span>
+      </a>
       <div class="auth-top-actions">
-        <button id="authTopModeBtn" type="button" class="auth-top-primary">Log In</button>
-        <button id="authThemeToggle" type="button" class="auth-icon-btn" aria-label="Toggle theme">🌙</button>
+        <button id="authTopModeBtn" type="button" class="auth-top-primary">Register</button>
         <button id="authMenuToggle" type="button" class="auth-icon-btn" aria-label="Open menu" aria-controls="authNavDrawer" aria-expanded="false">☰</button>
       </div>
     </header>
@@ -20,22 +21,24 @@
     <div id="authNavOverlay" class="auth-nav-overlay hidden" aria-hidden="true"></div>
     <aside id="authNavDrawer" class="auth-nav-drawer" aria-hidden="true">
       <div class="auth-nav-head">
-        <strong>BITEGIT</strong>
+        <strong class="auth-drawer-brand">
+          <span class="auth-brand-mark" aria-hidden="true"></span>
+          <span>Bitegit</span>
+        </strong>
         <button id="authNavClose" type="button" aria-label="Close menu">✕</button>
       </div>
       <nav class="auth-nav-links" aria-label="Mobile navigation">
-        <a href="/home">Buy Crypto</a>
+        <a href="/">Buy Crypto</a>
         <a href="/markets.html">Markets</a>
-        <a href="/trade/spot/BTCUSDT">Spot</a>
-        <a href="/trade/perp/BTCUSDT">Futures</a>
+        <a href="/chart.html?symbol=BTCUSDT">Spot</a>
+        <a href="/chart.html?symbol=BTCUSDT">Futures</a>
         <a href="/p2p">P2P</a>
-        <a href="/home#crypto-for-everyone">Earn</a>
-        <a href="/home#events">ICO</a>
-        <a href="/home#support">Support</a>
+        <a href="/#crypto-for-everyone">Earn</a>
+        <a href="/#events">ICO</a>
+        <a href="/#support">Support</a>
         <a href="/assets">Assets</a>
       </nav>
       <div class="auth-nav-extra">
-        <button id="authDrawerThemeToggle" type="button" class="auth-theme-row">🌙 Theme</button>
         <label class="auth-lang-row" for="authLanguageSelect">
           <span>Language</span>
           <select id="authLanguageSelect">
@@ -43,13 +46,14 @@
             <option value="hi">Hindi</option>
           </select>
         </label>
-        <a href="/home#app-download" class="auth-download-row">Download App</a>
+        <a href="/#app-download" class="auth-download-row">Download App</a>
       </div>
     </aside>
 
     <main class="auth-main">
       <section class="auth-card" aria-live="polite">
-        <h1 id="authTitle">Welcome to Bitegit</h1>
+        <h1 id="authTitle">Log In to Bitegit</h1>
+        <p id="authSubtitle" class="auth-subtitle" style="display:none">Register your Bitegit account through any of the following methods:</p>
 
         <div class="auth-mode-tabs" role="tablist" aria-label="Auth mode">
           <button id="modeLoginBtn" type="button" data-mode="login" class="active" role="tab" aria-selected="true">Log In</button>
@@ -58,7 +62,7 @@
 
         <div class="auth-channel-tabs" role="tablist" aria-label="Channel">
           <button id="channelEmailBtn" type="button" data-channel="email" class="active" role="tab" aria-selected="true">Email</button>
-          <button id="channelMobileBtn" type="button" data-channel="mobile" role="tab" aria-selected="false">Mobile</button>
+          <button id="channelMobileBtn" type="button" data-channel="mobile" role="tab" aria-selected="false">Phone Number</button>
         </div>
 
         <form id="authForm" class="auth-form" novalidate>
@@ -92,9 +96,22 @@
           </div>
           <p id="passwordError" class="auth-error hidden">Password must be at least 6 characters.</p>
 
-          <button id="forgotBtn" type="button" class="auth-link">Forgot password?</button>
+          <button id="forgotBtn" type="button" class="auth-link">Forgot Password</button>
 
-          <button id="submitAuthBtn" type="submit" class="auth-submit">Log In</button>
+          <div id="referralSection" class="auth-referral-wrap hidden">
+            <button type="button" class="auth-referral-toggle" id="referralToggle">Referral Code (Optional) ▼</button>
+            <div id="referralField" class="hidden">
+              <label for="referralInput">Referral Code</label>
+              <input id="referralInput" name="referral" type="text" placeholder="Enter referral code (optional)" autocomplete="off" />
+            </div>
+          </div>
+
+          <button id="submitAuthBtn" type="submit" class="auth-submit">Next</button>
+
+          <div id="termsRow" class="auth-terms-row hidden">
+            <input type="checkbox" id="termsCheck" />
+            <label for="termsCheck">Registering an account means agreeing to <a href="#" class="auth-terms-link">Service Agreement</a></label>
+          </div>
 
           <p id="authStatus" class="auth-status hidden"></p>
         </form>
@@ -122,6 +139,66 @@
         </div>
         <p>Scan this QR on your second device to open Bitegit login.</p>
         <img id="authQrImage" alt="Bitegit Login QR" />
+      </div>
+    </div>
+
+    <div
+      id="captchaModal"
+      class="auth-captcha-modal hidden"
+      aria-hidden="true"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="captchaModalTitle"
+    >
+      <button id="captchaBackdrop" class="auth-captcha-backdrop" type="button" aria-label="Close"></button>
+      <div class="auth-captcha-card">
+        <div class="auth-captcha-head">
+          <div>
+            <p class="auth-captcha-eyebrow">Bitegit Security Check</p>
+            <h3 id="captchaModalTitle">Slide to complete the puzzle</h3>
+          </div>
+          <button id="captchaCloseBtn" type="button" aria-label="Close">✕</button>
+        </div>
+
+        <div class="auth-captcha-hero">
+          <div class="auth-captcha-hero-copy">
+            <span class="auth-captcha-badge">Signup verification</span>
+            <strong>Create your Bitegit account securely</strong>
+            <p>Complete this final puzzle check and we will send you straight to the home page.</p>
+          </div>
+          <div class="auth-captcha-hero-art" aria-hidden="true">
+            <span class="art-ring art-ring-one"></span>
+            <span class="art-ring art-ring-two"></span>
+            <span class="art-card art-card-left"></span>
+            <span class="art-card art-card-right"></span>
+            <span class="art-core">BG</span>
+          </div>
+        </div>
+
+        <p id="captchaStatus" class="auth-captcha-status">Preparing security challenge...</p>
+
+        <div class="auth-captcha-track-shell" aria-hidden="true">
+          <div id="captchaTrack" class="auth-captcha-track">
+            <div id="captchaTrackProgress" class="auth-captcha-track-progress"></div>
+            <div id="captchaTrackMarker" class="auth-captcha-track-marker"></div>
+          </div>
+        </div>
+
+        <input
+          id="captchaSlider"
+          class="auth-captcha-slider"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value="0"
+          aria-label="Move slider to align with target marker"
+        />
+
+        <div class="auth-captcha-actions">
+          <button id="captchaRefreshBtn" type="button" class="auth-captcha-secondary">Refresh</button>
+          <button id="captchaVerifyBtn" type="button" class="auth-captcha-primary" disabled>Verify & Continue</button>
+        </div>
       </div>
     </div>
 

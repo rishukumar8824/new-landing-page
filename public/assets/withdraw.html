@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <title>Withdraw – Bitegit</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{background:#000;color:#fff;font-family:'Segoe UI',sans-serif;min-height:100vh}
+
+    .wd-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.07)}
+    .wd-back{background:#111;border:none;color:#fff;font-size:1.3rem;cursor:pointer;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+    .wd-title{font-size:1rem;font-weight:700}
+    .wd-hist{color:#aaa;font-size:1.1rem;cursor:pointer}
+
+    /* Coin dropdown */
+    .wd-coin-drop{margin:16px;background:#0d0d0d;border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+    .wd-coin-left{display:flex;align-items:center;gap:10px}
+    .wd-coin-dot{width:10px;height:10px;border-radius:50%;background:#555}
+    .wd-coin-name{font-size:1rem;font-weight:600}
+    .wd-coin-arr{color:#aaa;font-size:1rem}
+
+    /* Form */
+    .wd-label{font-size:0.78rem;color:#6b7a99;padding:12px 16px 6px}
+    .wd-input-wrap{margin:0 16px;background:#0d0d0d;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:10px}
+    .wd-input{background:none;border:none;color:#fff;font-size:0.95rem;flex:1;outline:none}
+    .wd-input::placeholder{color:#555}
+    .wd-input-action{color:#00E5C4;font-size:0.82rem;font-weight:600;cursor:pointer;white-space:nowrap}
+
+    /* Amount row */
+    .wd-amount-wrap{margin:0 16px;background:#0d0d0d;border-radius:12px;padding:14px 16px}
+    .wd-amount-row{display:flex;align-items:center;gap:8px}
+    .wd-amount-input{background:none;border:none;color:#fff;font-size:0.95rem;flex:1;outline:none}
+    .wd-amount-input::placeholder{color:#555}
+    .wd-amount-suffix{color:#6b7a99;font-size:0.85rem}
+    .wd-all-btn{color:#00E5C4;font-size:0.82rem;font-weight:700;cursor:pointer}
+    .wd-amount-sub{margin-top:8px;font-size:0.75rem;color:#6b7a99}
+
+    /* Info rows */
+    .wd-info-row{display:flex;justify-content:space-between;padding:10px 16px}
+    .wd-info-label{font-size:0.8rem;color:#6b7a99}
+    .wd-info-val{font-size:0.8rem;color:#fff;font-weight:600}
+
+    /* Notes */
+    .wd-notes{padding:12px 16px;font-size:0.77rem;color:#6b7a99;line-height:1.7}
+
+    /* Submit */
+    .wd-submit{display:block;margin:16px;width:calc(100% - 32px);padding:15px;background:#222;color:#555;font-size:1rem;font-weight:700;border:none;border-radius:12px;cursor:pointer;text-align:center}
+    .wd-submit.ready{background:linear-gradient(135deg,#00E5C4,#00b0ff);color:#000}
+
+    /* Modal */
+    .wd-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;align-items:center;justify-content:center;padding:20px}
+    .wd-modal-overlay.open{display:flex}
+    .wd-modal{background:#1a1a1a;border-radius:20px;padding:28px 24px;text-align:center;max-width:340px;width:100%}
+    .wd-modal-icon{width:56px;height:56px;border-radius:50%;background:#f5a623;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:1.6rem}
+    .wd-modal h3{font-size:1.1rem;font-weight:700;margin-bottom:12px}
+    .wd-modal p{font-size:0.84rem;color:#aaa;line-height:1.6;margin-bottom:20px}
+    .wd-modal-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .wd-modal-cancel{background:#2a2a2a;border:none;color:#aaa;border-radius:20px;padding:12px;font-size:0.9rem;cursor:pointer}
+    .wd-modal-continue{background:linear-gradient(135deg,#00E5C4,#00b0ff);border:none;color:#000;border-radius:20px;padding:12px;font-size:0.9rem;font-weight:700;cursor:pointer}
+
+    /* Bottom sheet */
+    .wd-sheet-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100}
+    .wd-sheet-overlay.open{display:flex;align-items:flex-end}
+    .wd-sheet{background:#111;border-radius:20px 20px 0 0;width:100%;padding:20px 0 40px}
+    .wd-sheet-item{padding:16px 24px;font-size:0.95rem;font-weight:600;color:#fff;cursor:pointer;text-align:center;border-bottom:1px solid rgba(255,255,255,0.06)}
+    .wd-sheet-item.active{color:#00E5C4}
+    .wd-sheet-cancel{padding:16px 24px;font-size:0.95rem;color:#6b7a99;cursor:pointer;text-align:center}
+  </style>
+</head>
+<body>
+
+  <div class="wd-header">
+    <button class="wd-back" onclick="history.back()">‹</button>
+    <span class="wd-title">Withdraw</span>
+    <span class="wd-hist">⊟</span>
+  </div>
+
+  <!-- Coin selector -->
+  <div class="wd-coin-drop" onclick="document.getElementById('wdCoinSheet').classList.add('open')">
+    <div class="wd-coin-left">
+      <div class="wd-coin-dot" id="wdCoinDot" style="background:#26A17B"></div>
+      <span class="wd-coin-name" id="wdCoinName">USDT</span>
+    </div>
+    <span class="wd-coin-arr">▾</span>
+  </div>
+
+  <div class="wd-label">Withdrawal Address</div>
+  <div class="wd-input-wrap">
+    <input class="wd-input" id="wdAddr" placeholder="Please enter the address" oninput="checkReady()"/>
+    <span class="wd-input-action">Paste</span>
+  </div>
+
+  <div class="wd-label">Transfer Network</div>
+  <div class="wd-input-wrap" onclick="document.getElementById('wdNetSheet').classList.add('open')" style="cursor:pointer">
+    <span style="flex:1;font-size:0.9rem;color:#aaa" id="wdNet">Please select network</span>
+    <span class="wd-input-action">›</span>
+  </div>
+
+  <div class="wd-label">Withdrawal Amount</div>
+  <div class="wd-amount-wrap">
+    <div class="wd-amount-row">
+      <input class="wd-amount-input" id="wdAmt" type="number" placeholder="Minimum 10" oninput="checkReady()"/>
+      <span class="wd-amount-suffix">USDT</span>
+      <span class="wd-all-btn" onclick="document.getElementById('wdAmt').value='0';checkReady()">All</span>
+    </div>
+    <div class="wd-amount-sub">Available: 0.00 USDT</div>
+  </div>
+
+  <div class="wd-info-row">
+    <span class="wd-info-label">Withdrawal Fee</span>
+    <span class="wd-info-val">1 USDT</span>
+  </div>
+  <div class="wd-info-row">
+    <span class="wd-info-label">Received Amount</span>
+    <span class="wd-info-val" id="wdReceive">0 USDT</span>
+  </div>
+
+  <div class="wd-notes">
+    1. Withdrawals to incorrect addresses will result in permanent asset loss.<br>
+    2. Please confirm the correct withdrawal network before withdrawing.<br>
+    3. Minimum withdrawal: 10 USDT. Fee: 1 USDT.
+  </div>
+
+  <button class="wd-submit" id="wdSubmit" onclick="showSecurityModal()">Withdraw</button>
+
+  <!-- Security reminder modal -->
+  <div class="wd-modal-overlay" id="secModal">
+    <div class="wd-modal">
+      <div class="wd-modal-icon">!</div>
+      <h3>Security Reminder</h3>
+      <p>To ensure your account security, binding Google Authenticator is required for Withdrawals</p>
+      <div class="wd-modal-btns">
+        <button class="wd-modal-cancel" onclick="document.getElementById('secModal').classList.remove('open')">Cancel</button>
+        <button class="wd-modal-continue" onclick="window.location.href='/auth.html'">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Network sheet -->
+  <div class="wd-sheet-overlay" id="wdNetSheet" onclick="this.classList.remove('open')">
+    <div class="wd-sheet" onclick="event.stopPropagation()">
+      <div class="wd-sheet-item active" onclick="selectWdNet('BNB Smart Chain (BEP20)')">BNB Smart Chain (BEP20)</div>
+      <div class="wd-sheet-item" onclick="selectWdNet('Tron (TRC20)')">Tron (TRC20)</div>
+      <div class="wd-sheet-item" onclick="selectWdNet('Ethereum (ERC20)')">Ethereum (ERC20)</div>
+      <div class="wd-sheet-cancel" onclick="document.getElementById('wdNetSheet').classList.remove('open')">Cancel</div>
+    </div>
+  </div>
+
+  <!-- Coin sheet -->
+  <div class="wd-sheet-overlay" id="wdCoinSheet" onclick="this.classList.remove('open')">
+    <div class="wd-sheet" onclick="event.stopPropagation()">
+      <div class="wd-sheet-item active" onclick="selectWdCoin('USDT','#26A17B')">USDT</div>
+      <div class="wd-sheet-item" onclick="selectWdCoin('BTC','#f7931a')">BTC – Bitcoin</div>
+      <div class="wd-sheet-item" onclick="selectWdCoin('ETH','#627eea')">ETH – Ethereum</div>
+      <div class="wd-sheet-item" onclick="selectWdCoin('TRX','#e50914')">TRX – Tron</div>
+      <div class="wd-sheet-cancel" onclick="document.getElementById('wdCoinSheet').classList.remove('open')">Cancel</div>
+    </div>
+  </div>
+
+  <script>
+    function selectWdNet(n){
+      document.getElementById('wdNet').textContent=n;
+      document.getElementById('wdNet').style.color='#fff';
+      document.getElementById('wdNetSheet').classList.remove('open');
+      checkReady();
+    }
+    function selectWdCoin(c,col){
+      document.getElementById('wdCoinName').textContent=c;
+      document.getElementById('wdCoinDot').style.background=col;
+      document.getElementById('wdCoinSheet').classList.remove('open');
+    }
+    function checkReady(){
+      const addr=document.getElementById('wdAddr').value.trim();
+      const amt=document.getElementById('wdAmt').value;
+      const ready=addr.length>10&&parseFloat(amt)>0;
+      const btn=document.getElementById('wdSubmit');
+      btn.classList.toggle('ready',ready);
+      if(amt) document.getElementById('wdReceive').textContent=Math.max(0,parseFloat(amt)-1)+' USDT';
+    }
+    function showSecurityModal(){
+      document.getElementById('secModal').classList.add('open');
+    }
+  </script>
+</body>
+</html>
