@@ -192,12 +192,74 @@ const P2P_THEME_STORAGE_KEY = 'p2p_theme_mode';
 const KYC_REQUIRED_CODES = new Set(['KYC_REQUIRED', 'KYC_PENDING', 'KYC_REJECTED']);
 const KYC_ALLOWED_FILE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 const KYC_MAX_FILE_SIZE = 6 * 1024 * 1024;
+const RETRYABLE_WAKE_STATUSES = new Set([502, 503, 504]);
 
 function createClientRequestKey(prefix = 'p2p') {
   if (window.crypto && typeof window.crypto.randomUUID === 'function') {
     return `${prefix}_${window.crypto.randomUUID()}`;
   }
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, Math.max(0, Number(ms) || 0));
+  });
+}
+
+async function fetchJsonWithWakeRetry(url, options = {}, retryOptions = {}) {
+  const attempts = Math.max(1, Number(retryOptions.attempts || 1));
+  const baseDelayMs = Math.max(250, Number(retryOptions.baseDelayMs || 2000));
+  const onRetry =
+    typeof retryOptions.onRetry === 'function'
+      ? retryOptions.onRetry
+      : null;
+
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, options);
+      const rawText = await response.text().catch(() => '');
+      let data = {};
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText);
+        } catch (_) {
+          data = {};
+        }
+      }
+
+      if (response.ok) {
+        return { response, data };
+      }
+
+      const error = new Error(
+        data?.message || `Request failed (${response.status}).`
+      );
+      error.status = response.status;
+      error.data = data;
+      lastError = error;
+
+      if (RETRYABLE_WAKE_STATUSES.has(response.status) && attempt < attempts) {
+        onRetry?.({ attempt, attempts, delayMs: baseDelayMs * attempt, error });
+        await wait(baseDelayMs * attempt);
+        continue;
+      }
+
+      throw error;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        onRetry?.({ attempt, attempts, delayMs: baseDelayMs * attempt, error });
+        await wait(baseDelayMs * attempt);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw lastError || new Error('Request failed.');
 }
 
 function triggerLightFeedback() {
@@ -1079,10 +1141,15 @@ async function loadMyAds() {
   }
 
   try {
-    const response = await fetch('/api/p2p/my-ads', {
+    const { response, data } = await fetchJsonWithWakeRetry('/api/p2p/my-ads', {
       credentials: 'include'
+    }, {
+      attempts: 4,
+      baseDelayMs: 2500,
+      onRetry: ({ attempt, attempts }) => {
+        myAdsList.innerHTML = `<p class="empty-row">Server waking up... retrying your ads (${attempt}/${attempts - 1}).</p>`;
+      }
     });
-    const data = await response.json().catch(() => ({ offers: [] }));
     if (!response.ok) {
       throw new Error(data.message || 'Unable to load your ads.');
     }
@@ -2221,8 +2288,15 @@ async function loadOffers() {
   }
 
   offersRequestInFlight = (async () => {
-    const response = await fetch(`/api/p2p/offers?${params.toString()}`);
-    const data = await response.json();
+    const { response, data } = await fetchJsonWithWakeRetry(`/api/p2p/offers?${params.toString()}`, {}, {
+      attempts: 4,
+      baseDelayMs: 2500,
+      onRetry: ({ attempt, attempts }) => {
+        if (metaEl) {
+          metaEl.textContent = `Server waking up... retrying offers (${attempt}/${attempts - 1})`;
+        }
+      }
+    });
     if (!response.ok) {
       throw new Error(data.message || 'Unable to load offers.');
     }
@@ -2511,10 +2585,15 @@ async function loadLiveOrders() {
       side: currentSide,
       asset: currentAsset
     });
-    const response = await fetch(`/api/p2p/orders/live?${params.toString()}`, {
+    const { response, data } = await fetchJsonWithWakeRetry(`/api/p2p/orders/live?${params.toString()}`, {
       credentials: 'include'
+    }, {
+      attempts: 4,
+      baseDelayMs: 2500,
+      onRetry: ({ attempt, attempts }) => {
+        liveOrdersMeta.textContent = `Server waking up... retrying orders (${attempt}/${attempts - 1})`;
+      }
     });
-    const data = await response.json();
 
     if (!response.ok) {
       throw new Error(data.message || 'Unable to load ongoing orders.');
