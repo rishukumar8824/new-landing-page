@@ -399,13 +399,19 @@ body.p2p-chat-page {
   min-width: 40px;
   background: #1a2231;
   color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .send-btn {
-  min-width: 84px;
+  min-width: 44px;
   border: 0;
   background: linear-gradient(145deg, #ffc14e 0%, #f7a723 100%);
   color: #24190c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #chatInput {

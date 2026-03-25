@@ -1,3 +1,12 @@
+const BITEGIT_API = (window.BITEGIT_API_BASE || 'http://localhost:3000/api/v1');
+function mktFetch(path, opts) {
+  var token = localStorage.getItem('bitegit_token') || '';
+  opts = opts || {};
+  var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return fetch(BITEGIT_API + path, Object.assign({}, opts, { headers: headers, credentials: 'include' }));
+}
+
 const marketsRows = document.getElementById('marketsRows');
 const marketsTabs = document.getElementById('marketsTabs');
 
@@ -185,9 +194,9 @@ function setLoginUi() {
 
 async function loadCurrentUser() {
   try {
-    const response = await fetch('/api/p2p/me');
+    const response = await mktFetch('/auth/me');
     const data = await response.json();
-    currentUser = response.ok && data?.loggedIn ? data.user : null;
+    currentUser = response.ok && (data?.success || data?.user) ? data.user : null;
   } catch (_) {
     currentUser = null;
   }
@@ -197,7 +206,7 @@ async function loadCurrentUser() {
 async function loadMarkets() {
   try {
     const params = new URLSearchParams({ symbols: SYMBOLS.join(',') });
-    const response = await fetch(`/api/p2p/exchange-ticker?${params.toString()}`);
+    const response = await mktFetch(`/market/tickers?${params.toString()}`);
     const payload = await response.json();
 
     if (!response.ok || !Array.isArray(payload.ticker)) {

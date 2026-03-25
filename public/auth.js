@@ -1,3 +1,13 @@
+const BITEGIT_API = (window.BITEGIT_API_BASE || 'http://localhost:3000/api/v1');
+
+function authFetch(path, opts) {
+  opts = opts || {};
+  var token = localStorage.getItem('bitegit_token') || '';
+  var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return fetch(BITEGIT_API + path, Object.assign({}, opts, { headers: headers, credentials: 'include' }));
+}
+
 const authForm = document.getElementById('authForm');
 const authTitle = document.getElementById('authTitle');
 const authTopModeBtn = document.getElementById('authTopModeBtn');
@@ -39,7 +49,7 @@ const authNavClose = document.getElementById('authNavClose');
 const urlParams = new URLSearchParams(window.location.search);
 
 function resolveSafeRedirect(rawRedirect) {
-  const fallback = '/';
+  const fallback = '/home';
   const value = String(rawRedirect || '').trim();
   if (!value) {
     return fallback;
@@ -49,6 +59,9 @@ function resolveSafeRedirect(rawRedirect) {
     return fallback;
   }
   if (value.startsWith('//')) {
+    return fallback;
+  }
+  if (value === '/' || value === '/index.html' || value === '/auth.html') {
     return fallback;
   }
   return value;
@@ -114,7 +127,7 @@ function openQrLoginModal() {
   if (!authQrImage) {
     return;
   }
-  const loginUrl = `${window.location.origin}/auth.html?mode=login&redirect=${encodeURIComponent(redirectTo)}`;
+  const loginUrl = `${window.location.origin}/?mode=login&redirect=${encodeURIComponent(redirectTo)}`;
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&format=png&data=${encodeURIComponent(loginUrl)}`;
   authQrImage.src = qrSrc;
   setStatus('Scan QR on another device to open login.', 'success');
@@ -292,9 +305,9 @@ async function checkExistingSession() {
     return;
   }
   try {
-    const response = await fetch('/api/p2p/me');
+    const response = await authFetch('/auth/me');
     const data = await response.json();
-    if (response.ok && data?.loggedIn) {
+    if (response.ok && (data?.success || data?.user)) {
       window.location.href = redirectTo;
     }
   } catch (_) {
@@ -302,12 +315,15 @@ async function checkExistingSession() {
   }
 }
 
-async function postJson(url, payload) {
+async function postJson(path, payload) {
+  const url = path.startsWith('http') ? path : BITEGIT_API + path;
+  const token = localStorage.getItem('bitegit_token') || '';
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers,
+    credentials: 'include',
     body: JSON.stringify(payload || {})
   });
   const data = await response.json().catch(() => ({}));
@@ -328,13 +344,18 @@ async function handleSendOtp() {
     return;
   }
 
-  const endpoint = state.otpPurpose === 'forgot' ? '/auth/forgot-password/send-otp' : '/auth/signup/send-otp';
+  // For signup: register account first (this sends verification OTP to email)
+  // For forgot: just send forgot-password email
+  const isForgot = state.otpPurpose === 'forgot';
+  const endpoint = isForgot ? '/auth/forgot-password' : '/auth/register';
+  const password = String(passwordInput?.value || '').trim();
+  const payload = isForgot ? { email } : { email, password: password || 'TempSetLater1!' };
 
   try {
     sendOtpBtn.disabled = true;
     sendOtpBtn.textContent = 'Sending...';
     setOtpHelp('');
-    const { response, data } = await postJson(endpoint, { email });
+    const { response, data } = await postJson(endpoint, payload);
     if (!response.ok) {
       setOtpHelp('');
       setStatus(data?.message || 'Unable to send verification code.', 'error');
@@ -393,11 +414,12 @@ async function handleSubmit(event) {
   let payload = { email, password };
 
   if (state.mode === MODE_SIGNUP) {
-    endpoint = '/auth/register';
-    payload = { email, password, otpCode };
+    // In bitegit-backend, signup flow: register (sends OTP) → verify-email (with OTP)
+    endpoint = '/auth/verify-email';
+    payload = { otp: otpCode, token: otpCode };
   } else if (state.mode === MODE_FORGOT) {
-    endpoint = '/auth/forgot-password/reset';
-    payload = { email, otpCode, newPassword: password };
+    endpoint = '/auth/reset-password';
+    payload = { token: otpCode, otp: otpCode, newPassword: password };
   }
 
   try {
@@ -407,6 +429,12 @@ async function handleSubmit(event) {
     if (!response.ok) {
       setStatus(data?.message || 'Auth failed. Try again.', 'error');
       return;
+    }
+
+    if (state.mode === MODE_LOGIN && (data?.accessToken || data?.token)) {
+      const tok = data.accessToken || data.token;
+      localStorage.setItem('bitegit_token', tok);
+      if (data.refreshToken) localStorage.setItem('bitegit_refresh_token', data.refreshToken);
     }
 
     if (state.mode === MODE_FORGOT) {

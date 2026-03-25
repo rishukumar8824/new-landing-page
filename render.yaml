@@ -1,20 +1,36 @@
 services:
   - type: web
-    name: usdt-landing-backend
+    name: bitegit-app
     env: node
     plan: free
     branch: main
-    rootDir: backend
+    rootDir: .
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /healthz
     autoDeploy: true
     envVars:
-      - key: MONGO_URI
+      - key: MONGODB_URI
         sync: false
-      - key: WHATSAPP_NUMBER
+      - key: JWT_SECRET
         sync: false
-      - key: FRONTEND_URL
+      - key: MASTER_ENCRYPTION_KEY
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: PORT
+        value: 10000
+      - key: PM2_INSTANCES
+        value: 1
+      - key: ADMIN_FORCE_PASSWORD_SYNC
+        value: true
+      - key: ADMIN_FORCE_ACTIVATE
+        value: true
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
         sync: false
       - key: NODE_ENV
         value: production

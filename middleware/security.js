@@ -152,7 +152,9 @@ function applySecurityHeaders(app) {
               workerSrc: ["'self'", 'blob:'],
               objectSrc: ["'none'"],
               frameAncestors: ["'none'"],
-              baseUri: ["'self'"]
+              baseUri: ["'self'"],
+              scriptSrcAttr: ["'unsafe-inline'"],
+              formAction: ["'self'"]
             }
           },
           hsts: {

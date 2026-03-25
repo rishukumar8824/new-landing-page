@@ -10,18 +10,13 @@ const rateLimit = require("express-rate-limit");
 const leadRoutes = require("./routes/lead");
 
 const app = express();
-const port = process.env.PORT || 5001;
-
-const corsOrigin = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(",").map((origin) => origin.trim())
-  : "*";
+const PORT = process.env.PORT || 5001;
 
 app.use(helmet());
 app.use(
   cors({
-    origin: corsOrigin,
-    methods: ["GET", "POST"],
-    credentials: false
+    origin: process.env.FRONTEND_URL || "*",
+    methods: ["GET", "POST"]
   })
 );
 app.use(express.json({ limit: "10kb" }));
@@ -43,24 +38,25 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api", leadRoutes);
 
-app.use((err, _req, res, _next) => {
-  console.error(err);
+app.use((error, _req, res, _next) => {
+  console.error(error);
   res.status(500).json({ error: "Internal server error." });
 });
 
-async function startServer() {
+async function start() {
   const mongoUri = process.env.MONGO_URI;
   if (!mongoUri) {
-    throw new Error("MONGO_URI is required in environment variables.");
+    throw new Error("MONGO_URI is required.");
   }
 
   await mongoose.connect(mongoUri);
-  app.listen(port, () => {
-    console.log(`Backend running on http://localhost:${port}`);
+
+  app.listen(PORT, () => {
+    console.log(`Backend running on http://localhost:${PORT}`);
   });
 }
 
-startServer().catch((error) => {
-  console.error("Startup failed:", error.message);
+start().catch((error) => {
+  console.error("Failed to start backend:", error.message);
   process.exit(1);
 });

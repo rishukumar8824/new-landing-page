@@ -658,6 +658,11 @@ function createAdminControllers({
     return res.json(data);
   }
 
+  async function getSupportTicket(req, res) {
+    const ticket = await adminStore.getSupportTicket(req.params.ticketId);
+    return res.json(ticket);
+  }
+
   async function replySupportTicket(req, res) {
     const message = String(req.body?.message || '').trim();
     if (!message) {
@@ -777,6 +782,7 @@ function createAdminControllers({
     createComplianceFlag,
     exportComplianceTransactions,
     listSupportTickets,
+    getSupportTicket,
     replySupportTicket,
     updateSupportTicketStatus,
     assignSupportTicket,

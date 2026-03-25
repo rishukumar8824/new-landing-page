@@ -1,0 +1,41 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Bitegit Landing",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.js"],
+      "port": 4200,
+      "autoPort": true,
+      "cwd": "/Users/sumitkmina/Documents/New project"
+    },
+    {
+      "name": "Bitegit Admin",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.js"],
+      "port": 3000,
+      "autoPort": false,
+      "cwd": "/Users/sumitkmina/Documents/New project"
+    },
+    {
+      "name": "Main Server (Bitegit)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.js"],
+      "port": 3000,
+      "autoPort": false,
+      "cwd": "/Users/sumitkmina/Documents/New project"
+    },
+    {
+      "name": "Lead Backend",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["backend/server.js"],
+      "port": 5001
+    },
+    {
+      "name": "Frontend (Next.js)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3001
+    }
+  ]
+}

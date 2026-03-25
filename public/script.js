@@ -1,3 +1,12 @@
+const BITEGIT_API = (window.BITEGIT_API_BASE || 'http://localhost:3000/api/v1');
+function bgFetch(path, opts) {
+  var token = localStorage.getItem('bitegit_token') || '';
+  opts = opts || {};
+  var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return fetch(BITEGIT_API + path, Object.assign({}, opts, { headers: headers, credentials: 'include' }));
+}
+
 const form = document.getElementById('leadForm');
 const message = document.getElementById('message');
 const topSignupBtn = document.getElementById('topSignupBtn');
@@ -448,7 +457,7 @@ function renderOrderBook(data) {
 }
 
 async function loadMarketDepth(symbol) {
-  const response = await fetch(`/api/p2p/market-depth?symbol=${encodeURIComponent(symbol)}`);
+  const response = await bgFetch(`/market/orderbook?symbol=${encodeURIComponent(symbol)}`);
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.message || 'Market feed unavailable');
@@ -994,7 +1003,7 @@ async function loadMarket() {
       symbols: MARKET_SYMBOLS.join(',')
     });
     params.set('_t', String(Date.now()));
-    const response = await fetch(`/api/p2p/exchange-ticker?${params.toString()}`, {
+    const response = await fetch(`${BITEGIT_API}/market/tickers?${params.toString()}`, {
       cache: 'no-store'
     });
     const data = await response.json();
@@ -1059,23 +1068,22 @@ function buildSignupUrl({ provider = '', email = '', name = '' } = {}) {
 }
 
 async function sendOtp(contact, name) {
-  const response = await fetch('/api/signup/send-code', {
+  // bitegit-backend: register creates account and sends OTP
+  const response = await bgFetch('/auth/register', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contact, name })
+    body: JSON.stringify({ email: contact, password: 'TempSetLater1!', username: name })
   });
   const data = await response.json();
-  if (!response.ok) {
+  if (!response.ok && response.status !== 201) {
     throw new Error(data.message || 'Unable to send verification code.');
   }
   return data;
 }
 
 async function verifyOtp(contact, name, code) {
-  const response = await fetch('/api/signup/verify-code', {
+  const response = await bgFetch('/auth/verify-email', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contact, name, code })
+    body: JSON.stringify({ otp: code, token: code })
   });
   const data = await response.json();
   if (!response.ok) {

@@ -1,57 +1,62 @@
-# USDT Buy/Sell Landing Page (Fresh Deployment)
+# USDT Buy/Sell Landing Page Lead System
 
-This repository is structured for a fresh full-stack deployment:
+Fresh full-stack project structure:
 
-- `frontend/` -> Next.js + TailwindCSS landing page (deploy to Vercel)
-- `backend/` -> Node.js + Express + MongoDB API (deploy to Render)
+- `frontend/` -> Next.js + TailwindCSS (deploy to Vercel)
+- `backend/` -> Node.js + Express + MongoDB Atlas (deploy to Render)
 
 ## Features
 
-- Landing form fields: Name, Mobile Number, Preference (Buy USDT / Sell USDT)
+- Landing form fields: Name, Mobile Number, Preference
 - Form flow:
-  1. Submit to backend API (`POST /api/lead`)
-  2. Save lead in MongoDB Atlas
-  3. Redirect to WhatsApp with pre-filled message
-- Backend health endpoint: `GET /api/health`
+  1. Frontend calls `POST /api/lead`
+  2. Backend saves lead to MongoDB
+  3. Frontend redirects to WhatsApp with pre-filled message
+- Health endpoint: `GET /api/health`
 
-## Environment Variables
-
-### Backend (`backend/.env`)
+## Required Environment Variables (Backend)
 
 - `MONGO_URI`
 - `WHATSAPP_NUMBER`
 - `FRONTEND_URL`
 - `NODE_ENV=production`
-- `PORT=5001` (optional locally)
 
-### Frontend (`frontend/.env.local`)
+## Local Setup
 
-- `NEXT_PUBLIC_API_URL`
-- `NEXT_PUBLIC_WHATSAPP_NUMBER`
-
-## Local Run
+### Backend
 
 ```bash
-cd backend && npm install && npm run dev
-cd ../frontend && npm install && npm run dev
+cd backend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev
 ```
 
 Frontend: `http://localhost:3000`
 Backend: `http://localhost:5001`
 
-## Deploy
+## Deployment
 
 ### Backend on Render
 
-- Service root directory: `backend`
-- Build command: `npm install`
-- Start command: `npm start`
-- Health check path: `/api/health`
-- Add env vars: `MONGO_URI`, `WHATSAPP_NUMBER`, `FRONTEND_URL`, `NODE_ENV=production`
+- Root Directory: `backend`
+- Build Command: `npm install`
+- Start Command: `npm start`
+- Health Check Path: `/api/health`
+- Add env vars: `MONGO_URI`, `WHATSAPP_NUMBER`, `FRONTEND_URL`, `NODE_ENV`
 
 ### Frontend on Vercel
 
-- Project root directory: `frontend`
-- Add env vars:
+- Root Directory: `frontend`
+- Set env vars:
   - `NEXT_PUBLIC_API_URL=https://<your-render-service>.onrender.com`
-  - `NEXT_PUBLIC_WHATSAPP_NUMBER=<your_whatsapp_number>`
+  - `NEXT_PUBLIC_WHATSAPP_NUMBER=919999999999`

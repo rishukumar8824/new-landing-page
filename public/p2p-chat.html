@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Bitegit P2P Order Chat</title>
     <link rel="stylesheet" href="/p2p-chat.css?v=20260227" />
+    <script src="/bitegit-config.js"></script>
   </head>
   <body class="p2p-chat-page">
     <main class="order-chat-layout">
@@ -77,10 +78,14 @@
         </div>
 
         <form id="chatForm" class="chat-form">
-          <button id="chatImageBtn" type="button" class="chat-image-btn" aria-label="Upload image">🖼</button>
+          <button id="chatImageBtn" type="button" class="chat-image-btn" aria-label="Upload image">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </button>
           <input id="chatImageInput" type="file" class="hidden-control" accept="image/png,image/jpeg,image/jpg,image/webp" />
           <input id="chatInput" type="text" maxlength="300" autocomplete="off" placeholder="Type a message..." />
-          <button id="chatSendBtn" type="submit" class="send-btn">Send</button>
+          <button id="chatSendBtn" type="submit" class="send-btn" aria-label="Send message">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
         </form>
 
         <p id="chatUploadState" class="chat-upload-state hidden">Uploading image...</p>

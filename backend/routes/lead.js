@@ -10,14 +10,14 @@ const leadLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many submissions from this IP. Please try again later." }
+  message: { error: "Too many submissions. Please try again later." }
 });
 
-const validateLeadInput = [
+const validateLead = [
   body("name")
     .trim()
     .isLength({ min: 2, max: 80 })
-    .withMessage("Name is required and must be 2-80 characters long."),
+    .withMessage("Name is required."),
   body("phone")
     .trim()
     .matches(/^\d{10}$/)
@@ -26,33 +26,20 @@ const validateLeadInput = [
     .trim()
     .toLowerCase()
     .isIn(["buy", "sell"])
-    .withMessage("Preference must be either buy or sell."),
-  body("website").optional({ values: "falsy" }).isEmpty().withMessage("Invalid form submission."),
-  body("formStartedAt")
-    .optional({ values: "falsy" })
-    .isInt({ min: 1 })
-    .withMessage("Invalid submission timestamp.")
+    .withMessage("Preference must be buy or sell.")
 ];
 
-router.post("/lead", leadLimiter, validateLeadInput, async (req, res, next) => {
+router.post("/lead", leadLimiter, validateLead, async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
         error: "Validation failed.",
-        details: errors.array().map((item) => item.msg)
+        details: errors.array().map((entry) => entry.msg)
       });
     }
 
-    const { name, phone, preference, website, formStartedAt } = req.body;
-
-    if (website) {
-      return res.status(400).json({ error: "Spam detected." });
-    }
-
-    if (formStartedAt && Date.now() - Number(formStartedAt) < 1500) {
-      return res.status(400).json({ error: "Submission too fast. Please retry." });
-    }
+    const { name, phone, preference } = req.body;
 
     const lead = await Lead.create({ name, phone, preference });
 

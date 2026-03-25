@@ -1,3 +1,5 @@
+const BITEGIT_API = (window.BITEGIT_API_BASE || 'http://localhost:3000/api/v1');
+
 const assetsStatus = document.getElementById('assetsStatus');
 const assetsActionMessage = document.getElementById('assetsActionMessage');
 
@@ -36,23 +38,14 @@ const withdrawAmountInput = document.getElementById('assetsWithdrawAmount');
 const withdrawResultEl = document.getElementById('assetsWithdrawResult');
 const withdrawSubmitBtn = document.getElementById('assetsWithdrawSubmitBtn');
 
-const WALLET_ENDPOINTS = ['/api/wallet/summary', '/api/wallet', '/api/p2p/wallet'];
+const WALLET_ENDPOINTS = [BITEGIT_API + '/wallet/balances', BITEGIT_API + '/wallet/balances', BITEGIT_API + '/wallet/balances'];
 const WITHDRAW_ENDPOINTS = [
   {
-    url: '/api/withdrawals',
+    url: BITEGIT_API + '/wallet/withdraw',
     buildBody: (amount, address, network) => ({
       amount,
       currency: 'USDT',
       address,
-      network
-    })
-  },
-  {
-    url: '/api/withdraw/request',
-    buildBody: (amount, address, network) => ({
-      amount,
-      coin: 'USDT',
-      to_address: address,
       network
     })
   }
@@ -443,10 +436,12 @@ function closeAllModals() {
 }
 
 async function requestJson(url, options = {}) {
+  const token = localStorage.getItem('bitegit_token') || '';
   const response = await fetch(url, {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': 'Bearer ' + token } : {}),
       ...(options.headers || {})
     },
     ...options

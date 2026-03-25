@@ -20,13 +20,16 @@
   "dependencies": {
     "@capacitor/android": "^8.1.0",
     "@capacitor/core": "^8.1.0",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^16.6.1",
-    "express-rate-limit": "^7.5.0",
     "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "mongodb": "^6.15.0",
     "nodemailer": "^6.10.0",
-    "pm2": "^5.4.3"
+    "otplib": "^13.3.0",
+    "pm2": "^5.4.3",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

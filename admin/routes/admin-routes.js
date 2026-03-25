@@ -163,6 +163,64 @@ function registerAdminRoutes(app, deps) {
   router.post('/users/:userId/reset-password', protect(ROLE_GROUPS.SUPER), withLogging({ module: 'users', action: 'reset_user_password' }, adminControllers.resetUserPassword));
   router.post('/users/:userId/adjust-balance', protect(ROLE_GROUPS.FINANCE), withLogging({ module: 'users', action: 'adjust_user_balance' }, adminControllers.adjustUserBalance));
   router.get('/users/:userId/kyc', protect(ROLE_GROUPS.ALL), withLogging({ module: 'users', action: 'get_user_kyc' }, adminControllers.getUserKyc));
+  router.get(
+    '/users/:userId/kyc/documents',
+    protect(ROLE_GROUPS.COMPLIANCE),
+    withLogging({ module: 'users', action: 'get_kyc_documents' }, async (req, res) => {
+      const userId = safeString(req.params.userId);
+      if (!userId) {
+        return res.status(400).json({ message: 'userId is required' });
+      }
+      const data = await adminStore.getKycDocuments(userId);
+      // Return metadata only (no base64 blobs) — images served via /kyc/image/:type
+      return res.json({
+        userId: data.userId,
+        status: data.status,
+        aadhaarLast4: data.aadhaarLast4,
+        aadhaarMasked: data.aadhaarMasked,
+        submittedAt: data.submittedAt,
+        hasAadhaarFront: !!data.aadhaarFront,
+        hasSelfie: !!data.selfie,
+        // Include actual data for backward-compat (admin may use it)
+        aadhaarFront: data.aadhaarFront || null,
+        selfie: data.selfie || null
+      });
+    })
+  );
+
+  // Serve KYC images as binary — more reliable than base64 in JSON
+  router.get(
+    '/users/:userId/kyc/image/:type',
+    protect(ROLE_GROUPS.COMPLIANCE),
+    async (req, res) => {
+      const userId = safeString(req.params.userId);
+      const type   = safeString(req.params.type); // 'aadhaar' | 'selfie'
+      if (!userId || !['aadhaar','selfie'].includes(type)) {
+        return res.status(400).json({ message: 'Invalid request' });
+      }
+      try {
+        const data = await adminStore.getKycDocuments(userId);
+        const raw = type === 'aadhaar' ? data.aadhaarFront : data.selfie;
+        if (!raw) return res.status(404).json({ message: 'Image not found' });
+
+        // raw is a data URL: "data:image/jpeg;base64,..."
+        const match = String(raw).match(/^data:([^;]+);base64,(.+)$/s);
+        if (match) {
+          const mimeType = match[1] || 'image/jpeg';
+          const buffer   = Buffer.from(match[2], 'base64');
+          res.setHeader('Content-Type', mimeType);
+          res.setHeader('Cache-Control', 'private, max-age=300');
+          return res.send(buffer);
+        }
+        // Fallback: send as-is
+        res.setHeader('Content-Type', 'text/plain');
+        return res.send(raw);
+      } catch (err) {
+        return res.status(500).json({ message: 'Failed to load image: ' + (err.message || 'Unknown') });
+      }
+    }
+  );
+
   router.post('/users/:userId/kyc/review', protect(ROLE_GROUPS.COMPLIANCE), withLogging({ module: 'users', action: 'review_user_kyc' }, adminControllers.reviewUserKyc));
 
   // -------------------------
@@ -220,6 +278,7 @@ function registerAdminRoutes(app, deps) {
   // Support System
   // -------------------------
   router.get('/support/tickets', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'list_tickets' }, adminControllers.listSupportTickets));
+  router.get('/support/tickets/:ticketId', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'get_ticket', audit: false }, adminControllers.getSupportTicket));
   router.post('/support/tickets/:ticketId/reply', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'reply_ticket' }, adminControllers.replySupportTicket));
   router.patch('/support/tickets/:ticketId/status', protect(ROLE_GROUPS.SUPPORT), withLogging({ module: 'support', action: 'update_ticket_status' }, adminControllers.updateSupportTicketStatus));
   router.patch('/support/tickets/:ticketId/assign', protect(ROLE_GROUPS.SUPER), withLogging({ module: 'support', action: 'assign_ticket' }, adminControllers.assignSupportTicket));

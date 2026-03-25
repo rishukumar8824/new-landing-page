@@ -1,3 +1,5 @@
+const BITEGIT_API = (window.BITEGIT_API_BASE || 'http://localhost:3000/api/v1');
+
 (function appBootstrap() {
   const screens = Array.from(document.querySelectorAll('.app-screen'));
   const navButtons = Array.from(document.querySelectorAll('.app-bottom-nav button'));
@@ -96,7 +98,11 @@
   }
 
   async function fetchJson(url) {
-    const response = await fetch(url, { credentials: 'include' });
+    const token = localStorage.getItem('bitegit_token') || '';
+    const response = await fetch(url, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+    });
     const body = await response.json().catch(() => ({}));
     return { response, body };
   }
@@ -223,7 +229,7 @@
 
     try {
       const query = encodeURIComponent(symbols.join(','));
-      const { response, body } = await fetchJson(`/api/p2p/exchange-ticker?symbols=${query}`);
+      const { response, body } = await fetchJson(`${BITEGIT_API}/market/tickers?symbols=${query}`);
       if (!response.ok || !Array.isArray(body.ticker)) {
         throw new Error('Ticker unavailable');
       }
@@ -241,7 +247,7 @@
 
   async function loadUser() {
     try {
-      const { response, body } = await fetchJson('/api/p2p/me');
+      const { response, body } = await fetchJson(`${BITEGIT_API}/auth/me`);
       if (!response.ok || !body.loggedIn || !body.user) {
         drawerUserName.textContent = 'Guest User';
         drawerUserMeta.textContent = 'Login required';
@@ -264,7 +270,7 @@
     assetDepositNetwork.textContent = '--';
 
     try {
-      const { response, body } = await fetchJson('/api/wallet/summary');
+      const { response, body } = await fetchJson(`${BITEGIT_API}/wallet/balances`);
       if (!response.ok || !body.summary) {
         throw new Error('Unauthorized');
       }
@@ -295,7 +301,7 @@
   }
 
   function openSupportCenterPage() {
-    window.location.href = '/support-center/';
+    openLiveChat();
   }
 
   navButtons.forEach((button) => {
@@ -380,6 +386,7 @@
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       setDrawerOpen(false);
+      closeLiveChat();
     }
   });
 
@@ -387,4 +394,227 @@
   loadMarkets(true);
   loadAssetSummary();
   setScreen('home');
+  initLiveChat();
 })();
+
+// ══════════════════════════════════════════════
+// LIVE SUPPORT CHAT
+// ══════════════════════════════════════════════
+(function liveChatModule() {
+  const STORAGE_KEY = 'bg_support_ticket';
+  const API_BASE    = BITEGIT_API;
+
+  let chatState = {
+    ticketId: null,
+    agentName: null,
+    open: false,
+    pollTimer: null,
+    lastMsgCount: 0,
+    userId: null
+  };
+
+  function storageGet() {
+    try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null'); } catch(_) { return null; }
+  }
+  function storageSet(v) {
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(v)); } catch(_) {}
+  }
+  function storageClear() {
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch(_) {}
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  function appendMsg(text, sender) {
+    const box = el('supportChatMessages');
+    if (!box) return;
+    const isAgent = sender !== 'user';
+    const agentName = chatState.agentName || 'Agent';
+    const div = document.createElement('div');
+    div.style.cssText = `display:flex;flex-direction:column;max-width:82%;
+      ${isAgent ? 'align-self:flex-start;align-items:flex-start;' : 'align-self:flex-end;align-items:flex-end;'}`;
+    const safeText = String(text || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    div.innerHTML = `
+      <div style="background:${isAgent ? 'rgba(240,185,11,0.1)' : 'rgba(2,192,118,0.12)'};
+                  border:1px solid ${isAgent ? 'rgba(240,185,11,0.25)' : 'rgba(2,192,118,0.3)'};
+                  border-radius:${isAgent ? '4px 14px 14px 14px' : '14px 4px 14px 14px'};
+                  padding:8px 12px;">
+        <p style="font-size:10px;font-weight:700;color:${isAgent ? '#f0b90b' : '#02c076'};margin:0 0 4px;">
+          ${isAgent ? agentName : 'You'}</p>
+        <p style="font-size:13px;color:#e8e8e8;margin:0;white-space:pre-wrap;line-height:1.5;">${safeText}</p>
+      </div>`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function setAgentUI(name) {
+    chatState.agentName = name;
+    const nameEl = el('supportAgentName');
+    if (nameEl) nameEl.textContent = name || 'Support Agent';
+  }
+
+  function showChatLoading() {
+    const box = el('supportChatMessages');
+    if (!box) return;
+    box.innerHTML = `<div style="text-align:center;padding:32px;color:rgba(255,255,255,0.4);font-size:13px;">
+      <div style="font-size:28px;margin-bottom:8px;">💬</div>Connecting to support...</div>`;
+  }
+
+  async function createTicket() {
+    const userId = 'usr_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+    chatState.userId = userId;
+
+    const res = await fetch(`${API_BASE}/support/tickets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subject: 'Live Support Request',
+        message: 'Hello, I need help with my account.',
+        category: 'Live Chat',
+        userId,
+        email: ''
+      })
+    });
+    if (!res.ok) throw new Error('Failed to start support session');
+    return await res.json();
+  }
+
+  async function fetchMessages() {
+    if (!chatState.ticketId) return;
+    try {
+      const res = await fetch(`${API_BASE}/support/tickets/${chatState.ticketId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const msgs = Array.isArray(data.messages) ? data.messages : [];
+
+      if (msgs.length > chatState.lastMsgCount) {
+        const newMsgs = msgs.slice(chatState.lastMsgCount);
+        newMsgs.forEach(m => appendMsg(m.text, m.sender));
+        chatState.lastMsgCount = msgs.length;
+
+        // Show dot on FAB if chat closed and new agent message
+        const hasAgentMsg = newMsgs.some(m => m.sender !== 'user');
+        if (hasAgentMsg && !chatState.open) {
+          const dot = el('supportFabDot');
+          if (dot) dot.style.display = 'block';
+        }
+      }
+    } catch (_) {}
+  }
+
+  function startPolling() {
+    stopPolling();
+    chatState.pollTimer = setInterval(fetchMessages, 4000);
+  }
+
+  function stopPolling() {
+    if (chatState.pollTimer) { clearInterval(chatState.pollTimer); chatState.pollTimer = null; }
+  }
+
+  async function openLiveChat() {
+    chatState.open = true;
+    const popup = el('supportChatPopup');
+    if (popup) popup.style.display = 'flex';
+    const dot = el('supportFabDot');
+    if (dot) dot.style.display = 'none';
+
+    // Already have a ticket
+    const saved = storageGet();
+    if (saved && saved.ticketId) {
+      chatState.ticketId = saved.ticketId;
+      setAgentUI(saved.agentName || 'Support Agent');
+      showChatLoading();
+      await fetchMessages();
+      startPolling();
+      return;
+    }
+
+    // Create new ticket
+    showChatLoading();
+    try {
+      const data = await createTicket();
+      chatState.ticketId = data.ticketId;
+      const agentName = data.agentName || 'Support Agent';
+      setAgentUI(agentName);
+      storageSet({ ticketId: data.ticketId, agentName });
+
+      const box = el('supportChatMessages');
+      if (box) box.innerHTML = '';
+      appendMsg(`Hi! I'm ${agentName} from Bitegit Support 👋\nHow can I help you today?`, 'agent');
+      chatState.lastMsgCount = 1; // welcome message from server (first user msg)
+      startPolling();
+    } catch (err) {
+      const box = el('supportChatMessages');
+      if (box) box.innerHTML = `<div style="padding:20px;color:#f6465d;text-align:center;font-size:13px;">
+        ⚠️ Unable to connect. Please try again.</div>`;
+    }
+  }
+
+  function closeLiveChat() {
+    chatState.open = false;
+    const popup = el('supportChatPopup');
+    if (popup) popup.style.display = 'none';
+  }
+
+  async function sendMessage() {
+    if (!chatState.ticketId) return;
+    const input = el('supportChatInput');
+    const text = String(input?.value || '').trim();
+    if (!text) return;
+    input.value = '';
+    input.style.height = 'auto';
+
+    appendMsg(text, 'user');
+    chatState.lastMsgCount++;
+
+    try {
+      await fetch(`${API_BASE}/support/tickets/${chatState.ticketId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, email: '' })
+      });
+    } catch (_) {}
+  }
+
+  function initLiveChat() {
+    const fab     = el('supportChatFab');
+    const closeBtn = el('supportChatClose');
+    const sendBtn  = el('supportChatSend');
+    const input    = el('supportChatInput');
+
+    if (fab) {
+      fab.addEventListener('click', () => {
+        if (chatState.open) { closeLiveChat(); } else { openLiveChat(); }
+      });
+      fab.addEventListener('mouseenter', () => { fab.style.transform = 'scale(1.1)'; });
+      fab.addEventListener('mouseleave', () => { fab.style.transform = ''; });
+    }
+
+    if (closeBtn) closeBtn.addEventListener('click', closeLiveChat);
+
+    if (sendBtn) sendBtn.addEventListener('click', sendMessage);
+
+    if (input) {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+      });
+      input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 80) + 'px';
+      });
+    }
+
+    // Restore session if had one
+    const saved = storageGet();
+    if (saved && saved.ticketId) {
+      chatState.ticketId = saved.ticketId;
+      setAgentUI(saved.agentName || 'Support Agent');
+      startPolling();
+    }
+  }
+
+  // Expose for use in app bootstrap
+  window.openLiveChat = openLiveChat;
+  window.closeLiveChat = closeLiveChat;
+  window.initLiveChat = initLiveChat;
+}());
