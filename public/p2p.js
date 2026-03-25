@@ -3272,6 +3272,7 @@ function switchOrdSub(sub) {
 }
 
 var _ORD_CACHE_KEY = 'p2p_orders_cache';
+var _ordRequestInFlight = null;
 function _saveOrdCache(orders) {
   try { localStorage.setItem(_ORD_CACHE_KEY, JSON.stringify(orders)); } catch(e){}
 }
@@ -3280,6 +3281,10 @@ function _loadOrdCache() {
 }
 
 function loadBybitorOrders() {
+  if (_ordRequestInFlight) {
+    return _ordRequestInFlight;
+  }
+
   function renderAll(allOrders, fromCache) {
     _ordLoaded = true;
     // dedupe by id, sort newest first
@@ -3337,24 +3342,54 @@ function loadBybitorOrders() {
     if (spinEl) { spinEl.style.display = 'block'; spinEl.innerHTML = _ordLoadingHtml(); }
   }
 
-  // fetch active + history in parallel
-  Promise.all([
-    fetch('/api/p2p/orders/my-active', { credentials: 'include' }),
-    fetch('/api/p2p/orders/history?limit=100&offset=0', { credentials: 'include' })
-  ]).then(function(responses) {
-    var r1 = responses[0], r2 = responses[1];
-    if (r1.status === 401) { showLoginPrompt(); return; }
-    return Promise.all([
-      r1.ok ? r1.json() : { orders: [] },
-      r2.ok ? r2.json() : { orders: [] }
-    ]).then(function(results) {
-      var all = (results[0].orders || []).concat(results[1].orders || []);
-      renderAll(all, false);
+  // Render active orders first so the mobile screen does not sit on a spinner
+  // while older history requests are still loading or the free instance wakes up.
+  _ordRequestInFlight = fetch('/api/p2p/orders/my-active', { credentials: 'include' })
+    .then(function(r1) {
+      if (r1.status === 401) {
+        showLoginPrompt();
+        return null;
+      }
+      return r1.ok ? r1.json() : { orders: [] };
+    })
+    .then(function(activeData) {
+      if (!activeData) {
+        return null;
+      }
+
+      var activeOrders = activeData.orders || [];
+      renderAll(activeOrders, false);
+
+      return fetch('/api/p2p/orders/history?limit=50&offset=0', { credentials: 'include' })
+        .then(function(r2) {
+          if (r2.status === 401) {
+            showLoginPrompt();
+            return null;
+          }
+          return r2.ok ? r2.json() : { orders: [] };
+        })
+        .then(function(historyData) {
+          if (!historyData) {
+            return null;
+          }
+          var all = activeOrders.concat(historyData.orders || []);
+          renderAll(all, false);
+          return all;
+        })
+        .catch(function() {
+          return activeOrders;
+        });
+    })
+    .catch(function() {
+      var el = document.getElementById(_ORD_LIST_IDS[_ordSubTab]);
+      if (el) { el.style.display = 'block'; el.innerHTML = _ordEmpty('No orders'); }
+      return null;
+    })
+    .finally(function() {
+      _ordRequestInFlight = null;
     });
-  }).catch(function(e) {
-    var el = document.getElementById(_ORD_LIST_IDS[_ordSubTab]);
-    if (el) { el.style.display = 'block'; el.innerHTML = _ordEmpty('No orders'); }
-  });
+
+  return _ordRequestInFlight;
 }
 // Wire orders screen tab buttons (click + touchend for iOS)
 (function() {
@@ -3394,7 +3429,7 @@ function startOrdPolling() {
     } else {
       stopOrdPolling();
     }
-  }, 1200); // 1.2s — real-time
+  }, 5000); // SSE handles instant updates; polling stays as a lightweight fallback
 }
 function stopOrdPolling() {
   if (_ordPollTimer) { clearInterval(_ordPollTimer); _ordPollTimer = null; }
