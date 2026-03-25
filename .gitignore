@@ -9,3 +9,11 @@ frontend/.env.local
 backend/node_modules/
 backend/.env
 public/downloads/*.apk
+public/videos/*.mov
+public/videos/*.mp4
+public/downloads/*.zip
+public/downloads/*.apk
+node_modules/
+.claude/worktrees/
+flutter-sdk/
+android/
