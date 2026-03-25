@@ -373,7 +373,7 @@ async function checkExistingSession() {
     return;
   }
   try {
-    const response = await fetch('/api/p2p/me');
+    const response = await fetch('/api/p2p/me', { credentials: 'include' });
     const data = await response.json();
     if (response.ok && data?.loggedIn) {
       window.location.href = redirectTo;
@@ -389,6 +389,7 @@ async function postJson(url, payload) {
     headers: {
       'Content-Type': 'application/json'
     },
+    credentials: 'include',
     body: JSON.stringify(payload || {})
   });
   const data = await response.json().catch(() => ({}));

@@ -1131,25 +1131,100 @@ function clearAdminAuthCookies(res) {
   clearCookie(res, ADMIN_REFRESH_COOKIE_NAME);
 }
 
-async function getP2PUserFromRequest(req) {
+function toP2PRequestUser(input = {}) {
+  const userId = String(input.id || input.userId || input.sub || '').trim();
+  if (!userId) {
+    return null;
+  }
+
+  return {
+    id: userId,
+    username: String(input.username || '').trim(),
+    email: String(input.email || '')
+      .trim()
+      .toLowerCase(),
+    role: tokenService.normalizeRole(input.role || 'USER'),
+    expiresAt: Date.now() + P2P_USER_TTL_MS
+  };
+}
+
+async function restoreP2PUserFromRefreshToken(req, res) {
+  if (!repos) {
+    return null;
+  }
+
+  const cookies = parseCookies(req);
+  const refreshToken = authMiddleware
+    ? authMiddleware.extractRefreshTokenFromRequest(req)
+    : String(cookies[P2P_REFRESH_COOKIE_NAME] || '').trim();
+
+  if (!refreshToken) {
+    return null;
+  }
+
+  const clearAuthState = async () => {
+    const refreshTokenHash = tokenService.hashRefreshToken(refreshToken);
+    await repos.deleteRefreshTokenByHash(refreshTokenHash).catch(() => {});
+    if (res) {
+      clearCookie(res, P2P_USER_COOKIE_NAME);
+      clearP2PAuthCookies(res);
+    }
+  };
+
+  try {
+    const decoded = tokenService.verifyRefreshToken(refreshToken);
+    const refreshTokenHash = tokenService.hashRefreshToken(refreshToken);
+    const dbToken = await repos.getRefreshTokenByHash(refreshTokenHash);
+    if (!dbToken || String(dbToken.userId || '').trim() !== String(decoded.sub || '').trim()) {
+      await clearAuthState();
+      return null;
+    }
+
+    const expiresAtMs = new Date(dbToken.expiresAt).getTime();
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+      await clearAuthState();
+      return null;
+    }
+
+    const user = toP2PRequestUser({
+      id: dbToken.userId,
+      username: dbToken.username,
+      email: dbToken.email,
+      role: dbToken.role
+    });
+    if (!user) {
+      await clearAuthState();
+      return null;
+    }
+
+    if (res) {
+      const tokenPair = await issueAuthTokenPairForUser(user);
+      setP2PAuthCookies(res, tokenPair);
+
+      if (user.email) {
+        const legacySession = await createP2PUserSession(user.email, user.role);
+        setCookie(res, P2P_USER_COOKIE_NAME, legacySession.token, P2P_USER_TTL_MS / 1000);
+      }
+    }
+
+    return user;
+  } catch (error) {
+    await clearAuthState();
+    return null;
+  }
+}
+
+async function getP2PUserFromRequest(req, res = null) {
   if (authMiddleware) {
     const accessToken = authMiddleware.extractAccessTokenFromRequest(req);
     if (accessToken) {
       try {
         const decoded = tokenService.verifyAccessToken(accessToken);
         if (String(decoded?.typ || 'access').trim().toLowerCase() === 'access' && String(decoded?.sub || '').trim()) {
-          return {
-            id: String(decoded.sub).trim(),
-            username: String(decoded.username || '').trim(),
-            email: String(decoded.email || '')
-              .trim()
-              .toLowerCase(),
-            role: tokenService.normalizeRole(decoded.role || 'USER'),
-            expiresAt: Date.now() + P2P_USER_TTL_MS
-          };
+          return toP2PRequestUser(decoded);
         }
       } catch (error) {
-        // Fall back to legacy session lookup.
+        // Fall back to legacy session lookup and refresh-token recovery.
       }
     }
   }
@@ -1158,19 +1233,19 @@ async function getP2PUserFromRequest(req) {
   const token = cookies[P2P_USER_COOKIE_NAME];
 
   if (!token) {
-    return null;
+    return restoreP2PUserFromRefreshToken(req, res);
   }
 
-  if (!repos) return null; // DB not ready yet
+  if (!repos) return restoreP2PUserFromRefreshToken(req, res); // DB not ready yet
 
   const session = await repos.getP2PUserSession(token);
   if (!session || !session.expiresAt) {
-    return null;
+    return restoreP2PUserFromRefreshToken(req, res);
   }
 
   if (new Date(session.expiresAt).getTime() < Date.now()) {
     await repos.deleteP2PUserSession(token);
-    return null;
+    return restoreP2PUserFromRefreshToken(req, res);
   }
 
   const expiresAt = Date.now() + P2P_USER_TTL_MS;
@@ -1186,15 +1261,18 @@ async function getP2PUserFromRequest(req) {
 }
 
 async function requiresP2PUser(req, res, next) {
-  if (authMiddleware) {
-    return authMiddleware.requireAuth({ roles: ['USER', 'ADMIN'], allowLegacy: true })(req, res, next);
-  }
   try {
-    const user = await getP2PUserFromRequest(req);
+    const user = await getP2PUserFromRequest(req, res);
     if (!user) {
       return res.status(401).json({ message: 'Please login to continue.' });
     }
 
+    req.authUser = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: tokenService.normalizeRole(user.role || 'USER')
+    };
     req.p2pUser = user;
     return next();
   } catch (error) {
@@ -1308,6 +1386,23 @@ function broadcastOrderEvent(orderId, eventName, payload) {
   const data = `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
   for (const stream of streams) {
     stream.write(data);
+  }
+}
+
+function getOrderParticipantIds(order) {
+  const participantIds = new Set();
+  for (const candidate of [order?.sellerUserId, order?.buyerUserId, order?.sellerId, order?.buyerId]) {
+    const normalized = String(candidate || '').trim();
+    if (normalized) {
+      participantIds.add(normalized);
+    }
+  }
+  return Array.from(participantIds);
+}
+
+function broadcastParticipantOrderEvent(order, eventName, payload) {
+  for (const participantId of getOrderParticipantIds(order)) {
+    broadcastUserEvent(participantId, eventName, payload);
   }
 }
 
@@ -1632,7 +1727,7 @@ app.post('/api/p2p/logout', async (req, res) => {
 });
 
 app.get('/api/p2p/me', async (req, res) => {
-  const user = await getP2PUserFromRequest(req);
+  const user = await getP2PUserFromRequest(req, res);
 
   if (!user) {
     return res.json({ loggedIn: false, user: null });
@@ -2643,7 +2738,15 @@ app.post('/api/p2p/orders/:orderId/mark-paid', requiresP2PUser, async (req, res)
     await walletService.expireOrders();
     const updatedOrder = await walletService.markOrderPaid(req.params.orderId, req.p2pUser);
     const normalizedOrder = normalizeOrderState(updatedOrder);
+    const participantPayload = {
+      order: normalizedOrder,
+      orderId: normalizedOrder.id,
+      reference: normalizedOrder.reference,
+      status: normalizedOrder.status,
+      updatedAt: normalizedOrder.updatedAt
+    };
     broadcastOrderEvent(updatedOrder.id, 'order_update', { order: normalizedOrder });
+    broadcastParticipantOrderEvent(updatedOrder, 'orders_refresh', participantPayload);
     return res.json({ success: true, order: normalizedOrder });
   } catch (error) {
     return res.status(500).json({ message: error.message || 'Server error.' });
@@ -2656,7 +2759,15 @@ app.post('/api/p2p/orders/:orderId/cancel', requiresP2PUser, async (req, res) =>
     await walletService.expireOrders();
     const updatedOrder = await walletService.cancelOrder(req.params.orderId, req.p2pUser, 'CANCELLED');
     const normalizedOrder = normalizeOrderState(updatedOrder);
+    const participantPayload = {
+      order: normalizedOrder,
+      orderId: normalizedOrder.id,
+      reference: normalizedOrder.reference,
+      status: normalizedOrder.status,
+      updatedAt: normalizedOrder.updatedAt
+    };
     broadcastOrderEvent(updatedOrder.id, 'order_update', { order: normalizedOrder });
+    broadcastParticipantOrderEvent(updatedOrder, 'orders_refresh', participantPayload);
     return res.json({ success: true, order: normalizedOrder });
   } catch (error) {
     return res.status(500).json({ message: error.message || 'Server error.' });
@@ -2950,9 +3061,17 @@ app.post('/api/p2p/orders/:orderId/status', requiresP2PUser, async (req, res) =>
 
     const normalizedOrder = normalizeOrderState(updatedOrder);
     const normalizedMessages = toClientMessages(updatedOrder.messages || []);
+    const participantPayload = {
+      order: normalizedOrder,
+      orderId: normalizedOrder.id,
+      reference: normalizedOrder.reference,
+      status: normalizedOrder.status,
+      updatedAt: normalizedOrder.updatedAt
+    };
 
     broadcastOrderEvent(updatedOrder.id, 'order_update', { order: normalizedOrder });
     broadcastOrderEvent(updatedOrder.id, 'message_update', { messages: normalizedMessages });
+    broadcastParticipantOrderEvent(updatedOrder, 'orders_refresh', participantPayload);
 
     // Send email notifications (non-blocking)
     if (p2pEmailService) {

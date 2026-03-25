@@ -264,7 +264,7 @@ function setNavOpen(open) {
 // ── Auth UI ──
 async function loadCurrentUser() {
   try {
-    const res  = await fetch('/api/p2p/me');
+    const res  = await fetch('/api/p2p/me', { credentials: 'include' });
     const data = await res.json();
     const loggedIn = res.ok && data?.loggedIn;
     if (loggedIn) {

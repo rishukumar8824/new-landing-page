@@ -507,7 +507,7 @@ function setAccountUi() {
 
 async function loadTradeUserSession() {
   try {
-    const response = await fetch('/api/p2p/me');
+    const response = await fetch('/api/p2p/me', { credentials: 'include' });
     const data = await response.json();
     if (response.ok && data?.loggedIn && data?.user) {
       activeTradeUser = data.user;
@@ -522,7 +522,7 @@ async function loadTradeUserSession() {
 
 async function logoutTradeSession() {
   try {
-    await fetch('/api/p2p/logout', { method: 'POST' });
+    await fetch('/api/p2p/logout', { method: 'POST', credentials: 'include' });
   } catch (_) {
     // ignore logout errors
   }

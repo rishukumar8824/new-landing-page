@@ -648,7 +648,7 @@ function stopTimersAndStream() {
 }
 
 async function loadCurrentUser() {
-  const response = await fetch('/api/p2p/me');
+  const response = await fetch('/api/p2p/me', { credentials: 'include' });
   const payload = await response.json();
 
   if (!response.ok || !payload.loggedIn || !payload.user) {
@@ -659,7 +659,7 @@ async function loadCurrentUser() {
 }
 
 async function fetchOrder() {
-  const response = await fetch(`/api/p2p/orders/${encodeURIComponent(orderId)}`);
+  const response = await fetch(`/api/p2p/orders/${encodeURIComponent(orderId)}`, { credentials: 'include' });
   const payload = await response.json();
 
   if (!response.ok || !payload.order) {

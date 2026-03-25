@@ -1976,7 +1976,7 @@ function closeOrderModal() {
 
 async function loadCurrentUser() {
   try {
-    const response = await fetch('/api/p2p/me');
+    const response = await fetch('/api/p2p/me', { credentials: 'include' });
     const data = await response.json();
     currentUser = data.loggedIn ? data.user : null;
     if (currentUser) {
@@ -2014,6 +2014,7 @@ async function loginUser() {
     currentUser = data.user;
     updateCurrentUserKyc(currentUser?.kyc || {});
     updateUserUi();
+    document.dispatchEvent(new Event('p2p:login'));
     setAuthModalOpen(false);
     setP2PNavOpen(false);
     // run all post-login loads in parallel — much faster
@@ -2038,10 +2039,11 @@ async function loginUser() {
 
 async function logoutUser() {
   try {
-    await fetch('/api/p2p/logout', { method: 'POST' });
+    await fetch('/api/p2p/logout', { method: 'POST', credentials: 'include' });
   } finally {
     currentUser = null;
     mobileOrdersCache.clear();
+    document.dispatchEvent(new Event('p2p:logout'));
     updateUserUi();
     await loadOffers();
     await loadLiveOrders();
@@ -2313,6 +2315,7 @@ async function createOrder(offerId, options = {}) {
     const response = await fetch('/api/p2p/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ offerId, amountInr, paymentMethod })
     });
     const data = await response.json().catch(() => ({}));
@@ -2480,11 +2483,7 @@ async function loadLiveOrders() {
   }
 
   try {
-    const params = new URLSearchParams({
-      side: currentSide,
-      asset: currentAsset
-    });
-    const response = await fetch(`/api/p2p/orders/live?${params.toString()}`);
+    const response = await fetch('/api/p2p/orders/my-active', { credentials: 'include' });
     const data = await response.json();
 
     if (!response.ok) {
@@ -2642,7 +2641,7 @@ async function fetchMessages(options = {}) {
   }
 
   try {
-    const response = await fetch(`/api/p2p/orders/${activeOrderId}/messages`);
+    const response = await fetch(`/api/p2p/orders/${activeOrderId}/messages`, { credentials: 'include' });
     const data = await response.json();
 
     if (!response.ok) {
@@ -2660,6 +2659,7 @@ async function postChatPayload(payload) {
   const response = await fetch(`/api/p2p/orders/${activeOrderId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ text: encodeChatPayload(payload) })
   });
   const data = await response.json();
@@ -2827,7 +2827,7 @@ async function loadOrderDetails() {
   }
 
   try {
-    const response = await fetch(`/api/p2p/orders/${activeOrderId}`);
+    const response = await fetch(`/api/p2p/orders/${activeOrderId}`, { credentials: 'include' });
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.message || 'Failed to load order.');
@@ -2877,7 +2877,7 @@ function openOrder(order) {
     }
   }, 1000);
 
-  orderStream = new EventSource(`/api/p2p/orders/${order.id}/stream`);
+  orderStream = new EventSource(`/api/p2p/orders/${order.id}/stream`, { withCredentials: true });
   orderStream.addEventListener('order_update', (event) => {
     const payload = JSON.parse(event.data || '{}');
     if (payload.order) {
@@ -2904,7 +2904,7 @@ async function openOrderById(orderId) {
   }
 
   try {
-    const response = await fetch(`/api/p2p/orders/${orderId}`);
+    const response = await fetch(`/api/p2p/orders/${orderId}`, { credentials: 'include' });
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.message || 'Unable to open order.');
@@ -2927,6 +2927,7 @@ async function sendOrderMessage(text) {
   const response = await fetch(`/api/p2p/orders/${activeOrderId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ text: String(text).trim() })
   });
   const data = await response.json();
@@ -2945,6 +2946,7 @@ async function updateOrderStatus(action, options = {}) {
     const response = await fetch(`/api/p2p/orders/${activeOrderId}/status`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ action })
     });
     const data = await response.json();
@@ -3047,7 +3049,7 @@ async function loadMobileActiveOrdersDirect() {
   // Directly fetches current user's active orders (bypasses the 20-order live feed limit)
   if (!currentUser) return;
   try {
-    var resp = await fetch('/api/p2p/orders/my-active');
+    var resp = await fetch('/api/p2p/orders/my-active', { credentials: 'include' });
     var data = await resp.json();
     var orders = data.orders || [];
     orders.forEach(function(o) { storeOrderForMobile(o); });
@@ -3061,7 +3063,7 @@ async function loadMobileOrderHistory() {
   if (!currentUser) { list.innerHTML = '<p style="text-align:center;padding:2rem;color:rgba(255,255,255,0.4);">Login to view history</p>'; return; }
   list.innerHTML = '<p style="text-align:center;padding:2rem;color:rgba(255,255,255,0.4);">Loading...</p>';
   try {
-    var resp = await fetch('/api/p2p/orders/history?limit=20&offset=0');
+    var resp = await fetch('/api/p2p/orders/history?limit=20&offset=0', { credentials: 'include' });
     var data = await resp.json();
     var orders = data.orders || [];
     if (!orders.length) {
@@ -5154,7 +5156,7 @@ window.deleteMobAd = async function(offerId) {
     var orderId = getOrderId();
     if (!orderId) return;
     try {
-      var resp = await fetch('/api/p2p/orders/' + orderId + '/messages');
+      var resp = await fetch('/api/p2p/orders/' + orderId + '/messages', { credentials: 'include' });
       if (!resp.ok) return;
       var data = await resp.json();
       var msgs = data.messages || [];
@@ -5195,6 +5197,7 @@ window.deleteMobAd = async function(offerId) {
       await fetch('/api/p2p/orders/' + orderId + '/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ text: text })
       });
     } catch(e) { /* silent */ }
@@ -5216,12 +5219,13 @@ window.deleteMobAd = async function(offerId) {
         // Try the existing image upload endpoint if available
         var formData = new FormData();
         formData.append('image', file);
-        var resp = await fetch('/api/p2p/orders/' + orderId + '/messages/image', { method: 'POST', body: formData });
+        var resp = await fetch('/api/p2p/orders/' + orderId + '/messages/image', { method: 'POST', credentials: 'include', body: formData });
         if (!resp.ok) {
           // Fallback: send as text message with note
           await fetch('/api/p2p/orders/' + orderId + '/messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ text: '[Image sent]' })
           });
         }
@@ -5341,14 +5345,16 @@ window.deleteMobAd = async function(offerId) {
 // ── Real-time user SSE stream — instant new order notification ───
 (function() {
   var _userStream = null;
+  function refreshUserOrderViews() {
+    loadLiveOrders();
+    loadBybitorOrders();
+  }
   function connectUserStream() {
+    if (!currentUser) { return; }
     if (_userStream) { _userStream.close(); _userStream = null; }
     _userStream = new EventSource('/api/p2p/me/stream', { withCredentials: true });
-    _userStream.addEventListener('new_order', function() {
-      // New order arrived — refresh immediately
-      loadLiveOrders();
-      loadBybitorOrders();
-    });
+    _userStream.addEventListener('new_order', refreshUserOrderViews);
+    _userStream.addEventListener('orders_refresh', refreshUserOrderViews);
     _userStream.onerror = function() {
       // Reconnect after 3s on error
       if (_userStream) { _userStream.close(); _userStream = null; }
@@ -5366,4 +5372,7 @@ window.deleteMobAd = async function(offerId) {
 
   // Also connect right after login
   document.addEventListener('p2p:login', function() { if (currentUser) connectUserStream(); });
+  document.addEventListener('p2p:logout', function() {
+    if (_userStream) { _userStream.close(); _userStream = null; }
+  });
 })();

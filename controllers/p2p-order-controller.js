@@ -176,9 +176,18 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
 
       // Push real-time notification to seller and buyer via SSE
       if (typeof broadcastUserEvent === 'function') {
-        const pushPayload = { orderId: savedOrder.id, reference: savedOrder.reference };
-        if (savedOrder.sellerId) broadcastUserEvent(savedOrder.sellerId, 'new_order', pushPayload);
-        if (savedOrder.buyerId) broadcastUserEvent(savedOrder.buyerId, 'new_order', pushPayload);
+        const pushPayload = {
+          orderId: savedOrder.id,
+          reference: savedOrder.reference,
+          status: savedOrder.status
+        };
+        const participantIds = [...new Set([savedOrder.sellerUserId, savedOrder.buyerUserId, savedOrder.sellerId, savedOrder.buyerId]
+          .map((value) => String(value || '').trim())
+          .filter(Boolean))];
+        for (const participantId of participantIds) {
+          broadcastUserEvent(participantId, 'new_order', pushPayload);
+          broadcastUserEvent(participantId, 'orders_refresh', pushPayload);
+        }
       }
 
       // Notify seller AND buyer via email (non-blocking)
