@@ -75,10 +75,17 @@ function formatTimer(seconds) {
 }
 
 function normalizeStatus(status) {
-  if (status === 'OPEN' || status === 'PENDING') {
+  const normalized = String(status || '').trim().toUpperCase();
+  if (normalized === 'OPEN' || normalized === 'PENDING') {
     return 'CREATED';
   }
-  return String(status || '').toUpperCase();
+  if (normalized === 'PAYMENT_SENT') {
+    return 'PAID';
+  }
+  if (normalized === 'COMPLETED') {
+    return 'RELEASED';
+  }
+  return normalized;
 }
 
 function statusLabel(status) {
@@ -876,7 +883,7 @@ function startRealtimeUpdates() {
         chatState.textContent = error.message;
       }
     }
-  }, 3000);
+  }, 5000);
 
   orderPollInterval = setInterval(async () => {
     try {
@@ -886,9 +893,13 @@ function startRealtimeUpdates() {
         chatState.textContent = error.message;
       }
     }
-  }, 7000);
+  }, 10000);
 
   orderStream = new EventSource(`/api/p2p/orders/${encodeURIComponent(orderId)}/stream`);
+  orderStream.addEventListener('connected', () => {
+    fetchOrder().catch(() => {});
+    fetchMessages({ smoothScroll: true }).catch(() => {});
+  });
   orderStream.addEventListener('order_update', (event) => {
     try {
       const payload = JSON.parse(event.data || '{}');
@@ -913,6 +924,10 @@ function startRealtimeUpdates() {
       // no-op
     }
   });
+  orderStream.onerror = () => {
+    fetchOrder().catch(() => {});
+    fetchMessages({ smoothScroll: true }).catch(() => {});
+  };
 }
 
 function bindEvents() {

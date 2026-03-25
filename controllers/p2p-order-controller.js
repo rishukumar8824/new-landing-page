@@ -50,12 +50,20 @@ function normalizeP2PKycStatus(rawStatus) {
   return 'NOT_SUBMITTED';
 }
 
-function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 * 1000, p2pEmailService = null, broadcastUserEvent = null }) {
+function createP2POrderController({
+  repos,
+  walletService,
+  realtime = null,
+  orderTtlMs = 15 * 60 * 1000,
+  logger = console,
+  onOrderChanged = null
+}) {
   if (!repos || !walletService) {
     throw new Error('P2P order controller requires repos and walletService.');
   }
 
   async function createOrder(req, res) {
+    const startedAt = Date.now();
     try {
       const adId = String(req.body.adId || req.body.offerId || '').trim();
       if (!adId) {
@@ -128,7 +136,33 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
         return res.status(400).json({ success: false, message: 'Buyer and seller cannot be same account.' });
       }
 
-      // KYC gate removed — all logged-in users can place orders
+      if (adType === 'SELL') {
+        const credential = await repos.getP2PCredential(String(req.p2pUser?.email || '').trim().toLowerCase());
+        const kycStatus = normalizeP2PKycStatus(credential?.kycStatus);
+
+        if (kycStatus !== 'VERIFIED') {
+          const statusMessageMap = {
+            NOT_SUBMITTED: 'KYC required to trade in P2P',
+            PENDING_REVIEW: 'KYC required to trade in P2P',
+            REJECTED: 'KYC required to trade in P2P'
+          };
+
+          const codeMap = {
+            NOT_SUBMITTED: 'KYC_REQUIRED',
+            PENDING_REVIEW: 'KYC_PENDING',
+            REJECTED: 'KYC_REJECTED'
+          };
+
+          return res.status(403).json({
+            success: false,
+            code: codeMap[kycStatus] || 'KYC_REQUIRED',
+            message: statusMessageMap[kycStatus] || 'KYC verification required for buy orders.',
+            kyc: {
+              status: kycStatus
+            }
+          });
+        }
+      }
 
       const selectedPaymentMethod = String(req.body.paymentMethod || '').trim();
       const exactPayment = Array.isArray(offer.payments)
@@ -140,8 +174,14 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
       }
 
       const now = Date.now();
+      const orderId = createOrderId();
+      const idempotencyKey = String(
+        req.get('x-idempotency-key') || req.body.idempotencyKey || `${req.p2pUser.id}:${adId}:${fiatAmount}:${paymentMethod}`
+      )
+        .trim()
+        .slice(0, 160);
       const orderDoc = buildP2POrderDocument({
-        id: createOrderId(),
+        id: orderId,
         reference: createOrderReference(),
         adId,
         type: adType,
@@ -156,6 +196,10 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
         cryptoAmount,
         fiatAmount,
         expiresAt: now + orderTtlMs,
+        idempotencyKey,
+        chatThreadId: orderId,
+        chatReady: true,
+        chatReadyAt: now,
         participants: buildOrderParticipants({
           buyerId: buyer.id,
           buyerUsername: buyer.username || buyer.id,
@@ -172,58 +216,45 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
         ]
       });
 
+      logger.info?.('[p2p-order] create-start', {
+        adId,
+        orderId,
+        buyerUserId: buyer.id,
+        sellerUserId: seller.id,
+        amountInr: fiatAmount,
+        assetAmount: cryptoAmount,
+        idempotencyKey
+      });
+
       const savedOrder = await walletService.createEscrowOrder(orderDoc);
+      const duplicate = savedOrder?.duplicateOfExisting === true;
+      realtime?.publishOrderSnapshot?.(savedOrder);
+      await onOrderChanged?.(savedOrder, duplicate ? 'reused' : 'created');
 
-      // Push real-time notification to seller and buyer via SSE
-      if (typeof broadcastUserEvent === 'function') {
-        const pushPayload = {
-          orderId: savedOrder.id,
-          reference: savedOrder.reference,
-          status: savedOrder.status
-        };
-        const participantIds = [...new Set([savedOrder.sellerUserId, savedOrder.buyerUserId, savedOrder.sellerId, savedOrder.buyerId]
-          .map((value) => String(value || '').trim())
-          .filter(Boolean))];
-        for (const participantId of participantIds) {
-          broadcastUserEvent(participantId, 'new_order', pushPayload);
-          broadcastUserEvent(participantId, 'orders_refresh', pushPayload);
-        }
-      }
+      logger.info?.('[p2p-order] create-complete', {
+        orderId: savedOrder?.id || orderId,
+        adId,
+        buyerUserId: buyer.id,
+        sellerUserId: seller.id,
+        duplicate,
+        duplicateReason: savedOrder?.duplicateReason || null,
+        durationMs: Date.now() - startedAt
+      });
 
-      // Notify seller AND buyer via email (non-blocking)
-      if (p2pEmailService) {
-        setImmediate(async () => {
-          try {
-            const [sellerCred, buyerCred] = await Promise.all([
-              repos.getP2PCredentialByUserId(savedOrder.sellerUserId),
-              repos.getP2PCredentialByUserId(savedOrder.buyerUserId)
-            ]);
-            if (sellerCred?.email) {
-              await p2pEmailService.sendOrderCreated(sellerCred.email, savedOrder);
-            }
-            // Also notify buyer that order was placed successfully
-            if (buyerCred?.email && buyerCred.email !== sellerCred?.email) {
-              await p2pEmailService.sendOrderCreated(buyerCred.email, savedOrder);
-            }
-          } catch (emailErr) {
-            console.warn('[p2p-email] order-created notify failed:', emailErr.message);
-          }
-        });
-      }
-
-      // Compute remainingSeconds so the client timer starts correctly
-      const activeStatuses = ['CREATED', 'PENDING', 'PAID', 'PAYMENT_SENT', 'DISPUTED'];
-      const remainingSeconds = activeStatuses.includes(savedOrder.status) && Number(savedOrder.expiresAt) > Date.now()
-        ? Math.max(0, Math.floor((Number(savedOrder.expiresAt) - Date.now()) / 1000))
-        : 0;
-      const orderForClient = { ...savedOrder, remainingSeconds };
-
-      return res.status(201).json({
+      return res.status(duplicate ? 200 : 201).json({
+        message: duplicate ? 'Existing active order resumed.' : 'Order created successfully. Chat is live now.',
+        duplicate,
         ...toOrderResponse(savedOrder),
-        order: orderForClient
+        order: savedOrder
       });
     } catch (error) {
       const knownStatus = Number(error?.status || 0);
+      logger.warn?.('[p2p-order] create-failed', {
+        code: String(error?.code || 'P2P_ORDER_CREATE_FAILED'),
+        message: String(error?.message || 'Order creation failed.'),
+        status: knownStatus || 500,
+        durationMs: Date.now() - startedAt
+      });
       if (knownStatus >= 400 && knownStatus < 500) {
         return res.status(knownStatus).json({
           success: false,
@@ -243,6 +274,8 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
       }
 
       const updatedOrder = await walletService.markOrderPaid(orderId, req.p2pUser);
+      realtime?.publishOrderSnapshot?.(updatedOrder);
+      await onOrderChanged?.(updatedOrder, 'paid');
       return res.json({
         ...toOrderResponse(updatedOrder),
         order: updatedOrder
@@ -268,6 +301,8 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
       }
 
       const updatedOrder = await walletService.releaseOrder(orderId, req.p2pUser);
+      realtime?.publishOrderSnapshot?.(updatedOrder);
+      await onOrderChanged?.(updatedOrder, 'released');
       return res.json({
         ...toOrderResponse(updatedOrder),
         order: updatedOrder
@@ -293,6 +328,8 @@ function createP2POrderController({ repos, walletService, orderTtlMs = 15 * 60 *
       }
 
       const updatedOrder = await walletService.cancelOrder(orderId, req.p2pUser, 'CANCELLED');
+      realtime?.publishOrderSnapshot?.(updatedOrder);
+      await onOrderChanged?.(updatedOrder, 'cancelled');
       return res.json({
         ...toOrderResponse(updatedOrder),
         order: updatedOrder

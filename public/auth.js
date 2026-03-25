@@ -28,16 +28,6 @@ const authQrModal = document.getElementById('authQrModal');
 const authQrBackdrop = document.getElementById('authQrBackdrop');
 const authQrClose = document.getElementById('authQrClose');
 const authQrImage = document.getElementById('authQrImage');
-const captchaModal = document.getElementById('captchaModal');
-const captchaBackdrop = document.getElementById('captchaBackdrop');
-const captchaCloseBtn = document.getElementById('captchaCloseBtn');
-const captchaStatus = document.getElementById('captchaStatus');
-const captchaTrack = document.getElementById('captchaTrack');
-const captchaTrackProgress = document.getElementById('captchaTrackProgress');
-const captchaTrackMarker = document.getElementById('captchaTrackMarker');
-const captchaSlider = document.getElementById('captchaSlider');
-const captchaRefreshBtn = document.getElementById('captchaRefreshBtn');
-const captchaVerifyBtn = document.getElementById('captchaVerifyBtn');
 
 const authThemeToggle = document.getElementById('authThemeToggle');
 const authDrawerThemeToggle = document.getElementById('authDrawerThemeToggle');
@@ -66,7 +56,6 @@ function resolveSafeRedirect(rawRedirect) {
 
 const redirectTo = resolveSafeRedirect(urlParams.get('redirect'));
 const urlMode = String(urlParams.get('mode') || '').trim().toLowerCase();
-const prefilledEmail = String(urlParams.get('email') || '').trim().toLowerCase();
 
 const MODE_LOGIN = 'login';
 const MODE_SIGNUP = 'signup';
@@ -80,12 +69,8 @@ const state = {
   loading: false,
   otpPurpose: null,
   otpWaitUntilMs: 0,
-  otpTimerId: null,
-  captchaChallenge: null,
-  captchaOfflineMode: false
+  otpTimerId: null
 };
-
-let captchaResolve = null;
 
 function setAuthNavOpen(open) {
   if (!authNavDrawer || !authNavOverlay || !authMenuToggle) {
@@ -123,62 +108,6 @@ function setAuthQrOpen(open) {
   authQrModal.classList.toggle('hidden', !shouldOpen);
   authQrModal.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
   document.body.classList.toggle('auth-qr-open', shouldOpen);
-}
-
-function setCaptchaStatus(message, type = '') {
-  if (!captchaStatus) {
-    return;
-  }
-  captchaStatus.textContent = message || '';
-  captchaStatus.classList.remove('error', 'success');
-  if (type) {
-    captchaStatus.classList.add(type);
-  }
-}
-
-function resetCaptchaUi() {
-  state.captchaChallenge = null;
-  state.captchaOfflineMode = false;
-  if (captchaSlider) {
-    captchaSlider.value = '0';
-    captchaSlider.disabled = true;
-  }
-  if (captchaTrackProgress) {
-    captchaTrackProgress.style.width = '0%';
-  }
-  if (captchaTrackMarker) {
-    captchaTrackMarker.style.left = '0%';
-  }
-  if (captchaVerifyBtn) {
-    captchaVerifyBtn.disabled = true;
-  }
-}
-
-function closeCaptchaFlow(result = null) {
-  if (captchaModal) {
-    captchaModal.classList.add('hidden');
-    captchaModal.setAttribute('aria-hidden', 'true');
-  }
-  document.body.classList.remove('auth-captcha-open');
-  const resolver = captchaResolve;
-  captchaResolve = null;
-  resetCaptchaUi();
-  if (typeof resolver === 'function') {
-    resolver(result);
-  }
-}
-
-function setCaptchaOpen(open) {
-  if (!captchaModal) {
-    return;
-  }
-  const shouldOpen = Boolean(open);
-  captchaModal.classList.toggle('hidden', !shouldOpen);
-  captchaModal.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
-  document.body.classList.toggle('auth-captcha-open', shouldOpen);
-  if (!shouldOpen) {
-    resetCaptchaUi();
-  }
 }
 
 function openQrLoginModal() {
@@ -257,27 +186,22 @@ function setMode(nextMode) {
 
   if (authTitle) {
     authTitle.textContent = isSignup
-      ? 'Welcome to Bitegit'
+      ? 'Create your Bitegit account'
       : isForgot
         ? 'Reset your password'
-        : 'Log In to Bitegit';
-  }
-
-  const authSubtitle = document.getElementById('authSubtitle');
-  if (authSubtitle) {
-    authSubtitle.style.display = isSignup ? 'block' : 'none';
+        : 'Welcome to Bitegit';
   }
 
   if (authSwitchPrefix) {
-    authSwitchPrefix.textContent = isSignup ? 'Already have an account?' : isForgot ? 'Remember password?' : 'No account yet?';
+    authSwitchPrefix.textContent = isSignup ? 'Already have account?' : isForgot ? 'Remember password?' : 'No account?';
   }
 
   if (authSwitchBtn) {
-    authSwitchBtn.textContent = isSignup || isForgot ? 'Log In' : 'Register Now';
+    authSwitchBtn.textContent = isSignup || isForgot ? 'Log In' : 'Sign Up';
   }
 
   if (authTopModeBtn) {
-    authTopModeBtn.textContent = isSignup || isForgot ? 'Log In' : 'Register';
+    authTopModeBtn.textContent = isSignup || isForgot ? 'Log In' : 'Sign Up';
   }
 
   document.body.classList.toggle('auth-login-mode', isLogin);
@@ -292,11 +216,6 @@ function setMode(nextMode) {
   if (forgotBtn) {
     forgotBtn.classList.toggle('hidden', !isLogin);
   }
-
-  const referralSection = document.getElementById('referralSection');
-  if (referralSection) referralSection.classList.toggle('hidden', !isSignup);
-  const termsRow = document.getElementById('termsRow');
-  if (termsRow) termsRow.classList.toggle('hidden', !isSignup);
 
   if (otpSection) {
     otpSection.classList.toggle('hidden', !(isSignup || isForgot));
@@ -331,7 +250,7 @@ function setMode(nextMode) {
   updateOtpButton();
 
   if (submitAuthBtn) {
-    submitAuthBtn.textContent = isSignup ? 'Register' : isForgot ? 'Reset Password' : 'Next';
+    submitAuthBtn.textContent = isSignup ? 'Sign Up' : isForgot ? 'Reset Password' : 'Log In';
   }
 }
 
@@ -420,104 +339,6 @@ async function resolveLoginSessionAfterSubmit() {
   }
 }
 
-function clampSliderValue(value, challenge) {
-  const min = Number(challenge?.minPosition ?? 0);
-  const max = Number(challenge?.maxPosition ?? 100);
-  return Math.min(max, Math.max(min, Math.round(Number(value) || 0)));
-}
-
-function buildLocalCaptchaChallenge() {
-  return {
-    challengeId: `local_${Date.now()}`,
-    token: 'local',
-    minPosition: 0,
-    maxPosition: 100,
-    targetPosition: 16 + Math.floor(Math.random() * 68),
-    tolerance: 5
-  };
-}
-
-function updateCaptchaSliderUi(rawValue) {
-  const challenge = state.captchaChallenge;
-  if (!challenge || !captchaSlider) {
-    return;
-  }
-
-  const value = clampSliderValue(rawValue, challenge);
-  const min = Number(challenge.minPosition || 0);
-  const max = Number(challenge.maxPosition || 100);
-  const total = Math.max(1, max - min);
-  const progress = ((value - min) / total) * 100;
-  const marker = ((Number(challenge.targetPosition || 0) - min) / total) * 100;
-  const aligned = Math.abs(value - Number(challenge.targetPosition || 0)) <= Number(challenge.tolerance || 4);
-
-  captchaSlider.value = String(value);
-  if (captchaTrackProgress) {
-    captchaTrackProgress.style.width = `${progress}%`;
-  }
-  if (captchaTrackMarker) {
-    captchaTrackMarker.style.left = `${marker}%`;
-  }
-  if (captchaVerifyBtn) {
-    captchaVerifyBtn.disabled = !aligned;
-  }
-  setCaptchaStatus(
-    aligned ? 'Perfect. Tap verify to finish signup.' : 'Move the slider closer to the white marker.',
-    aligned ? 'success' : ''
-  );
-}
-
-async function startSignupCaptchaChallenge(email) {
-  resetCaptchaUi();
-  setCaptchaStatus('Preparing security challenge...');
-
-  try {
-    const { response, data } = await postJson('/auth/captcha/slider/start', { email });
-    if (!response.ok || !data?.captcha) {
-      throw new Error(data?.message || 'Unable to prepare security challenge.');
-    }
-
-    state.captchaChallenge = {
-      challengeId: String(data.captcha.challengeId || ''),
-      token: String(data.captcha.token || ''),
-      minPosition: Number(data.captcha.minPosition ?? 0),
-      maxPosition: Number(data.captcha.maxPosition ?? 100),
-      targetPosition: Number(data.captcha.targetPosition ?? 0),
-      tolerance: Number(data.captcha.tolerance ?? 4)
-    };
-    state.captchaOfflineMode = false;
-    if (captchaSlider) {
-      captchaSlider.disabled = false;
-      captchaSlider.min = String(state.captchaChallenge.minPosition);
-      captchaSlider.max = String(state.captchaChallenge.maxPosition);
-    }
-    updateCaptchaSliderUi(state.captchaChallenge.minPosition);
-    return;
-  } catch (_) {
-    state.captchaChallenge = buildLocalCaptchaChallenge();
-    state.captchaOfflineMode = true;
-    if (captchaSlider) {
-      captchaSlider.disabled = false;
-      captchaSlider.min = String(state.captchaChallenge.minPosition);
-      captchaSlider.max = String(state.captchaChallenge.maxPosition);
-    }
-    updateCaptchaSliderUi(state.captchaChallenge.minPosition);
-    setCaptchaStatus('Server sync is slow, so a secure local slider is ready instead.');
-  }
-}
-
-async function requestSignupCaptcha(email) {
-  if (!captchaModal) {
-    return null;
-  }
-
-  return new Promise(async (resolve) => {
-    captchaResolve = resolve;
-    setCaptchaOpen(true);
-    await startSignupCaptchaChallenge(email);
-  });
-}
-
 async function handleSendOtp() {
   if (state.loading) {
     return;
@@ -596,13 +417,8 @@ async function handleSubmit(event) {
   let payload = { email, password };
 
   if (state.mode === MODE_SIGNUP) {
-    const captchaPayload = await requestSignupCaptcha(email);
-    if (!captchaPayload) {
-      setStatus('Security verification is required to create your account.', 'error');
-      return;
-    }
     endpoint = '/auth/register';
-    payload = { email, password, otpCode, geetest: captchaPayload };
+    payload = { email, password, otpCode };
   } else if (state.mode === MODE_FORGOT) {
     endpoint = '/auth/forgot-password/reset';
     payload = { email, otpCode, newPassword: password };
@@ -687,34 +503,6 @@ forgotBtn?.addEventListener('click', () => {
 
 sendOtpBtn?.addEventListener('click', handleSendOtp);
 authForm?.addEventListener('submit', handleSubmit);
-captchaSlider?.addEventListener('input', (event) => {
-  updateCaptchaSliderUi(event.target?.value);
-});
-captchaVerifyBtn?.addEventListener('click', () => {
-  const challenge = state.captchaChallenge;
-  if (!challenge || !captchaSlider) {
-    return;
-  }
-  const position = clampSliderValue(captchaSlider.value, challenge);
-  const payload = state.captchaOfflineMode
-    ? {
-        fallback_type: 'slider_local',
-        position
-      }
-    : {
-        fallback_type: 'slider',
-        challenge_id: challenge.challengeId,
-        position,
-        token: challenge.token
-      };
-  closeCaptchaFlow(payload);
-});
-captchaRefreshBtn?.addEventListener('click', async () => {
-  const email = String(contactInput?.value || '').trim().toLowerCase();
-  await startSignupCaptchaChallenge(email);
-});
-captchaCloseBtn?.addEventListener('click', () => closeCaptchaFlow(null));
-captchaBackdrop?.addEventListener('click', () => closeCaptchaFlow(null));
 socialGoogleBtn?.addEventListener('click', () => {
   window.open('https://accounts.google.com/', '_blank', 'noopener,noreferrer');
   setStatus('Google auth window opened. Continue with your Google email.', 'success');
@@ -740,9 +528,6 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     setAuthQrOpen(false);
     setAuthNavOpen(false);
-    if (captchaModal && !captchaModal.classList.contains('hidden')) {
-      closeCaptchaFlow(null);
-    }
   }
 });
 
@@ -752,12 +537,4 @@ if (window.BitegitTheme?.initThemeToggle) {
 
 setMode(state.mode);
 setChannel('email');
-
-document.getElementById('referralToggle')?.addEventListener('click', () => {
-  const f = document.getElementById('referralField');
-  if (f) f.classList.toggle('hidden');
-});
-if (prefilledEmail && contactInput && isValidEmail(prefilledEmail)) {
-  contactInput.value = prefilledEmail;
-}
 checkExistingSession();

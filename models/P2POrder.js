@@ -92,6 +92,11 @@ function buildP2POrderDocument(input = {}) {
     expiresAt,
     createdAt: now,
     updatedAt: now,
+    idempotencyKey: String(input.idempotencyKey || '').trim() || undefined,
+    flowKey: String(input.flowKey || '').trim() || undefined,
+    chatThreadId: String(input.chatThreadId || input.id || '').trim() || undefined,
+    chatReady: input.chatReady !== false,
+    chatReadyAt: Number(input.chatReadyAt || now),
     participants: Array.isArray(input.participants) ? input.participants : [],
     messages: Array.isArray(input.messages) ? input.messages : []
   };
@@ -103,7 +108,9 @@ function toOrderResponse(order) {
     success: true,
     orderId: String(order?.id || ''),
     status: toPublicOrderStatus(order?.status),
-    expiresAt: new Date(expiresAt).toISOString()
+    expiresAt: new Date(expiresAt).toISOString(),
+    chatThreadId: String(order?.chatThreadId || order?.id || ''),
+    chatReady: order?.chatReady !== false
   };
 }
 

@@ -1,11 +1,11 @@
 require('dotenv').config();
 
 const crypto = require('crypto');
-const { localFaceMatch } = require('./services/local-face-match');
 const express = require('express');
 const path = require('path');
 const { connectToMongo, getCollections, getMongoClient, getMongoConfig, isDbConnected } = require('./lib/db');
 const { createRepositories } = require('./lib/repositories');
+const { createP2PRealtimeHub } = require('./lib/p2p-realtime');
 const { createWalletService } = require('./lib/wallet-service');
 const { createAuthMiddleware } = require('./middleware/auth');
 const { applySecurityHardening } = require('./middleware/security');
@@ -16,7 +16,6 @@ const { registerP2POrderRoutes } = require('./routes/p2p-orders');
 const { createAuditLogService } = require('./services/audit-log-service');
 const { createP2POrderExpiryService } = require('./services/p2p-order-expiry-service');
 const { createAuthEmailService } = require('./services/auth-email-service');
-const { createP2PEmailService } = require('./services/p2p-email-service');
 const tokenService = require('./services/tokenService');
 const { readAuthOtpConfig } = require('./modules/auth-otp/config');
 const { createMySqlAuthStore } = require('./modules/auth-otp/mysql-store');
@@ -36,11 +35,9 @@ const { createSocialFeedService } = require('./modules/social-feed/service');
 const { registerSocialFeedRoutes } = require('./routes/social-feed');
 const { createP2POrderController } = require('./controllers/p2p-order-controller');
 const { createAdminStore } = require('./admin/services/admin-store');
-const { createAdminExtendedStore } = require('./admin/services/admin-extended-store');
 const { createAdminAuthMiddleware } = require('./admin/middleware/admin-auth');
 const { createAdminControllers } = require('./admin/controllers/admin-controller');
 const { registerAdminRoutes } = require('./admin/routes/admin-routes');
-const { registerAdminExtendedRoutes } = require('./admin/routes/admin-extended-routes');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -68,6 +65,8 @@ const P2P_ACCESS_COOKIE_NAME = 'p2p_access_token';
 const P2P_REFRESH_COOKIE_NAME = 'p2p_refresh_token';
 const P2P_ORDER_TTL_MS = 1000 * 60 * 15;
 const P2P_EXPIRY_SWEEP_INTERVAL_MS = 30 * 1000;
+const P2P_REQUEST_EXPIRY_SWEEP_THROTTLE_MS = 5000;
+const P2P_OFFERS_CACHE_TTL_MS = 2500;
 const MERCHANT_ACTIVATION_DEPOSIT = 200;
 const SIGNUP_OTP_TTL_MS = Math.max(
   60 * 1000,
@@ -81,19 +80,6 @@ const ENABLE_DEV_TEST_ROUTES = String(process.env.ENABLE_DEV_TEST_ROUTES || '')
   .trim()
   .toLowerCase() === 'true' && !IS_PRODUCTION;
 
-const p2pOrderStreams = new Map();
-// Per-user SSE streams: userId → Set of res objects
-const p2pUserStreams = new Map();
-function getUserStreams(userId) {
-  if (!p2pUserStreams.has(userId)) p2pUserStreams.set(userId, new Set());
-  return p2pUserStreams.get(userId);
-}
-function broadcastUserEvent(userId, eventName, payload) {
-  const streams = p2pUserStreams.get(userId);
-  if (!streams || streams.size === 0) return;
-  const data = `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
-  for (const stream of streams) stream.write(data);
-}
 const DEFAULT_TICKER_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT'];
 const DEFAULT_SYMBOL_PRICES = {
   BTCUSDT: 63000,
@@ -172,8 +158,8 @@ let adminControllers = null;
 let auditLogService = null;
 let p2pOrderExpiryService = null;
 let p2pOrderController = null;
+let p2pRealtime = null;
 let authEmailService = null;
-let p2pEmailService = null;
 let otpAuthStore = null;
 let otpAuthService = null;
 let userCenterStore = null;
@@ -185,6 +171,9 @@ let httpServer = null;
 let shuttingDown = false;
 let bootRetryTimer = null;
 let p2pExpirySweepTimer = null;
+let p2pExpirySweepInFlight = null;
+let lastP2PExpirySweepAt = 0;
+const p2pOffersResponseCache = new Map();
 const socialFeedBootstrapConfig = readSocialFeedConfig();
 const socialFeedBootstrapStore = createSocialFeedFallbackStore();
 const socialFeedBootstrapInitPromise = socialFeedBootstrapStore
@@ -201,8 +190,8 @@ const socialFeedBootstrapService = createSocialFeedService({
 });
 
 const validation = validationRules();
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true }));
 app.use(sanitizeRequestPayload);
 applySecurityHardening(app);
 app.use('/downloads', (req, res, next) => {
@@ -211,15 +200,7 @@ app.use('/downloads', (req, res, next) => {
   res.set('Expires', '0');
   next();
 });
-app.use(express.static(path.join(__dirname, 'public'), {
-  etag: false,
-  maxAge: 0,
-  setHeaders: function(res) {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-  }
-}));
+app.use(express.static(path.join(__dirname, 'public')));
 
 function readLeads() {
   if (!repos) {
@@ -553,35 +534,16 @@ async function runKycFaceMatch({ aadhaarFrontImage, selfieWithDocumentImage }) {
   const apiKey = String(process.env.KYC_FACE_MATCH_API_KEY || '').trim();
   const timeoutMs = Math.max(3000, Number.parseInt(String(process.env.KYC_FACE_MATCH_TIMEOUT_MS || '12000'), 10) || 12000);
 
-  // ── Local face match (no external API needed) ──────────────────────────────
   if (!endpoint) {
-    try {
-      const result = await localFaceMatch(
-        aadhaarFrontImage.dataUrl,
-        selfieWithDocumentImage.dataUrl,
-        KYC_FACE_MATCH_THRESHOLD
-      );
-      console.log(`[KYC local-face-match] score=${result.score} passed=${result.passed} reason=${result.reason}`);
-      return {
-        provider: 'local',
-        available: true,
-        passed: result.passed,
-        score: result.score,
-        reason: result.reason
-      };
-    } catch (localErr) {
-      console.error('[KYC local-face-match error]', localErr?.message);
-      return {
-        provider: 'local',
-        available: false,
-        passed: false,
-        score: null,
-        reason: String(localErr?.message || 'local_face_match_failed')
-      };
-    }
+    return {
+      provider: 'none',
+      available: false,
+      passed: false,
+      score: null,
+      reason: 'face_match_provider_not_configured'
+    };
   }
 
-  // ── External API face match ────────────────────────────────────────────────
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -647,7 +609,7 @@ function buildP2PKycProfileFromCredential(credential = {}) {
     updatedAt: credential?.kycUpdatedAt ? new Date(credential.kycUpdatedAt).toISOString() : null,
     verifiedAt: credential?.kycVerifiedAt ? new Date(credential.kycVerifiedAt).toISOString() : null,
     rejectedAt: credential?.kycRejectedAt ? new Date(credential.kycRejectedAt).toISOString() : null,
-    rejectionReason: String(credential?.kycRejectionReason || credential?.kycRemarks || '').trim()
+    rejectionReason: String(credential?.kycRejectionReason || '').trim()
   };
 }
 
@@ -947,8 +909,8 @@ function getRequestIp(req) {
 }
 
 const loginAttemptLimiter = createIpAttemptLimiter({
-  maxAttempts: 100,
-  windowMs: 1 * 60 * 1000
+  maxAttempts: 5,
+  windowMs: 10 * 60 * 1000
 });
 
 async function createSession() {
@@ -1043,6 +1005,62 @@ async function handleLegacyAdminLogin(req, res) {
     httpOnly: true
   });
 
+const P2P_OFFER_SUMMARY_PROJECTION = {
+  _id: 0,
+  id: 1,
+  type: 1,
+  side: 1,
+  adType: 1,
+  asset: 1,
+  advertiser: 1,
+  price: 1,
+  availableAmount: 1,
+  available: 1,
+  minLimit: 1,
+  maxLimit: 1,
+  completionRate: 1,
+  orders: 1,
+  payments: 1,
+  createdByUserId: 1,
+  createdByUsername: 1,
+  updatedAt: 1,
+  createdAt: 1
+};
+
+function getP2POffersCacheKey(params = {}) {
+  return JSON.stringify({
+    side: String(params.side || '').trim().toLowerCase(),
+    asset: String(params.asset || '').trim().toUpperCase(),
+    payment: String(params.payment || '').trim().toLowerCase(),
+    advertiser: String(params.advertiser || '').trim().toLowerCase(),
+    amount: Number(params.amount || 0),
+    limit: Number(params.limit || 0)
+  });
+}
+
+function readP2POffersCache(cacheKey) {
+  const cached = p2pOffersResponseCache.get(cacheKey);
+  if (!cached) {
+    return null;
+  }
+  if (cached.expiresAt <= Date.now()) {
+    p2pOffersResponseCache.delete(cacheKey);
+    return null;
+  }
+  return cached.payload;
+}
+
+function writeP2POffersCache(cacheKey, payload) {
+  p2pOffersResponseCache.set(cacheKey, {
+    payload,
+    expiresAt: Date.now() + P2P_OFFERS_CACHE_TTL_MS
+  });
+}
+
+function invalidateP2POffersCache() {
+  p2pOffersResponseCache.clear();
+}
+
   return res.json({
     message: 'Admin login successful.',
     admin: {
@@ -1086,8 +1104,12 @@ function buildP2PUserFromEmail(email, role = 'USER') {
 }
 
 async function createP2PUserSession(email, role = 'USER') {
-  const token = createToken();
   const user = buildP2PUserFromEmail(email, role);
+  return createP2PUserSessionForUser(user);
+}
+
+async function createP2PUserSessionForUser(user) {
+  const token = createToken();
 
   await repos.createP2PUserSession(token, user, user.expiresAt);
   return { token, user };
@@ -1121,6 +1143,144 @@ function clearP2PAuthCookies(res) {
   clearCookie(res, P2P_REFRESH_COOKIE_NAME);
 }
 
+function runDetachedTasks(tasks = []) {
+  const pending = tasks
+    .filter(Boolean)
+    .map((task) => {
+      if (typeof task === 'function') {
+        return Promise.resolve().then(() => task());
+      }
+      return Promise.resolve(task);
+    });
+  if (pending.length === 0) {
+    return;
+  }
+
+  Promise.allSettled(pending).catch(() => {
+    // Detached login side-effects are intentionally best effort.
+  });
+}
+
+function queueP2PLoginSideEffects({ user, credential, email, ipAddress, userAgent, route }) {
+  const normalizedEmail = String(email || user?.email || '').trim().toLowerCase();
+  const previousLoginIp = String(credential?.lastLoginIp || '').trim();
+  const previousUserAgent = String(credential?.lastUserAgent || '').trim();
+  const hasLoginHistory = Boolean(previousLoginIp || previousUserAgent);
+  const isNewDeviceLogin =
+    hasLoginHistory && (previousLoginIp !== ipAddress || previousUserAgent !== userAgent);
+
+  runDetachedTasks([
+    () => walletService?.ensureWallet?.(user.id, { username: user.username }),
+    () =>
+      repos?.touchP2PCredentialLogin?.(normalizedEmail, {
+        ipAddress,
+        userAgent,
+        deviceLabel: userAgent
+      }),
+    () =>
+      auditLogService?.safeLog?.({
+        userId: user.id,
+        action: 'login_success',
+        ipAddress,
+        metadata: {
+          route,
+          email: normalizedEmail,
+          role: user.role
+        }
+      }),
+    () =>
+      userCenterService?.recordLoginEvent?.(user, {
+        ip: ipAddress,
+        device: userAgent
+      }),
+    isNewDeviceLogin && authEmailService?.sendNewDeviceLoginAlert
+      ? () =>
+          authEmailService.sendNewDeviceLoginAlert(normalizedEmail, {
+            loginTimeUtc: new Date().toISOString().replace('T', ' ').replace('Z', ' (UTC)'),
+            ipAddress,
+            userAgent,
+            location: 'Unknown'
+          })
+      : null
+  ]);
+}
+
+async function restoreP2PUserFromRefreshToken(req, res) {
+  const cookies = parseCookies(req);
+  const refreshToken = authMiddleware
+    ? authMiddleware.extractRefreshTokenFromRequest(req)
+    : String(cookies[P2P_REFRESH_COOKIE_NAME] || '').trim();
+
+  if (!refreshToken) {
+    return null;
+  }
+
+  try {
+    const decoded = tokenService.verifyRefreshToken(refreshToken);
+    const refreshTokenHash = tokenService.hashRefreshToken(refreshToken);
+    const dbToken = await repos.getRefreshTokenByHash(refreshTokenHash);
+    if (!dbToken || String(dbToken.userId || '').trim() !== String(decoded?.sub || '').trim()) {
+      await repos.deleteRefreshTokenByHash(refreshTokenHash).catch(() => {});
+      clearP2PAuthCookies(res);
+      return null;
+    }
+
+    const expiresAtMs = new Date(dbToken.expiresAt).getTime();
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+      await repos.deleteRefreshTokenByHash(refreshTokenHash).catch(() => {});
+      clearP2PAuthCookies(res);
+      return null;
+    }
+
+    const user = {
+      id: String(dbToken.userId || '').trim(),
+      username: String(dbToken.username || '').trim(),
+      email: String(dbToken.email || '')
+        .trim()
+        .toLowerCase(),
+      role: tokenService.normalizeRole(dbToken.role || 'USER'),
+      expiresAt: Date.now() + P2P_USER_TTL_MS
+    };
+
+    const tokenPair = tokenService.createTokenPair(user);
+    await persistRefreshToken(user, tokenPair.refreshToken, tokenPair.refreshTokenExpiresAt);
+    setP2PAuthCookies(res, tokenPair);
+    return user;
+  } catch (error) {
+    clearP2PAuthCookies(res);
+    return null;
+  }
+}
+
+async function maybeExpireP2POrders(force = false) {
+  if (!walletService || typeof walletService.expireOrders !== 'function') {
+    return { expired: 0, orders: [] };
+  }
+
+  const now = Date.now();
+  if (p2pExpirySweepInFlight) {
+    return p2pExpirySweepInFlight;
+  }
+  if (!force && now - lastP2PExpirySweepAt < P2P_REQUEST_EXPIRY_SWEEP_THROTTLE_MS) {
+    return { expired: 0, orders: [] };
+  }
+
+  p2pExpirySweepInFlight = (async () => {
+    try {
+      const result = await walletService.expireOrders();
+      lastP2PExpirySweepAt = Date.now();
+      if (Array.isArray(result?.orders)) {
+        result.orders.forEach((order) => publishOrderSnapshot(order));
+      }
+      return result;
+    } finally {
+      p2pExpirySweepInFlight = null;
+    }
+  })();
+
+  return p2pExpirySweepInFlight;
+}
+
 function setAdminAuthCookies(res, tokenPair) {
   setCookie(res, ADMIN_ACCESS_COOKIE_NAME, tokenPair.accessToken, tokenService.ACCESS_TOKEN_TTL_SECONDS);
   setCookie(res, ADMIN_REFRESH_COOKIE_NAME, tokenPair.refreshToken, tokenService.REFRESH_TOKEN_TTL_SECONDS);
@@ -1131,100 +1291,25 @@ function clearAdminAuthCookies(res) {
   clearCookie(res, ADMIN_REFRESH_COOKIE_NAME);
 }
 
-function toP2PRequestUser(input = {}) {
-  const userId = String(input.id || input.userId || input.sub || '').trim();
-  if (!userId) {
-    return null;
-  }
-
-  return {
-    id: userId,
-    username: String(input.username || '').trim(),
-    email: String(input.email || '')
-      .trim()
-      .toLowerCase(),
-    role: tokenService.normalizeRole(input.role || 'USER'),
-    expiresAt: Date.now() + P2P_USER_TTL_MS
-  };
-}
-
-async function restoreP2PUserFromRefreshToken(req, res) {
-  if (!repos) {
-    return null;
-  }
-
-  const cookies = parseCookies(req);
-  const refreshToken = authMiddleware
-    ? authMiddleware.extractRefreshTokenFromRequest(req)
-    : String(cookies[P2P_REFRESH_COOKIE_NAME] || '').trim();
-
-  if (!refreshToken) {
-    return null;
-  }
-
-  const clearAuthState = async () => {
-    const refreshTokenHash = tokenService.hashRefreshToken(refreshToken);
-    await repos.deleteRefreshTokenByHash(refreshTokenHash).catch(() => {});
-    if (res) {
-      clearCookie(res, P2P_USER_COOKIE_NAME);
-      clearP2PAuthCookies(res);
-    }
-  };
-
-  try {
-    const decoded = tokenService.verifyRefreshToken(refreshToken);
-    const refreshTokenHash = tokenService.hashRefreshToken(refreshToken);
-    const dbToken = await repos.getRefreshTokenByHash(refreshTokenHash);
-    if (!dbToken || String(dbToken.userId || '').trim() !== String(decoded.sub || '').trim()) {
-      await clearAuthState();
-      return null;
-    }
-
-    const expiresAtMs = new Date(dbToken.expiresAt).getTime();
-    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
-      await clearAuthState();
-      return null;
-    }
-
-    const user = toP2PRequestUser({
-      id: dbToken.userId,
-      username: dbToken.username,
-      email: dbToken.email,
-      role: dbToken.role
-    });
-    if (!user) {
-      await clearAuthState();
-      return null;
-    }
-
-    if (res) {
-      const tokenPair = await issueAuthTokenPairForUser(user);
-      setP2PAuthCookies(res, tokenPair);
-
-      if (user.email) {
-        const legacySession = await createP2PUserSession(user.email, user.role);
-        setCookie(res, P2P_USER_COOKIE_NAME, legacySession.token, P2P_USER_TTL_MS / 1000);
-      }
-    }
-
-    return user;
-  } catch (error) {
-    await clearAuthState();
-    return null;
-  }
-}
-
-async function getP2PUserFromRequest(req, res = null) {
+async function getP2PUserFromRequest(req) {
   if (authMiddleware) {
     const accessToken = authMiddleware.extractAccessTokenFromRequest(req);
     if (accessToken) {
       try {
         const decoded = tokenService.verifyAccessToken(accessToken);
         if (String(decoded?.typ || 'access').trim().toLowerCase() === 'access' && String(decoded?.sub || '').trim()) {
-          return toP2PRequestUser(decoded);
+          return {
+            id: String(decoded.sub).trim(),
+            username: String(decoded.username || '').trim(),
+            email: String(decoded.email || '')
+              .trim()
+              .toLowerCase(),
+            role: tokenService.normalizeRole(decoded.role || 'USER'),
+            expiresAt: Date.now() + P2P_USER_TTL_MS
+          };
         }
       } catch (error) {
-        // Fall back to legacy session lookup and refresh-token recovery.
+        // Fall back to legacy session lookup.
       }
     }
   }
@@ -1233,19 +1318,17 @@ async function getP2PUserFromRequest(req, res = null) {
   const token = cookies[P2P_USER_COOKIE_NAME];
 
   if (!token) {
-    return restoreP2PUserFromRefreshToken(req, res);
+    return null;
   }
-
-  if (!repos) return restoreP2PUserFromRefreshToken(req, res); // DB not ready yet
 
   const session = await repos.getP2PUserSession(token);
   if (!session || !session.expiresAt) {
-    return restoreP2PUserFromRefreshToken(req, res);
+    return null;
   }
 
   if (new Date(session.expiresAt).getTime() < Date.now()) {
     await repos.deleteP2PUserSession(token);
-    return restoreP2PUserFromRefreshToken(req, res);
+    return null;
   }
 
   const expiresAt = Date.now() + P2P_USER_TTL_MS;
@@ -1261,18 +1344,15 @@ async function getP2PUserFromRequest(req, res = null) {
 }
 
 async function requiresP2PUser(req, res, next) {
+  if (authMiddleware) {
+    return authMiddleware.requireAuth({ roles: ['USER', 'ADMIN'], allowLegacy: true })(req, res, next);
+  }
   try {
-    const user = await getP2PUserFromRequest(req, res);
+    const user = await getP2PUserFromRequest(req);
     if (!user) {
       return res.status(401).json({ message: 'Please login to continue.' });
     }
 
-    req.authUser = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: tokenService.normalizeRole(user.role || 'USER')
-    };
     req.p2pUser = user;
     return next();
   } catch (error) {
@@ -1318,7 +1398,7 @@ function normalizeOrderState(order) {
     price: order.price,
     amountInr: order.amountInr,
     assetAmount: order.assetAmount,
-    paymentMethod: order.paymentMethod || 'UPI',
+    paymentMethod: order.paymentMethod,
     participants: order.participants,
     participantsLabel: getParticipantsText(order),
     sellerUserId: order.sellerUserId,
@@ -1326,7 +1406,6 @@ function normalizeOrderState(order) {
     buyerUserId: order.buyerUserId,
     buyerUsername: order.buyerUsername,
     escrowAmount: order.escrowAmount,
-    isParticipant: true,
     createdAt: new Date(order.createdAt).toISOString(),
     expiresAt: new Date(order.expiresAt).toISOString(),
     updatedAt: new Date(order.updatedAt).toISOString(),
@@ -1357,53 +1436,26 @@ function addSystemMessage(order, text) {
 }
 
 function toClientMessages(messages) {
-  return messages.map((msg) => {
-    const m = {
-      id: msg.id,
-      sender: msg.sender,
-      text: msg.text,
-      createdAt: new Date(msg.createdAt).toISOString()
-    };
-    if (msg.imageBase64) m.imageBase64 = msg.imageBase64;
-    if (msg.role) m.role = msg.role; // 'buyer' | 'seller' | undefined=all
-    return m;
-  });
+  return messages.map((msg) => ({
+    id: msg.id,
+    sender: msg.sender,
+    text: msg.text,
+    createdAt: new Date(msg.createdAt).toISOString()
+  }));
 }
 
-function getOrderStreams(orderId) {
-  if (!p2pOrderStreams.has(orderId)) {
-    p2pOrderStreams.set(orderId, new Set());
-  }
-  return p2pOrderStreams.get(orderId);
-}
-
-function broadcastOrderEvent(orderId, eventName, payload) {
-  const streams = p2pOrderStreams.get(orderId);
-  if (!streams || streams.size === 0) {
+function publishOrderSnapshot(order, options = {}) {
+  if (!p2pRealtime) {
     return;
   }
-
-  const data = `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
-  for (const stream of streams) {
-    stream.write(data);
-  }
+  p2pRealtime.publishOrderSnapshot(order, options);
 }
 
-function getOrderParticipantIds(order) {
-  const participantIds = new Set();
-  for (const candidate of [order?.sellerUserId, order?.buyerUserId, order?.sellerId, order?.buyerId]) {
-    const normalized = String(candidate || '').trim();
-    if (normalized) {
-      participantIds.add(normalized);
-    }
+function publishOrderMessages(order, messages) {
+  if (!p2pRealtime) {
+    return;
   }
-  return Array.from(participantIds);
-}
-
-function broadcastParticipantOrderEvent(order, eventName, payload) {
-  for (const participantId of getOrderParticipantIds(order)) {
-    broadcastUserEvent(participantId, eventName, payload);
-  }
+  p2pRealtime.publishOrderMessages(order, messages);
 }
 
 function cloneOrder(order) {
@@ -1480,8 +1532,8 @@ app.post('/api/p2p/login', async (req, res) => {
   }
 
   try {
-    const existingCredential = await repos.getP2PCredential(email);
-    if (existingCredential && !repos.verifyPassword(password, existingCredential.passwordHash)) {
+    let credentialSnapshot = await repos.getP2PCredential(email);
+    if (credentialSnapshot && !(await repos.verifyPasswordAsync(password, credentialSnapshot.passwordHash))) {
       if (auditLogService) {
         await auditLogService.safeLog({
           userId: '',
@@ -1493,34 +1545,36 @@ app.post('/api/p2p/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    let userRole = tokenService.normalizeRole(existingCredential?.role || 'USER');
-    if (!existingCredential) {
-      const hash = repos.hashPassword(password);
+    let userRole = tokenService.normalizeRole(credentialSnapshot?.role || 'USER');
+    if (!credentialSnapshot) {
+      const hash = await repos.hashPasswordAsync(password);
       await repos.setP2PCredential(email, hash, {
         role: 'USER'
       });
       userRole = 'USER';
+      credentialSnapshot = {
+        email,
+        role: userRole,
+        kycStatus: 'NOT_SUBMITTED',
+        kycLevel: 'BASIC'
+      };
     }
 
-    const { token, user } = await createP2PUserSession(email, userRole);
-    const tokenPair = await issueAuthTokenPairForUser(user);
-    await walletService.ensureWallet(user.id, { username: user.username });
+    const user = buildP2PUserFromEmail(email, userRole);
+    const [{ token }, tokenPair] = await Promise.all([
+      createP2PUserSessionForUser(user),
+      issueAuthTokenPairForUser(user)
+    ]);
     setCookie(res, P2P_USER_COOKIE_NAME, token, P2P_USER_TTL_MS / 1000);
     setP2PAuthCookies(res, tokenPair);
-    if (auditLogService) {
-      await auditLogService.safeLog({
-        userId: user.id,
-        action: 'login_success',
-        ipAddress: requestIp,
-        metadata: {
-          route: '/api/p2p/login',
-          email: user.email,
-          role: user.role
-        }
-      });
-    }
-
-    const kycProfile = await getP2PKycProfileByEmail(user.email);
+    queueP2PLoginSideEffects({
+      user,
+      credential: credentialSnapshot,
+      email,
+      ipAddress: requestIp,
+      userAgent: String(req.headers['user-agent'] || '').trim().slice(0, 1024),
+      route: '/api/p2p/login'
+    });
 
     return res.json({
       message: 'P2P login successful.',
@@ -1529,7 +1583,7 @@ app.post('/api/p2p/login', async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
-        kyc: kycProfile
+        kyc: buildP2PKycProfileFromCredential(credentialSnapshot || {})
       },
       accessToken: tokenPair.accessToken,
       refreshToken: tokenPair.refreshToken
@@ -1658,46 +1712,6 @@ app.post('/api/signup/verify-code', async (req, res) => {
   }
 });
 
-// ===== P2P PASSWORD RESET =====
-app.post('/api/p2p/forgot-password', async (req, res) => {
-  if (!repos) return res.status(503).json({ message: 'Service unavailable.' });
-  const email = String(req.body.email || '').trim().toLowerCase();
-  if (!email || !email.includes('@')) return res.status(400).json({ message: 'Valid email required.' });
-  try {
-    const credential = await repos.getP2PCredential(email);
-    // Always return success to avoid email enumeration
-    if (credential && authEmailService) {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      await repos.upsertSignupOtp(email, { code, type: 'email', attempts: 0, expiresAt: new Date(Date.now() + 10 * 60 * 1000), payload: {} }, { purpose: 'p2p_password_reset' });
-      await authEmailService.sendForgotPasswordOtpEmail(email, code, { expiresInMinutes: 10 }).catch(() => {});
-    }
-    return res.json({ message: 'If that email is registered, a reset code has been sent.' });
-  } catch (error) {
-    return res.status(500).json({ message: 'Server error.' });
-  }
-});
-
-app.post('/api/p2p/reset-password', async (req, res) => {
-  if (!repos) return res.status(503).json({ message: 'Service unavailable.' });
-  const email = String(req.body.email || '').trim().toLowerCase();
-  const code = String(req.body.code || '').trim();
-  const newPassword = String(req.body.newPassword || '').trim();
-  if (!email || !code || !newPassword) return res.status(400).json({ message: 'Email, code and new password required.' });
-  if (newPassword.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters.' });
-  try {
-    const otp = await repos.getSignupOtp(email, { purpose: 'p2p_password_reset' });
-    if (!otp || otp.code !== code || new Date(otp.expiresAt) < new Date()) {
-      return res.status(400).json({ message: 'Invalid or expired reset code.' });
-    }
-    const hash = repos.hashPassword(newPassword);
-    await repos.updateP2PCredentialPassword(email, hash);
-    await repos.deleteSignupOtp(email, { purpose: 'p2p_password_reset' });
-    return res.json({ message: 'Password reset successfully. Please login.' });
-  } catch (error) {
-    return res.status(500).json({ message: 'Server error.' });
-  }
-});
-
 app.post('/api/p2p/logout', async (req, res) => {
   const cookies = parseCookies(req);
   const token = cookies[P2P_USER_COOKIE_NAME];
@@ -1727,7 +1741,10 @@ app.post('/api/p2p/logout', async (req, res) => {
 });
 
 app.get('/api/p2p/me', async (req, res) => {
-  const user = await getP2PUserFromRequest(req, res);
+  let user = await getP2PUserFromRequest(req);
+  if (!user) {
+    user = await restoreP2PUserFromRefreshToken(req, res);
+  }
 
   if (!user) {
     return res.json({ loggedIn: false, user: null });
@@ -1745,6 +1762,14 @@ app.get('/api/p2p/me', async (req, res) => {
       kyc: kycProfile
     }
   });
+});
+
+app.get('/api/p2p/me/stream', requiresP2PUser, async (req, res) => {
+  try {
+    p2pRealtime?.attachUserStream(req, res, req.p2pUser.id);
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error while opening user stream.' });
+  }
 });
 
 app.get('/api/p2p/kyc/status', requiresP2PUser, async (req, res) => {
@@ -1788,12 +1813,10 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
 
   let aadhaarDigits = '';
   let aadhaarFrontImage = null;
-  let aadhaarBackImage = null;
   let selfieWithDocumentImage = null;
   try {
     aadhaarDigits = normalizeAadhaarNumber(req.body?.aadhaarNumber);
     aadhaarFrontImage = extractKycImageData(req.body?.aadhaarFrontImage, 'Aadhaar front');
-    aadhaarBackImage = req.body?.aadhaarBackImage ? extractKycImageData(req.body?.aadhaarBackImage, 'Aadhaar back') : null;
     selfieWithDocumentImage = extractKycImageData(req.body?.selfieWithDocumentImage, 'Selfie with document');
   } catch (error) {
     return res.status(400).json({ message: error.message || 'Invalid KYC submission payload.' });
@@ -1820,22 +1843,8 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
       selfieWithDocumentImage
     });
 
-    // Auto-approve when face match is available AND passed.
-    // Auto-reject when face match is available AND failed (score too low).
-    // Fall back to manual PENDING_REVIEW when face match provider is unavailable.
-    let nextStatus;
-    let rejectionReason = '';
-    if (faceMatch.available && faceMatch.passed) {
-      nextStatus = 'VERIFIED';
-    } else if (faceMatch.available && !faceMatch.passed) {
-      nextStatus = 'REJECTED';
-      rejectionReason = faceMatch.reason === 'face_very_different'
-        ? 'Face in selfie does not match the Aadhaar photo. Please re-submit with a clear selfie.'
-        : `Face similarity score (${faceMatch.score}/100) is below the required threshold (${KYC_FACE_MATCH_THRESHOLD}/100). Please re-submit with a clearer photo.`;
-    } else {
-      // Face match service unavailable — queue for manual admin review
-      nextStatus = 'PENDING_REVIEW';
-    }
+    const nextStatus = 'PENDING_REVIEW';
+    const rejectionReason = '';
 
     await repos.upsertP2PKycRequest(userId, email, {
       requestId,
@@ -1843,7 +1852,6 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
       aadhaarMasked: maskAadhaar(aadhaarDigits),
       aadhaarHash: hashSensitive(aadhaarDigits),
       aadhaarFrontImage: encryptText(aadhaarFrontImage.dataUrl),
-      aadhaarBackImage: aadhaarBackImage ? encryptText(aadhaarBackImage.dataUrl) : '',
       selfieWithDocumentImage: encryptText(selfieWithDocumentImage.dataUrl),
       rejectionReason,
       faceMatch: {
@@ -1889,9 +1897,7 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
     }
 
     const statusMessageByState = {
-      VERIFIED: 'KYC verified successfully! You can now trade on Bitegit.',
-      REJECTED: rejectionReason || 'KYC verification failed. Please re-submit with clearer photos.',
-      PENDING_REVIEW: 'KYC submitted successfully. Our team will review your documents shortly.'
+      PENDING_REVIEW: 'KYC submitted successfully. Verification is pending review.'
     };
 
     return res.status(202).json({
@@ -1907,7 +1913,6 @@ app.post('/api/p2p/kyc/submit', requiresP2PUser, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[KYC submit error]', error?.message, error?.stack);
     return res.status(500).json({ message: 'Server error while submitting KYC verification.' });
   }
 });
@@ -2575,122 +2580,62 @@ app.get('/api/p2p/offers', async (req, res) => {
   const payment = String(req.query.payment || '').trim().toLowerCase();
   const advertiser = String(req.query.advertiser || '').trim().toLowerCase();
   const amount = Number(req.query.amount || 0);
-  const pageSize = Math.min(Math.max(Number(req.query.limit || 10), 1), 50);
-  const pageOffset = Math.max(Number(req.query.offset || 0), 0);
+  const limit = Math.max(10, Math.min(80, Number.parseInt(String(req.query.limit || '40'), 10) || 40));
 
   const normalizedSide = side === 'sell' ? 'sell' : 'buy';
+  const cacheKey = getP2POffersCacheKey({
+    side: normalizedSide,
+    asset,
+    payment,
+    advertiser,
+    amount,
+    limit
+  });
 
   try {
-    // Step-1 secure listing: only production escrow-backed active ads.
-    const allOffers = await repos.listOffers({
+    const cachedPayload = readP2POffersCache(cacheKey);
+    if (cachedPayload) {
+      return res.json(cachedPayload);
+    }
+
+    const startedAt = Date.now();
+    const offers = await repos.listOffers({
       side: normalizedSide,
       asset,
+      payment,
+      advertiser,
+      amount,
+      limit,
       activeOnly: true,
       merchantDepositLocked: true,
       availableOnly: true,
       excludeDemo: true,
       escrowBackedOnly: true,
-      merchantOwnedOnly: true
+      merchantOwnedOnly: true,
+      projection: P2P_OFFER_SUMMARY_PROJECTION
     });
-    const filtered = allOffers
-      .filter((offer) => {
-        if (!payment) {
-          return true;
-        }
-        return offer.payments.some((method) => method.toLowerCase().includes(payment));
-      })
-      .filter((offer) => {
-        if (!advertiser) {
-          return true;
-        }
-        return offer.advertiser.toLowerCase().includes(advertiser);
-      })
-      .filter((offer) => {
-        if (!amount || Number.isNaN(amount)) {
-          return true;
-        }
-        return amount >= offer.minLimit && amount <= offer.maxLimit;
-      })
-      .sort((a, b) => {
-        if (normalizedSide === 'buy') {
-          return a.price - b.price;
-        }
-        return b.price - a.price;
-      });
 
-    const totalCount = filtered.length;
-    const paginated = filtered.slice(pageOffset, pageOffset + pageSize);
-
-    // Enrich each offer with advertiser reputation
-    const enriched = await Promise.all(paginated.map(async (offer) => {
-      try {
-        const userId = offer.createdByUserId;
-        if (!userId) return offer;
-        const rep = await repos.getUserReputation(userId);
-        if (!rep) return offer;
-        return { ...offer, reputation: rep };
-      } catch (_) { return offer; }
-    }));
-
-    return res.json({
+    const payload = {
       side: normalizedSide,
       asset,
-      total: totalCount,
-      offset: pageOffset,
-      limit: pageSize,
-      hasMore: pageOffset + pageSize < totalCount,
+      total: offers.length,
       updatedAt: new Date().toISOString(),
-      offers: enriched
+      offers
+    };
+    writeP2POffersCache(cacheKey, payload);
+    console.info('[p2p-offers] list', {
+      side: normalizedSide,
+      asset,
+      payment: payment || null,
+      advertiser: advertiser || null,
+      amount: Number.isFinite(amount) && amount > 0 ? amount : null,
+      total: offers.length,
+      limit,
+      durationMs: Date.now() - startedAt
     });
+    return res.json(payload);
   } catch (error) {
     return res.status(500).json({ message: 'Server error while fetching offers.' });
-  }
-});
-
-// ===== PAYMENT METHODS =====
-app.get('/api/p2p/payment-methods', requiresP2PUser, async (req, res) => {
-  try {
-    const methods = await repos.listPaymentMethods(req.p2pUser.userId);
-    return res.json({ methods });
-  } catch (e) { return res.status(500).json({ message: 'Server error.' }); }
-});
-
-app.post('/api/p2p/payment-methods', requiresP2PUser, async (req, res) => {
-  try {
-    const { type, nickname, upiId, bankName, accountNumber, ifsc, accountHolder, details } = req.body;
-    if (!type) return res.status(400).json({ message: 'type is required.' });
-    const existing = await repos.listPaymentMethods(req.p2pUser.userId);
-    if (existing.length >= 20) return res.status(400).json({ message: 'Max 20 payment methods allowed.' });
-    const method = await repos.addPaymentMethod(req.p2pUser.userId, { type, nickname, upiId, bankName, accountNumber, ifsc, accountHolder, details });
-    return res.json({ method });
-  } catch (e) { return res.status(500).json({ message: 'Server error.' }); }
-});
-
-app.patch('/api/p2p/payment-methods/:pmId', requiresP2PUser, async (req, res) => {
-  try {
-    const updated = await repos.updatePaymentMethod(req.params.pmId, req.p2pUser.userId, req.body);
-    if (!updated) return res.status(404).json({ message: 'Payment method not found.' });
-    return res.json({ method: updated });
-  } catch (e) { return res.status(500).json({ message: 'Server error.' }); }
-});
-
-app.delete('/api/p2p/payment-methods/:pmId', requiresP2PUser, async (req, res) => {
-  try {
-    const deleted = await repos.deletePaymentMethod(req.params.pmId, req.p2pUser.userId);
-    if (!deleted) return res.status(404).json({ message: 'Payment method not found.' });
-    return res.json({ success: true });
-  } catch (e) { return res.status(500).json({ message: 'Server error.' }); }
-});
-// ===== END PAYMENT METHODS =====
-
-// GET /api/p2p/users/:userId/reputation
-app.get('/api/p2p/users/:userId/reputation', async (req, res) => {
-  try {
-    const rep = await repos.getUserReputation(req.params.userId);
-    if (!rep) return res.status(404).json({ message: 'User not found.' });
-    return res.json(rep);
-  } catch (err) {
-    return res.status(500).json({ message: 'Server error.' });
   }
 });
 
@@ -2703,6 +2648,7 @@ app.get('/api/p2p/ads', async (req, res) => {
     const offers = await repos.listOffers({
       side: normalizedSide || undefined,
       asset,
+      limit: 100,
       activeOnly: true,
       merchantDepositLocked: true,
       availableOnly: true,
@@ -2721,56 +2667,35 @@ app.get('/api/p2p/ads', async (req, res) => {
   }
 });
 
-// Get single ad by ID
-app.get('/api/p2p/ads/:adId', async (req, res) => {
-  try {
-    const offer = await repos.getOfferById(req.params.adId);
-    if (!offer) return res.status(404).json({ message: 'Ad not found.' });
-    return res.json({ success: true, ad: offer });
-  } catch (error) {
-    return res.status(500).json({ message: 'Server error.' });
-  }
-});
+app.get('/api/p2p/my-ads', requiresP2PUser, async (req, res) => {
+  const side = String(req.query.side || '').trim().toLowerCase();
+  const asset = String(req.query.asset || 'USDT').trim().toUpperCase();
+  const normalizedSide = side === 'sell' ? 'sell' : side === 'buy' ? 'buy' : '';
 
-// Convenience: mark order paid
-app.post('/api/p2p/orders/:orderId/mark-paid', requiresP2PUser, async (req, res) => {
   try {
-    await walletService.expireOrders();
-    const updatedOrder = await walletService.markOrderPaid(req.params.orderId, req.p2pUser);
-    const normalizedOrder = normalizeOrderState(updatedOrder);
-    const participantPayload = {
-      order: normalizedOrder,
-      orderId: normalizedOrder.id,
-      reference: normalizedOrder.reference,
-      status: normalizedOrder.status,
-      updatedAt: normalizedOrder.updatedAt
-    };
-    broadcastOrderEvent(updatedOrder.id, 'order_update', { order: normalizedOrder });
-    broadcastParticipantOrderEvent(updatedOrder, 'orders_refresh', participantPayload);
-    return res.json({ success: true, order: normalizedOrder });
+    const startedAt = Date.now();
+    const offers = await repos.listOffers({
+      createdByUserId: req.p2pUser.id,
+      side: normalizedSide || undefined,
+      asset,
+      activeOnly: true,
+      excludeDemo: true,
+      merchantOwnedOnly: true,
+      limit: 100,
+      sort: { updatedAt: -1 }
+    });
+    console.info('[p2p-offers] my-ads', {
+      userId: req.p2pUser.id,
+      total: offers.length,
+      durationMs: Date.now() - startedAt
+    });
+    return res.json({
+      success: true,
+      total: offers.length,
+      offers
+    });
   } catch (error) {
-    return res.status(500).json({ message: error.message || 'Server error.' });
-  }
-});
-
-// Convenience: cancel order
-app.post('/api/p2p/orders/:orderId/cancel', requiresP2PUser, async (req, res) => {
-  try {
-    await walletService.expireOrders();
-    const updatedOrder = await walletService.cancelOrder(req.params.orderId, req.p2pUser, 'CANCELLED');
-    const normalizedOrder = normalizeOrderState(updatedOrder);
-    const participantPayload = {
-      order: normalizedOrder,
-      orderId: normalizedOrder.id,
-      reference: normalizedOrder.reference,
-      status: normalizedOrder.status,
-      updatedAt: normalizedOrder.updatedAt
-    };
-    broadcastOrderEvent(updatedOrder.id, 'order_update', { order: normalizedOrder });
-    broadcastParticipantOrderEvent(updatedOrder, 'orders_refresh', participantPayload);
-    return res.json({ success: true, order: normalizedOrder });
-  } catch (error) {
-    return res.status(500).json({ message: error.message || 'Server error.' });
+    return res.status(500).json({ message: 'Server error while fetching your ads.' });
   }
 });
 
@@ -2781,6 +2706,7 @@ async function createP2PAdController(req, res) {
       offerId: await createOfferId(),
       payload: req.body || {}
     });
+    invalidateP2POffersCache();
 
     return res.status(201).json({
       message: 'Ad created successfully.',
@@ -2825,60 +2751,6 @@ async function createP2PAdController(req, res) {
 app.post('/api/p2p/offers', requiresP2PUser, createP2PAdController);
 app.post('/api/p2p/ads', requiresP2PUser, createP2PAdController);
 
-// GET my ads
-app.get('/api/p2p/my-ads', requiresP2PUser, async (req, res) => {
-  try {
-    const userId = req.p2pUser.userId;
-    const allOffers = await repos.listOffers({ excludeDemo: true });
-    const mine = allOffers.filter(o => o.createdByUserId === userId);
-    return res.json({ offers: mine });
-  } catch (err) {
-    return res.status(500).json({ message: 'Server error.' });
-  }
-});
-
-// PATCH /api/p2p/offers/:offerId — edit price/limits/payments/status(pause/resume)
-app.patch('/api/p2p/offers/:offerId', requiresP2PUser, async (req, res) => {
-  try {
-    const userId = req.p2pUser.userId;
-    const { offerId } = req.params;
-    const offer = await repos.getOfferById(offerId);
-    if (!offer) return res.status(404).json({ message: 'Offer not found.' });
-    if (offer.createdByUserId !== userId) return res.status(403).json({ message: 'Not your ad.' });
-
-    const { price, minLimit, maxLimit, payments, status, remark } = req.body;
-    // Validate status transitions
-    if (status && !['ACTIVE', 'PAUSED'].includes(status)) {
-      return res.status(400).json({ message: 'Status must be ACTIVE or PAUSED.' });
-    }
-    const updated = await repos.updateOffer(offerId, userId, { price, minLimit, maxLimit, payments, status, remark });
-    if (!updated) return res.status(404).json({ message: 'Update failed.' });
-    return res.json({ offer: updated });
-  } catch (err) {
-    return res.status(500).json({ message: 'Server error.' });
-  }
-});
-
-// DELETE /api/p2p/offers/:offerId
-app.delete('/api/p2p/offers/:offerId', requiresP2PUser, async (req, res) => {
-  try {
-    const userId = req.p2pUser.userId;
-    const { offerId } = req.params;
-    const offer = await repos.getOfferById(offerId);
-    if (!offer) return res.status(404).json({ message: 'Offer not found.' });
-    if (offer.createdByUserId !== userId) return res.status(403).json({ message: 'Not your ad.' });
-    // Check no active orders on this offer
-    const activeOrders = await repos.listP2PLiveOrders({ asset: offer.asset, side: offer.side });
-    const hasActive = activeOrders.some(o => (o.adId === offerId || o.offerId === offerId) && ['CREATED','PAYMENT_SENT','DISPUTED'].includes(o.status));
-    if (hasActive) return res.status(409).json({ message: 'Cannot delete ad with active orders.' });
-    const deleted = await repos.deleteOffer(offerId, userId);
-    if (!deleted) return res.status(404).json({ message: 'Delete failed.' });
-    return res.json({ success: true });
-  } catch (err) {
-    return res.status(500).json({ message: 'Server error.' });
-  }
-});
-
 app.post('/api/merchant/activate', requiresP2PUser, async (req, res) => {
   try {
     const activation = await walletService.activateMerchant({
@@ -2908,36 +2780,18 @@ app.post('/api/merchant/activate', requiresP2PUser, async (req, res) => {
   }
 });
 
-// Returns only the current user's own active orders (for mobile Active tab)
-app.get('/api/p2p/orders/my-active', requiresP2PUser, async (req, res) => {
-  try {
-    await walletService.expireOrders();
-    const userId = req.p2pUser.id;
-    const username = req.p2pUser.username;
-    const result = await repos.listP2POrderHistory(userId, { limit: 50, offset: 0 });
-    console.log(`[my-active] user=${username} id=${userId} total_orders=${result.total}`);
-    const activeStatuses = ['CREATED', 'PENDING', 'PAID', 'PAYMENT_SENT', 'DISPUTED'];
-    const activeOrders = result.orders
-      .filter((o) => activeStatuses.includes(o.status))
-      .map((order) => {
-        const normalized = normalizeOrderState(order);
-        return { ...normalized, isParticipant: true, paymentMethod: order.paymentMethod };
-      });
-    console.log(`[my-active] active_orders=${activeOrders.length}`);
-    return res.json({ orders: activeOrders });
-  } catch (error) {
-    console.error('[my-active] error:', error);
-    return res.status(500).json({ message: 'Server error fetching active orders.' });
-  }
-});
-
 app.get('/api/p2p/orders/live', requiresP2PUser, async (req, res) => {
   const side = String(req.query.side || '').trim().toLowerCase();
   const asset = String(req.query.asset || '').trim().toUpperCase();
 
   try {
-    await walletService.expireOrders();
-    const liveOrders = (await repos.listP2PLiveOrders({ side: side || undefined, asset: asset || undefined, limit: 20 }))
+    await maybeExpireP2POrders();
+    const liveOrders = (await repos.listP2PActiveOrdersForUser({
+      userId: req.p2pUser.id,
+      side: side || undefined,
+      asset: asset || undefined,
+      limit: 50
+    }))
       .map((order) => normalizeOrderState(order))
       .map((order) => ({
         id: order.id,
@@ -2949,7 +2803,7 @@ app.get('/api/p2p/orders/live', requiresP2PUser, async (req, res) => {
         amountInr: order.amountInr,
         price: order.price,
         participantsLabel: order.participantsLabel,
-        isParticipant: order.participants.some((participant) => participant.id === req.p2pUser.id),
+        isParticipant: true,
         updatedAt: order.updatedAt,
         remainingSeconds: order.remainingSeconds
       }));
@@ -2963,23 +2817,11 @@ app.get('/api/p2p/orders/live', requiresP2PUser, async (req, res) => {
   }
 });
 
-app.get('/api/p2p/orders/history', requiresP2PUser, async (req, res) => {
-  const limit = Math.min(Math.max(Number(req.query.limit || 10), 1), 50);
-  const offset = Math.max(Number(req.query.offset || 0), 0);
-  try {
-    const result = await repos.listP2POrderHistory(req.p2pUser.id, { limit, offset });
-    const orders = result.orders.map((o) => normalizeOrderState(o));
-    return res.json({ total: result.total, hasMore: result.hasMore, offset, limit, orders });
-  } catch (error) {
-    return res.status(500).json({ message: 'Server error.' });
-  }
-});
-
 app.get('/api/p2p/orders/by-reference/:reference', requiresP2PUser, async (req, res) => {
   const reference = String(req.params.reference || '').trim();
 
   try {
-    await walletService.expireOrders();
+    await maybeExpireP2POrders();
     const orderByReference = await findOrderByReference(reference);
 
     if (!orderByReference) {
@@ -3000,7 +2842,7 @@ app.get('/api/p2p/orders/by-reference/:reference', requiresP2PUser, async (req, 
 
 app.post('/api/p2p/orders/:orderId/join', requiresP2PUser, async (req, res) => {
   try {
-    await walletService.expireOrders();
+    await maybeExpireP2POrders();
     const order = await repos.getP2POrderById(req.params.orderId);
 
     if (!order) {
@@ -3021,7 +2863,7 @@ app.post('/api/p2p/orders/:orderId/join', requiresP2PUser, async (req, res) => {
 
 app.get('/api/p2p/orders/:orderId', requiresP2PUser, async (req, res) => {
   try {
-    await walletService.expireOrders();
+    await maybeExpireP2POrders();
     const order = await repos.getP2POrderById(req.params.orderId);
 
     if (!order) {
@@ -3044,7 +2886,7 @@ app.post('/api/p2p/orders/:orderId/status', requiresP2PUser, async (req, res) =>
   const action = String(req.body.action || '').trim().toLowerCase();
 
   try {
-    await walletService.expireOrders();
+    await maybeExpireP2POrders();
 
     let updatedOrder = null;
     if (action === 'cancel') {
@@ -3060,51 +2902,7 @@ app.post('/api/p2p/orders/:orderId/status', requiresP2PUser, async (req, res) =>
     }
 
     const normalizedOrder = normalizeOrderState(updatedOrder);
-    const normalizedMessages = toClientMessages(updatedOrder.messages || []);
-    const participantPayload = {
-      order: normalizedOrder,
-      orderId: normalizedOrder.id,
-      reference: normalizedOrder.reference,
-      status: normalizedOrder.status,
-      updatedAt: normalizedOrder.updatedAt
-    };
-
-    broadcastOrderEvent(updatedOrder.id, 'order_update', { order: normalizedOrder });
-    broadcastOrderEvent(updatedOrder.id, 'message_update', { messages: normalizedMessages });
-    broadcastParticipantOrderEvent(updatedOrder, 'orders_refresh', participantPayload);
-
-    // Send email notifications (non-blocking)
-    if (p2pEmailService) {
-      setImmediate(async () => {
-        try {
-          const [sellerCred, buyerCred] = await Promise.all([
-            repos.getP2PCredentialByUserId(updatedOrder.sellerUserId),
-            repos.getP2PCredentialByUserId(updatedOrder.buyerUserId)
-          ]);
-          const sellerEmail = sellerCred?.email;
-          const buyerEmail = buyerCred?.email;
-          if (action === 'mark_paid') {
-            // Buyer paid — notify seller to release
-            if (sellerEmail) await p2pEmailService.sendOrderPaid(sellerEmail, updatedOrder);
-          } else if (action === 'release') {
-            // Seller released — notify buyer (USDT received) and seller (confirmation)
-            if (buyerEmail) await p2pEmailService.sendOrderReleased(buyerEmail, updatedOrder);
-            if (sellerEmail && sellerEmail !== buyerEmail) await p2pEmailService.sendOrderReleased(sellerEmail, updatedOrder);
-          } else if (action === 'cancel') {
-            if (sellerEmail) await p2pEmailService.sendOrderCancelled(sellerEmail, updatedOrder);
-            if (buyerEmail && buyerEmail !== sellerEmail) await p2pEmailService.sendOrderCancelled(buyerEmail, updatedOrder);
-          } else if (action === 'dispute') {
-            // Notify admin + both parties
-            const adminEmail = String(process.env.ADMIN_EMAIL || '').trim();
-            if (adminEmail) await p2pEmailService.sendDisputeRaised(adminEmail, updatedOrder, req.p2pUser.username || req.p2pUser.email);
-            if (sellerEmail) await p2pEmailService.sendDisputeRaised(sellerEmail, updatedOrder, req.p2pUser.username || req.p2pUser.email);
-            if (buyerEmail && buyerEmail !== sellerEmail) await p2pEmailService.sendDisputeRaised(buyerEmail, updatedOrder, req.p2pUser.username || req.p2pUser.email);
-          }
-        } catch (emailErr) {
-          console.warn('[p2p-email] notification failed:', emailErr.message);
-        }
-      });
-    }
+    publishOrderSnapshot(updatedOrder);
 
     return res.json({
       message: 'Order updated.',
@@ -3120,7 +2918,7 @@ app.post('/api/p2p/orders/:orderId/status', requiresP2PUser, async (req, res) =>
 
 app.get('/api/p2p/orders/:orderId/messages', requiresP2PUser, async (req, res) => {
   try {
-    await walletService.expireOrders();
+    await maybeExpireP2POrders();
     const order = await repos.getP2POrderById(req.params.orderId);
 
     if (!order) {
@@ -3141,32 +2939,29 @@ app.get('/api/p2p/orders/:orderId/messages', requiresP2PUser, async (req, res) =
 
 app.post('/api/p2p/orders/:orderId/messages', requiresP2PUser, async (req, res) => {
   const text = String(req.body.text || '').trim();
-  const imageBase64 = req.body.imageBase64 || null;
 
-  if (!text && !imageBase64) {
-    return res.status(400).json({ message: 'Message text or image is required.' });
+  if (!text) {
+    return res.status(400).json({ message: 'Message text is required.' });
   }
 
   try {
-    await walletService.expireOrders();
+    await maybeExpireP2POrders();
     const mutation = await withOrderMutation(req.params.orderId, (next) => {
       if (!isParticipant(next, req.p2pUser.id)) {
         return { error: 'not_participant' };
       }
 
-      if (['RELEASED', 'CANCELLED', 'EXPIRED'].includes(next.status)) {
+      if (['RELEASED', 'COMPLETED', 'CANCELLED', 'EXPIRED'].includes(next.status)) {
         return { error: 'chat_closed' };
       }
 
       const now = Date.now();
-      const msgObj = {
+      next.messages.push({
         id: `msg_${now}_${Math.floor(Math.random() * 1000)}`,
         sender: req.p2pUser.username,
-        text: text || '',
+        text,
         createdAt: now
-      };
-      if (imageBase64) msgObj.imageBase64 = imageBase64;
-      next.messages.push(msgObj);
+      });
       next.updatedAt = now;
       return {};
     });
@@ -3185,7 +2980,7 @@ app.post('/api/p2p/orders/:orderId/messages', requiresP2PUser, async (req, res) 
     }
 
     const normalizedMessages = toClientMessages(mutation.order.messages);
-    broadcastOrderEvent(mutation.order.id, 'message_update', { messages: normalizedMessages });
+    publishOrderMessages(mutation.order, mutation.order.messages);
 
     return res.status(201).json({
       message: 'Message sent.',
@@ -3198,7 +2993,7 @@ app.post('/api/p2p/orders/:orderId/messages', requiresP2PUser, async (req, res) 
 
 app.get('/api/p2p/orders/:orderId/stream', requiresP2PUser, async (req, res) => {
   try {
-    await walletService.expireOrders();
+    await maybeExpireP2POrders();
     const order = await repos.getP2POrderById(req.params.orderId);
 
     if (!order) {
@@ -3209,44 +3004,10 @@ app.get('/api/p2p/orders/:orderId/stream', requiresP2PUser, async (req, res) => 
       return res.status(403).json({ message: 'Only buyer and seller can access this order.' });
     }
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-
-    const streams = getOrderStreams(order.id);
-    streams.add(res);
-
-    res.write(`event: connected\ndata: ${JSON.stringify({ message: 'stream-connected' })}\n\n`);
-
-    req.on('close', () => {
-      streams.delete(res);
-      if (streams.size === 0) {
-        p2pOrderStreams.delete(order.id);
-      }
-    });
+    p2pRealtime?.attachOrderStream(req, res, order.id);
   } catch (error) {
     return res.status(500).json({ message: 'Server error while opening stream.' });
   }
-});
-
-// Per-user SSE: notifies seller when a new order arrives for their ad
-app.get('/api/p2p/me/stream', requiresP2PUser, (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-  const userId = req.p2pUser.id;
-  const streams = getUserStreams(userId);
-  streams.add(res);
-  res.write(`event: connected\ndata: ${JSON.stringify({ message: 'user-stream-connected' })}\n\n`);
-  // Keepalive ping every 20s
-  const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch(e) {} }, 20000);
-  req.on('close', () => {
-    clearInterval(ping);
-    streams.delete(res);
-    if (streams.size === 0) p2pUserStreams.delete(userId);
-  });
 });
 
 app.get('/admin-login', (req, res) => {
@@ -3254,11 +3015,7 @@ app.get('/admin-login', (req, res) => {
 });
 
 app.get('/admin/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'bitegit-admin-login.html'));
-});
-
-app.get('/bitegit-admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'bitegit-admin-login.html'));
+  res.sendFile(path.join(__dirname, 'public', 'admin-login.html'));
 });
 
 app.get('/admin', async (req, res) => {
@@ -3288,31 +3045,8 @@ app.get('/admin', async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-app.get('/markets', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'markets.html'));
-});
-app.get('/assets', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'assets.html'));
-});
-app.get('/chart', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'chart.html'));
-});
-app.get('/auth', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'auth.html'));
-});
 app.get('/p2p', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'p2p.html'));
-});
-
-app.get('/p2p-buy', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'p2p-buy.html'));
-});
-
-app.get('/kyc', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'kyc.html'));
 });
 
 app.get('/trade', (req, res) => {
@@ -3536,6 +3270,13 @@ function registerShutdownHandlers() {
             })
           );
         }
+        if (p2pRealtime && typeof p2pRealtime.close === 'function') {
+          closeTasks.push(
+            p2pRealtime.close().then(() => {
+              console.log('[p2p-realtime] realtime hub closed.');
+            })
+          );
+        }
 
         await Promise.allSettled(closeTasks);
         clearTimeout(forceExitTimer);
@@ -3576,7 +3317,12 @@ async function boot() {
     repos = createRepositories(collections);
     auditLogService = createAuditLogService(collections);
     authEmailService = createAuthEmailService();
-    p2pEmailService = createP2PEmailService();
+    p2pRealtime = createP2PRealtimeHub({
+      logger: console,
+      serializeOrder: normalizeOrderState,
+      serializeMessages: toClientMessages
+    });
+    p2pRealtime.startOrderWatcher(collections.p2pOrders);
     logEmailProviderRuntimeEnv();
     walletService = createWalletService(collections, getMongoClient(), {
       hooks: {
@@ -3631,9 +3377,6 @@ async function boot() {
       }
     });
 
-    const otpAuthConfig = readAuthOtpConfig();
-    const geetestService = createGeetestService(otpAuthConfig.geetest);
-
     registerAuthRoutes(app, {
       repos,
       walletService,
@@ -3651,7 +3394,6 @@ async function boot() {
       p2pUserTtlMs: P2P_USER_TTL_MS,
       auditLogService,
       authEmailService,
-      captchaVerifier: geetestService,
       otpTtlMs: SIGNUP_OTP_TTL_MS,
       enableLegacyOtpEndpoints: false,
       onLoginSuccess: async ({ user, ipAddress, userAgent }) => {
@@ -3665,6 +3407,8 @@ async function boot() {
       }
     });
 
+    const otpAuthConfig = readAuthOtpConfig();
+    const geetestService = createGeetestService(otpAuthConfig.geetest);
     const buildFallbackOtpAuthService = () =>
       createRepoFallbackOtpAuthService({
         repos,
@@ -3786,9 +3530,12 @@ async function boot() {
     p2pOrderController = createP2POrderController({
       repos,
       walletService,
+      realtime: p2pRealtime,
       orderTtlMs: P2P_ORDER_TTL_MS,
-      p2pEmailService,
-      broadcastUserEvent
+      logger: console,
+      onOrderChanged: () => {
+        invalidateP2POffersCache();
+      }
     });
     registerP2POrderRoutes(app, {
       requiresP2PUser,
@@ -3833,13 +3580,6 @@ async function boot() {
       adminAuthMiddleware,
       adminControllers,
       auditLogService
-    });
-
-    const extendedStore = createAdminExtendedStore({ collections });
-    registerAdminExtendedRoutes(app, {
-      adminStore,
-      extendedStore,
-      adminAuthMiddleware
     });
 
     await repos.ensureIndexes();
@@ -3898,9 +3638,9 @@ async function boot() {
     }
     p2pExpirySweepTimer = setInterval(async () => {
       try {
-        const result = await p2pOrderExpiryService.runExpirySweep();
-        if (result.cancelledCount > 0) {
-          console.log(`Auto-cancelled expired P2P orders: ${result.cancelledCount}`);
+        const result = await maybeExpireP2POrders(true);
+        if (Number(result?.expired || 0) > 0) {
+          console.log(`Auto-cancelled expired P2P orders: ${result.expired}`);
         }
       } catch (error) {
         console.error('Failed to run P2P expiry sweep:', error.message);

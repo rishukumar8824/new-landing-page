@@ -9,7 +9,8 @@ function createP2POrderExpiryService({ walletService } = {}) {
     return {
       success: true,
       expiredCount,
-      cancelledCount: expiredCount
+      cancelledCount: expiredCount,
+      orders: Array.isArray(result?.orders) ? result.orders : []
     };
   }
 
