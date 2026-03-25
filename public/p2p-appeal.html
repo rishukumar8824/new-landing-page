@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>P2P Appeals</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 430px;
+      min-height: 100vh;
+      background: #000;
+      position: relative;
+    }
+
+    /* ===== SCREENS ===== */
+    .screen { display: none; flex-direction: column; min-height: 100vh; }
+    .screen.active { display: flex; }
+
+    /* ===== TOP BAR ===== */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px 10px; position: relative; flex-shrink: 0;
+    }
+    .back-btn {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 22px; color: #fff;
+    }
+    .topbar-title {
+      font-size: 17px; font-weight: 600; color: #fff;
+      position: absolute; left: 50%; transform: translateX(-50%);
+    }
+    .topbar-right {
+      font-size: 13px; color: #00d4d4; cursor: pointer; font-weight: 500;
+    }
+
+    /* ===== FILTER PILLS ===== */
+    .filter-pills {
+      display: flex; gap: 8px; padding: 12px 20px 8px;
+      overflow-x: auto; flex-shrink: 0;
+      scrollbar-width: none;
+    }
+    .filter-pills::-webkit-scrollbar { display: none; }
+    .pill {
+      flex-shrink: 0;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer;
+      border: 1px solid #2a2a2a;
+      background: #111;
+      color: #999;
+      transition: all 0.2s;
+    }
+    .pill.active {
+      background: #00d4d4;
+      border-color: #00d4d4;
+      color: #000;
+      font-weight: 600;
+    }
+
+    /* ===== APPEAL CARDS ===== */
+    .appeals-list {
+      flex: 1; overflow-y: auto; padding: 8px 16px 24px;
+    }
+    .appeal-card {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .appeal-card:active { border-color: #00d4d4; }
+
+    .card-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .card-ref { font-size: 13px; color: #aaa; font-weight: 500; }
+    .card-date { font-size: 12px; color: #555; }
+
+    .type-badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 10px; border-radius: 6px;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+    }
+    .type-buy { background: rgba(0,200,100,0.15); color: #00c864; }
+    .type-sell { background: rgba(255,80,80,0.15); color: #ff5050; }
+
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 6px;
+      font-size: 12px; font-weight: 600;
+    }
+    .status-open { background: rgba(255,200,0,0.15); color: #ffc800; }
+    .status-review { background: rgba(0,120,255,0.15); color: #4d9fff; }
+    .status-resolved { background: rgba(0,200,100,0.15); color: #00c864; }
+    .status-closed { background: rgba(120,120,120,0.15); color: #888; }
+
+    .card-reason {
+      font-size: 13px; color: #ccc; margin-bottom: 10px;
+      line-height: 1.4;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; }
+    .card-amount { font-size: 15px; font-weight: 700; color: #fff; }
+    .card-counterparty { font-size: 12px; color: #666; margin-top: 2px; }
+    .view-btn {
+      padding: 8px 16px;
+      border: 1px solid #00d4d4;
+      border-radius: 8px;
+      background: transparent;
+      color: #00d4d4;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .view-btn:active { background: #00d4d4; color: #000; }
+
+    /* ===== EMPTY STATE ===== */
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 40px 20px; gap: 12px;
+    }
+    .empty-icon { font-size: 56px; opacity: 0.5; }
+    .empty-title { font-size: 16px; font-weight: 600; color: #555; }
+    .empty-sub { font-size: 13px; color: #444; text-align: center; line-height: 1.5; }
+
+    /* ===== FAB ===== */
+    .fab {
+      position: fixed;
+      bottom: 28px;
+      right: calc(50% - 215px + 20px);
+      width: 54px; height: 54px;
+      border-radius: 50%;
+      background: #00d4d4;
+      color: #000;
+      font-size: 26px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0,212,212,0.4);
+      transition: transform 0.15s;
+      z-index: 50;
+    }
+    .fab:active { transform: scale(0.93); }
+    @media (max-width: 430px) {
+      .fab { right: 20px; }
+    }
+
+    /* ===== SCREEN 2: DETAIL ===== */
+    .detail-scroll { flex: 1; overflow-y: auto; padding-bottom: 100px; }
+
+    .status-hero {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 24px 20px 20px; gap: 8px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .hero-icon { font-size: 44px; }
+    .hero-status { font-size: 18px; font-weight: 700; }
+    .hero-sub { font-size: 13px; color: #888; text-align: center; line-height: 1.5; }
+
+    /* ===== TIMELINE ===== */
+    .timeline { padding: 20px 20px 0; }
+    .timeline-title { font-size: 13px; color: #555; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
+    .timeline-steps { position: relative; }
+    .tl-step {
+      display: flex; gap: 14px; position: relative; padding-bottom: 20px;
+    }
+    .tl-step:last-child { padding-bottom: 0; }
+    .tl-left {
+      display: flex; flex-direction: column; align-items: center; flex-shrink: 0;
+      width: 28px;
+    }
+    .tl-dot {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0;
+    }
+    .tl-dot.done { background: #00d4d4; color: #000; }
+    .tl-dot.active { background: #4d9fff; color: #fff; box-shadow: 0 0 0 3px rgba(77,159,255,0.2); }
+    .tl-dot.pending { background: #1e1e1e; color: #444; border: 2px solid #2a2a2a; }
+    .tl-line {
+      flex: 1; width: 2px; background: #1e1e1e; margin-top: 4px;
+    }
+    .tl-line.done { background: #00d4d4; }
+    .tl-right { flex: 1; padding-top: 4px; }
+    .tl-label { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 2px; }
+    .tl-label.pending-text { color: #444; }
+    .tl-time { font-size: 12px; color: #555; }
+
+    /* ===== INFO CARD ===== */
+    .section { padding: 20px 20px 0; }
+    .section-title { font-size: 13px; color: #555; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
+    .info-card {
+      background: #111; border: 1px solid #1e1e1e; border-radius: 12px; padding: 16px;
+    }
+    .info-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 0; border-bottom: 1px solid #1a1a1a;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { font-size: 13px; color: #666; }
+    .info-value { font-size: 13px; color: #fff; font-weight: 500; text-align: right; max-width: 58%; }
+
+    /* ===== EVIDENCE SECTION ===== */
+    .evidence-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;
+    }
+    .evidence-thumb {
+      aspect-ratio: 1; border-radius: 10px; background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; cursor: pointer; position: relative; overflow: hidden;
+    }
+    .evidence-thumb img {
+      width: 100%; height: 100%; object-fit: cover; border-radius: 9px;
+    }
+    .evidence-thumb .thumb-icon { font-size: 28px; color: #444; }
+    .evidence-thumb .thumb-label { font-size: 11px; color: #555; }
+    .upload-btn-row {
+      display: flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 12px; border: 1.5px dashed #2a2a2a;
+      border-radius: 10px; cursor: pointer; margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+    .upload-btn-row:active { border-color: #00d4d4; }
+    .upload-btn-row span { font-size: 13px; color: #666; }
+
+    /* ===== SUPPORT NOTE ===== */
+    .support-note {
+      background: rgba(0,212,212,0.07); border: 1px solid rgba(0,212,212,0.2);
+      border-radius: 10px; padding: 14px;
+    }
+    .support-note-label { font-size: 11px; color: #00d4d4; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    .support-note-text { font-size: 13px; color: #ccc; line-height: 1.5; }
+
+    /* ===== BOTTOM ACTIONS ===== */
+    .bottom-bar {
+      position: fixed; bottom: 0;
+      width: 100%; max-width: 430px;
+      background: linear-gradient(to top, #000 80%, transparent);
+      padding: 16px 16px 28px;
+      display: flex; gap: 10px;
+      z-index: 40;
+    }
+    .btn-secondary {
+      flex: 1; padding: 14px;
+      border: 1px solid #2a2a2a; border-radius: 12px;
+      background: #111; color: #fff;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .btn-secondary:active { border-color: #fff; }
+    .btn-primary {
+      flex: 1; padding: 14px;
+      border: none; border-radius: 12px;
+      background: #00d4d4; color: #000;
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn-primary:active { opacity: 0.8; }
+    .btn-danger {
+      flex: 1; padding: 14px;
+      border: 1px solid rgba(255,80,80,0.4); border-radius: 12px;
+      background: rgba(255,80,80,0.08); color: #ff5050;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+
+    /* ===== SCREEN 3: FILE APPEAL ===== */
+    .form-scroll { flex: 1; overflow-y: auto; padding: 16px 16px 120px; }
+    .form-group { margin-bottom: 20px; }
+    .form-label { font-size: 13px; color: #888; font-weight: 600; margin-bottom: 8px; display: block; }
+    .form-input {
+      width: 100%; padding: 13px 16px;
+      background: #111; border: 1px solid #2a2a2a;
+      border-radius: 10px; color: #fff; font-size: 14px;
+      outline: none; transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: #00d4d4; }
+    .form-input::placeholder { color: #444; }
+    .form-textarea {
+      width: 100%; padding: 13px 16px;
+      background: #111; border: 1px solid #2a2a2a;
+      border-radius: 10px; color: #fff; font-size: 14px;
+      outline: none; transition: border-color 0.2s;
+      resize: none; min-height: 110px; font-family: inherit; line-height: 1.5;
+    }
+    .form-textarea:focus { border-color: #00d4d4; }
+    .form-textarea::placeholder { color: #444; }
+    .char-counter { font-size: 12px; color: #444; text-align: right; margin-top: 4px; }
+
+    /* Radio list */
+    .radio-list { display: flex; flex-direction: column; gap: 0; border: 1px solid #2a2a2a; border-radius: 10px; overflow: hidden; }
+    .radio-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px;
+      background: #111; cursor: pointer;
+      border-bottom: 1px solid #1a1a1a;
+      transition: background 0.15s;
+    }
+    .radio-item:last-child { border-bottom: none; }
+    .radio-item:active { background: #181818; }
+    .radio-item.selected { background: rgba(0,212,212,0.08); }
+    .radio-dot {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid #444; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.2s;
+    }
+    .radio-item.selected .radio-dot { border-color: #00d4d4; }
+    .radio-dot-inner {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #00d4d4; display: none;
+    }
+    .radio-item.selected .radio-dot-inner { display: block; }
+    .radio-text { font-size: 14px; color: #ccc; line-height: 1.35; }
+    .radio-item.selected .radio-text { color: #fff; }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 2px dashed #2a2a2a; border-radius: 12px;
+      padding: 24px 16px; text-align: center;
+      cursor: pointer; transition: border-color 0.2s, background 0.2s;
+    }
+    .upload-zone:hover { border-color: #00d4d4; background: rgba(0,212,212,0.04); }
+    .upload-zone-icon { font-size: 32px; margin-bottom: 8px; }
+    .upload-zone-text { font-size: 14px; color: #666; }
+    .upload-zone-sub { font-size: 12px; color: #444; margin-top: 4px; }
+    .thumb-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+    .thumb-item {
+      aspect-ratio: 1; border-radius: 8px; background: #1a1a1a;
+      border: 1px solid #2a2a2a; overflow: hidden; position: relative;
+    }
+    .thumb-item img { width: 100%; height: 100%; object-fit: cover; }
+    .thumb-remove {
+      position: absolute; top: 3px; right: 3px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: rgba(0,0,0,0.7); color: #fff; font-size: 11px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+
+    /* Contact method */
+    .contact-row { display: flex; gap: 10px; }
+    .contact-opt {
+      flex: 1; padding: 13px;
+      border: 1px solid #2a2a2a; border-radius: 10px;
+      background: #111; text-align: center;
+      font-size: 14px; color: #888; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .contact-opt.selected { border-color: #00d4d4; background: rgba(0,212,212,0.08); color: #00d4d4; font-weight: 600; }
+
+    /* ===== TOAST ===== */
+    .toast {
+      position: fixed; bottom: 90px;
+      left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #1e1e1e; border: 1px solid #2a2a2a;
+      color: #fff; font-size: 14px; font-weight: 500;
+      padding: 12px 22px; border-radius: 30px;
+      white-space: nowrap;
+      opacity: 0; pointer-events: none;
+      transition: all 0.3s ease;
+      z-index: 999; max-width: 340px; text-align: center;
+    }
+    .toast.show {
+      opacity: 1; transform: translateX(-50%) translateY(0);
+    }
+    .toast.success { border-color: #00c864; background: rgba(0,200,100,0.12); }
+    .toast.error { border-color: #ff5050; background: rgba(255,80,80,0.12); }
+
+    /* ===== DIVIDER ===== */
+    .divider { height: 8px; background: #0a0a0a; border-top: 1px solid #111; border-bottom: 1px solid #111; flex-shrink: 0; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 0; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ==================== SCREEN 1: APPEAL LIST ==================== -->
+  <div class="screen active" id="screen-list">
+    <div class="topbar">
+      <div class="back-btn" onclick="window.history.back()">&#8592;</div>
+      <span class="topbar-title">My Appeals</span>
+      <div class="topbar-right" onclick="showScreen('screen-new')">+ New</div>
+    </div>
+
+    <!-- Filter Pills -->
+    <div class="filter-pills" id="filterPills">
+      <div class="pill active" data-filter="all">All</div>
+      <div class="pill" data-filter="open">Open</div>
+      <div class="pill" data-filter="review">Under Review</div>
+      <div class="pill" data-filter="resolved">Resolved</div>
+      <div class="pill" data-filter="closed">Closed</div>
+    </div>
+
+    <!-- Appeals List -->
+    <div class="appeals-list" id="appealsList">
+      <!-- Injected by JS -->
+    </div>
+
+    <!-- FAB -->
+    <div class="fab" onclick="showScreen('screen-new')" title="File new appeal">+</div>
+  </div>
+
+  <!-- ==================== SCREEN 2: APPEAL DETAIL ==================== -->
+  <div class="screen" id="screen-detail">
+    <div class="topbar">
+      <div class="back-btn" onclick="showScreen('screen-list')">&#8592;</div>
+      <span class="topbar-title" id="detailTitle">Appeal #-----</span>
+      <div style="width:32px"></div>
+    </div>
+
+    <div class="detail-scroll" id="detailScroll">
+
+      <!-- Status Hero -->
+      <div class="status-hero" id="statusHero">
+        <div class="hero-icon" id="heroIcon">⏳</div>
+        <div class="hero-status" id="heroStatus">Open</div>
+        <div class="hero-sub" id="heroSub">Your appeal is awaiting review by our support team.</div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="section">
+        <div class="timeline">
+          <div class="timeline-title">Progress</div>
+          <div class="timeline-steps" id="timelineSteps">
+            <!-- Injected by JS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="divider" style="margin-top:20px"></div>
+
+      <!-- Order Info -->
+      <div class="section">
+        <div class="section-title">Order Info</div>
+        <div class="info-card" id="orderInfoCard">
+          <!-- Injected by JS -->
+        </div>
+      </div>
+
+      <!-- Evidence -->
+      <div class="section" style="margin-top:20px">
+        <div class="section-title">Evidence</div>
+        <div class="upload-btn-row" onclick="document.getElementById('detailEvidenceInput').click()">
+          <span>🖼</span>
+          <span>Upload evidence</span>
+        </div>
+        <input type="file" id="detailEvidenceInput" accept="image/*" multiple style="display:none" onchange="handleDetailEvidence(this)" />
+        <div class="evidence-grid" id="evidenceGrid">
+          <!-- Injected by JS -->
+        </div>
+      </div>
+
+      <!-- Support Note -->
+      <div class="section" style="margin-top:20px" id="supportNoteSection">
+        <!-- Injected by JS -->
+      </div>
+
+      <div style="height: 20px;"></div>
+    </div>
+
+    <!-- Bottom bar injected by JS -->
+    <div class="bottom-bar" id="detailBottomBar"></div>
+  </div>
+
+  <!-- ==================== SCREEN 3: FILE NEW APPEAL ==================== -->
+  <div class="screen" id="screen-new">
+    <div class="topbar">
+      <div class="back-btn" onclick="showScreen('screen-list')">&#8592;</div>
+      <span class="topbar-title">File an Appeal</span>
+      <div style="width:32px"></div>
+    </div>
+
+    <div class="form-scroll">
+
+      <!-- Order Reference -->
+      <div class="form-group">
+        <label class="form-label">Order Reference</label>
+        <input class="form-input" id="newOrderRef" placeholder="e.g. P2P20240001234" />
+      </div>
+
+      <!-- Appeal Reason -->
+      <div class="form-group">
+        <label class="form-label">Select Reason</label>
+        <div class="radio-list" id="reasonList">
+          <div class="radio-item" onclick="selectReason(this)" data-reason="I paid but seller didn't release crypto">
+            <div class="radio-dot"><div class="radio-dot-inner"></div></div>
+            <span class="radio-text">I paid but seller didn't release crypto</span>
+          </div>
+          <div class="radio-item" onclick="selectReason(this)" data-reason="Seller released wrong amount">
+            <div class="radio-dot"><div class="radio-dot-inner"></div></div>
+            <span class="radio-text">Seller released wrong amount</span>
+          </div>
+          <div class="radio-item" onclick="selectReason(this)" data-reason="Buyer marked paid but I didn't receive money">
+            <div class="radio-dot"><div class="radio-dot-inner"></div></div>
+            <span class="radio-text">Buyer marked paid but I didn't receive money</span>
+          </div>
+          <div class="radio-item" onclick="selectReason(this)" data-reason="Payment was reversed / refunded">
+            <div class="radio-dot"><div class="radio-dot-inner"></div></div>
+            <span class="radio-text">Payment was reversed / refunded</span>
+          </div>
+          <div class="radio-item" onclick="selectReason(this)" data-reason="Counterparty is unresponsive">
+            <div class="radio-dot"><div class="radio-dot-inner"></div></div>
+            <span class="radio-text">Counterparty is unresponsive</span>
+          </div>
+          <div class="radio-item" onclick="selectReason(this)" data-reason="Suspected fraud/scam">
+            <div class="radio-dot"><div class="radio-dot-inner"></div></div>
+            <span class="radio-text">Suspected fraud / scam</span>
+          </div>
+          <div class="radio-item" onclick="selectReason(this)" data-reason="Other">
+            <div class="radio-dot"><div class="radio-dot-inner"></div></div>
+            <span class="radio-text">Other</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="form-group">
+        <label class="form-label">Description <span style="color:#444;font-weight:400">(optional)</span></label>
+        <textarea class="form-textarea" id="newDesc" maxlength="500" placeholder="Describe what happened in detail…" oninput="updateCharCount(this)"></textarea>
+        <div class="char-counter"><span id="charCount">0</span> / 500</div>
+      </div>
+
+      <!-- Upload Evidence -->
+      <div class="form-group">
+        <label class="form-label">Upload Evidence</label>
+        <div class="upload-zone" onclick="document.getElementById('newEvidenceInput').click()">
+          <div class="upload-zone-icon">📎</div>
+          <div class="upload-zone-text">Tap to upload screenshots</div>
+          <div class="upload-zone-sub">JPG, PNG – max 5 files</div>
+        </div>
+        <input type="file" id="newEvidenceInput" accept="image/*" multiple style="display:none" onchange="handleNewEvidence(this)" />
+        <div class="thumb-grid" id="newThumbGrid"></div>
+      </div>
+
+      <!-- Contact Method -->
+      <div class="form-group">
+        <label class="form-label">Preferred Contact</label>
+        <div class="contact-row">
+          <div class="contact-opt selected" id="contactChat" onclick="selectContact('chat')">💬 Chat</div>
+          <div class="contact-opt" id="contactEmail" onclick="selectContact('email')">✉️ Email</div>
+        </div>
+      </div>
+
+    </div><!-- /form-scroll -->
+
+    <!-- Submit -->
+    <div class="bottom-bar" style="padding: 12px 16px 28px;">
+      <button class="btn-primary" style="width:100%;font-size:15px" onclick="submitAppeal()">Submit Appeal</button>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   STATE
+   ============================================================ */
+let currentFilter = 'all';
+let currentAppeal = null;
+let selectedReason = '';
+let selectedContact = 'chat';
+let newEvidenceFiles = [];
+
+/* ============================================================
+   DEMO DATA
+   ============================================================ */
+const DEMO_APPEALS = [
+  {
+    id: 'APL20240001',
+    orderRef: 'P2P20240001234',
+    type: 'buy',
+    date: '2024-03-20 14:32',
+    status: 'open',
+    reason: "I paid but seller didn't release crypto",
+    description: "I completed the bank transfer of ₹25,000 but the seller has not released the USDT. Payment was confirmed by my bank at 14:28.",
+    amount: '500 USDT',
+    price: '₹25,000',
+    qty: '500 USDT',
+    paymentMethod: 'Bank Transfer',
+    counterparty: 'CryptoDealer99',
+    evidence: [],
+    supportNote: null,
+    steps: [
+      { label: 'Appeal submitted', time: '2024-03-20 14:35', done: true },
+      { label: 'Under review', time: 'Pending', done: false, active: true },
+      { label: 'Decision made', time: 'Pending', done: false },
+      { label: 'Resolved', time: 'Pending', done: false }
+    ]
+  },
+  {
+    id: 'APL20240002',
+    orderRef: 'P2P20240001198',
+    type: 'sell',
+    date: '2024-03-18 09:15',
+    status: 'review',
+    reason: 'Payment was reversed / refunded',
+    description: "The buyer reversed the UPI payment after I released the USDT. Amount: ₹15,500. My wallet has been debited.",
+    amount: '310 USDT',
+    price: '₹15,500',
+    qty: '310 USDT',
+    paymentMethod: 'UPI',
+    counterparty: 'FastTrade2024',
+    evidence: [],
+    supportNote: "We have received your appeal and are investigating with the buyer. Please allow 24-48 hours for a resolution. Case ID: CS-98342.",
+    steps: [
+      { label: 'Appeal submitted', time: '2024-03-18 09:20', done: true },
+      { label: 'Under review', time: '2024-03-18 11:05', done: true },
+      { label: 'Decision made', time: 'Pending', done: false, active: true },
+      { label: 'Resolved', time: 'Pending', done: false }
+    ]
+  },
+  {
+    id: 'APL20240003',
+    orderRef: 'P2P20240001055',
+    type: 'buy',
+    date: '2024-03-10 16:00',
+    status: 'resolved',
+    reason: 'Counterparty is unresponsive',
+    description: "Seller went offline after I made payment and never responded for over 2 hours.",
+    amount: '200 USDT',
+    price: '₹10,000',
+    qty: '200 USDT',
+    paymentMethod: 'IMPS',
+    counterparty: 'QuickSeller_X',
+    evidence: [],
+    supportNote: "We have reviewed the case. The seller's account has been flagged. Your USDT has been released and payment returned. Appeal resolved in your favor.",
+    steps: [
+      { label: 'Appeal submitted', time: '2024-03-10 16:05', done: true },
+      { label: 'Under review', time: '2024-03-10 17:20', done: true },
+      { label: 'Decision made', time: '2024-03-11 10:30', done: true },
+      { label: 'Resolved', time: '2024-03-11 10:35', done: true }
+    ]
+  }
+];
+
+let appeals = [...DEMO_APPEALS];
+
+/* ============================================================
+   SCREEN NAVIGATION
+   ============================================================ */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'screen-list') renderList();
+}
+
+/* ============================================================
+   SCREEN 1: LIST
+   ============================================================ */
+function renderList() {
+  const list = document.getElementById('appealsList');
+  const filtered = currentFilter === 'all'
+    ? appeals
+    : appeals.filter(a => a.status === currentFilter);
+
+  if (filtered.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">No appeals found</div>
+        <div class="empty-sub">You haven't filed any appeals yet.<br>Tap + to file a new appeal.</div>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(a => `
+    <div class="appeal-card" onclick="openDetail('${a.id}')">
+      <div class="card-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="type-badge type-${a.type}">${a.type.toUpperCase()}</span>
+          <span class="card-ref">${a.orderRef}</span>
+        </div>
+        <span class="card-date">${a.date.split(' ')[0]}</span>
+      </div>
+      <div class="card-row">
+        <span class="${statusClass(a.status)}">${statusDot(a.status)} ${statusLabel(a.status)}</span>
+      </div>
+      <div class="card-reason">${a.reason}</div>
+      <div class="card-footer">
+        <div>
+          <div class="card-amount">${a.amount}</div>
+          <div class="card-counterparty">vs ${a.counterparty}</div>
+        </div>
+        <button class="view-btn" onclick="event.stopPropagation();openDetail('${a.id}')">View Details</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function statusClass(s) {
+  const m = { open:'status-badge status-open', review:'status-badge status-review', resolved:'status-badge status-resolved', closed:'status-badge status-closed' };
+  return m[s] || 'status-badge status-closed';
+}
+function statusLabel(s) {
+  const m = { open:'Open', review:'Under Review', resolved:'Resolved', closed:'Closed' };
+  return m[s] || s;
+}
+function statusDot(s) {
+  const m = { open:'●', review:'●', resolved:'✓', closed:'–' };
+  return m[s] || '●';
+}
+
+// Filter pills
+document.getElementById('filterPills').addEventListener('click', e => {
+  const pill = e.target.closest('.pill');
+  if (!pill) return;
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  currentFilter = pill.dataset.filter;
+  renderList();
+});
+
+/* ============================================================
+   SCREEN 2: DETAIL
+   ============================================================ */
+function openDetail(id) {
+  currentAppeal = appeals.find(a => a.id === id);
+  if (!currentAppeal) return;
+  renderDetail(currentAppeal);
+  showScreen('screen-detail');
+}
+
+function renderDetail(a) {
+  document.getElementById('detailTitle').textContent = 'Appeal #' + a.id.slice(-5);
+
+  // Hero
+  const heroData = {
+    open:     { icon:'⏳', color:'#ffc800', sub:'Your appeal is awaiting review by our support team.' },
+    review:   { icon:'🔍', color:'#4d9fff', sub:'Our team is actively reviewing your case.' },
+    resolved: { icon:'✅', color:'#00c864', sub:'This appeal has been resolved. See the note below for details.' },
+    closed:   { icon:'🔒', color:'#666',    sub:'This appeal has been closed.' }
+  };
+  const h = heroData[a.status] || heroData.closed;
+  document.getElementById('heroIcon').textContent = h.icon;
+  document.getElementById('heroStatus').textContent = statusLabel(a.status);
+  document.getElementById('heroStatus').style.color = h.color;
+  document.getElementById('heroSub').textContent = h.sub;
+
+  // Timeline
+  const tlContainer = document.getElementById('timelineSteps');
+  tlContainer.innerHTML = a.steps.map((step, i) => {
+    const isLast = i === a.steps.length - 1;
+    let dotClass = 'pending';
+    if (step.done) dotClass = 'done';
+    else if (step.active) dotClass = 'active';
+    const labelClass = (step.done || step.active) ? '' : 'pending-text';
+    const checkMark = step.done ? '✓' : (step.active ? '…' : (i + 1));
+    const lineClass = step.done ? 'done' : '';
+    return `
+      <div class="tl-step">
+        <div class="tl-left">
+          <div class="tl-dot ${dotClass}">${checkMark}</div>
+          ${!isLast ? `<div class="tl-line ${lineClass}"></div>` : ''}
+        </div>
+        <div class="tl-right">
+          <div class="tl-label ${labelClass}">${step.label}</div>
+          <div class="tl-time">${step.time}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Order info
+  const infoCard = document.getElementById('orderInfoCard');
+  infoCard.innerHTML = [
+    ['Order Ref', a.orderRef],
+    ['Type', `<span class="type-badge type-${a.type}" style="font-size:11px">${a.type.toUpperCase()}</span>`],
+    ['Amount', a.amount],
+    ['Price', a.price],
+    ['Payment', a.paymentMethod],
+    ['Counterparty', a.counterparty],
+    ['Filed On', a.date]
+  ].map(([l, v]) => `
+    <div class="info-row">
+      <span class="info-label">${l}</span>
+      <span class="info-value">${v}</span>
+    </div>`).join('');
+
+  // Evidence grid – placeholder thumbs
+  const grid = document.getElementById('evidenceGrid');
+  grid.innerHTML = `
+    <div class="evidence-thumb">
+      <div class="thumb-icon">🖼</div>
+      <div class="thumb-label">Screenshot 1</div>
+    </div>
+    <div class="evidence-thumb">
+      <div class="thumb-icon">🖼</div>
+      <div class="thumb-label">Screenshot 2</div>
+    </div>`;
+
+  // Support note
+  const noteSection = document.getElementById('supportNoteSection');
+  if (a.supportNote) {
+    noteSection.innerHTML = `
+      <div class="section-title">Note from Support</div>
+      <div class="support-note">
+        <div class="support-note-label">Support Team</div>
+        <div class="support-note-text">${a.supportNote}</div>
+      </div>`;
+  } else {
+    noteSection.innerHTML = '';
+  }
+
+  // Bottom bar
+  const bar = document.getElementById('detailBottomBar');
+  if (a.status === 'open' || a.status === 'review') {
+    bar.innerHTML = `
+      <button class="btn-secondary" onclick="document.getElementById('detailEvidenceInput').click()">+ Add Evidence</button>
+      <button class="btn-danger" onclick="closeAppeal('${a.id}')">Close Appeal</button>`;
+  } else {
+    bar.innerHTML = `
+      <button class="btn-primary" style="width:100%" onclick="showScreen('screen-list')">Back to Appeals</button>`;
+  }
+}
+
+function handleDetailEvidence(input) {
+  if (!input.files.length) return;
+  showToast('Evidence uploaded successfully', 'success');
+  input.value = '';
+}
+
+function closeAppeal(id) {
+  const a = appeals.find(x => x.id === id);
+  if (!a) return;
+  if (!confirm('Are you sure you want to close this appeal? This action cannot be undone.')) return;
+  a.status = 'closed';
+  a.steps[1] = { ...a.steps[1], done: true, active: false };
+  a.steps[2] = { ...a.steps[2], done: true, active: false };
+  a.steps[3] = { ...a.steps[3], done: true };
+  showToast('Appeal closed.', 'success');
+  renderDetail(a);
+}
+
+/* ============================================================
+   SCREEN 3: FILE NEW APPEAL
+   ============================================================ */
+function selectReason(el) {
+  document.querySelectorAll('.radio-item').forEach(r => r.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedReason = el.dataset.reason;
+}
+
+function updateCharCount(el) {
+  document.getElementById('charCount').textContent = el.value.length;
+}
+
+function selectContact(type) {
+  selectedContact = type;
+  document.getElementById('contactChat').classList.toggle('selected', type === 'chat');
+  document.getElementById('contactEmail').classList.toggle('selected', type === 'email');
+}
+
+function handleNewEvidence(input) {
+  const grid = document.getElementById('newThumbGrid');
+  const existingCount = grid.children.length;
+  const maxNew = Math.min(input.files.length, 5 - existingCount);
+  if (maxNew <= 0) { showToast('Maximum 5 files allowed', 'error'); return; }
+
+  for (let i = 0; i < maxNew; i++) {
+    const file = input.files[i];
+    const reader = new FileReader();
+    reader.onload = e => {
+      const item = document.createElement('div');
+      item.className = 'thumb-item';
+      item.innerHTML = `<img src="${e.target.result}" /><div class="thumb-remove" onclick="this.parentElement.remove()">×</div>`;
+      grid.appendChild(item);
+    };
+    reader.readAsDataURL(file);
+    newEvidenceFiles.push(file);
+  }
+  input.value = '';
+}
+
+async function submitAppeal() {
+  const orderRef = document.getElementById('newOrderRef').value.trim();
+  const desc = document.getElementById('newDesc').value.trim();
+
+  if (!orderRef) { showToast('Please enter the order reference', 'error'); return; }
+  if (!selectedReason) { showToast('Please select a reason', 'error'); return; }
+
+  const payload = {
+    orderRef,
+    reason: selectedReason,
+    description: desc,
+    contact: selectedContact
+  };
+
+  try {
+    const res = await fetch('/api/p2p/appeals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Server error');
+    const data = await res.json();
+    onAppealSubmitted(data.appeal || payload, true);
+  } catch {
+    // Demo fallback
+    const newAppeal = {
+      id: 'APL' + Date.now().toString().slice(-8),
+      orderRef,
+      type: 'buy',
+      date: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      status: 'open',
+      reason: selectedReason,
+      description: desc,
+      amount: '— USDT',
+      price: '—',
+      qty: '—',
+      paymentMethod: '—',
+      counterparty: '—',
+      evidence: [],
+      supportNote: null,
+      steps: [
+        { label: 'Appeal submitted', time: new Date().toLocaleString(), done: true },
+        { label: 'Under review', time: 'Pending', done: false, active: true },
+        { label: 'Decision made', time: 'Pending', done: false },
+        { label: 'Resolved', time: 'Pending', done: false }
+      ]
+    };
+    onAppealSubmitted(newAppeal, false);
+  }
+}
+
+function onAppealSubmitted(appeal, fromServer) {
+  if (!fromServer) appeals.unshift(appeal);
+  resetNewForm();
+  showToast('Appeal submitted successfully!', 'success');
+  setTimeout(() => {
+    openDetail(appeal.id);
+  }, 800);
+}
+
+function resetNewForm() {
+  document.getElementById('newOrderRef').value = '';
+  document.getElementById('newDesc').value = '';
+  document.getElementById('charCount').textContent = '0';
+  document.querySelectorAll('.radio-item').forEach(r => r.classList.remove('selected'));
+  document.getElementById('newThumbGrid').innerHTML = '';
+  selectedReason = '';
+  newEvidenceFiles = [];
+  selectContact('chat');
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (type ? ' ' + type : '');
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+/* ============================================================
+   INIT: Load appeals from API or use demo
+   ============================================================ */
+async function loadAppeals() {
+  try {
+    const res = await fetch('/api/p2p/appeals', { credentials: 'include' });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) appeals = data;
+  } catch {
+    // Use demo data already set
+  }
+  renderList();
+}
+
+loadAppeals();
+</script>
+</body>
+</html>

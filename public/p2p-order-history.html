@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>P2P Order History</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 430px;
+      min-height: 100vh;
+      background: #000;
+      position: relative;
+    }
+
+    /* ===== SCREENS ===== */
+    .screen { display: none; flex-direction: column; min-height: 100vh; }
+    .screen.active { display: flex; }
+
+    /* ===== TOP BAR ===== */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px 10px; position: relative; flex-shrink: 0;
+    }
+    .back-btn {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 22px; color: #fff;
+    }
+    .topbar-title {
+      font-size: 17px; font-weight: 600; color: #fff;
+      position: absolute; left: 50%; transform: translateX(-50%);
+    }
+    .topbar-right {
+      font-size: 13px; color: #00d4d4; cursor: pointer; font-weight: 500;
+    }
+
+    /* ===== TYPE TABS (Buy / Sell / All) ===== */
+    .type-tabs {
+      display: flex; gap: 0; border-bottom: 1px solid #1a1a1a; flex-shrink: 0;
+    }
+    .type-tab {
+      flex: 1; text-align: center; padding: 12px 0;
+      font-size: 14px; font-weight: 500; color: #666;
+      cursor: pointer; position: relative; transition: color 0.2s;
+    }
+    .type-tab.active { color: #fff; font-weight: 700; }
+    .type-tab.active::after {
+      content: ''; position: absolute; bottom: -1px; left: 20%; right: 20%;
+      height: 2px; background: #00d4d4; border-radius: 2px;
+    }
+
+    /* ===== STATUS FILTER PILLS ===== */
+    .status-pills {
+      display: flex; gap: 8px; padding: 12px 20px;
+      overflow-x: auto; flex-shrink: 0;
+      scrollbar-width: none;
+    }
+    .status-pills::-webkit-scrollbar { display: none; }
+    .pill {
+      padding: 6px 14px; border-radius: 20px;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      white-space: nowrap; flex-shrink: 0;
+      border: 1px solid #222; background: transparent; color: #666;
+      transition: all 0.2s;
+    }
+    .pill.active { background: #00d4d4; border-color: #00d4d4; color: #000; font-weight: 700; }
+
+    /* ===== ORDER LIST ===== */
+    .order-list {
+      flex: 1; overflow-y: auto; padding: 0 20px 100px;
+    }
+
+    .order-card {
+      border: 1px solid #1a1a1a;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      background: #0a0a0a;
+    }
+    .order-card:active { border-color: #333; }
+
+    .order-card-top {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .order-type-badge {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .usdt-icon {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: #26a17b; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; color: #fff; flex-shrink: 0;
+    }
+    .order-type-text { font-size: 15px; font-weight: 700; }
+    .order-type-text.buy { color: #00d4d4; }
+    .order-type-text.sell { color: #f0b429; }
+
+    .status-badge {
+      font-size: 12px; font-weight: 600;
+      padding: 4px 10px; border-radius: 12px;
+    }
+    .status-badge.completed { background: #0d2a0d; color: #4caf50; }
+    .status-badge.pending   { background: #1a1a0a; color: #f0b429; }
+    .status-badge.canceled  { background: #2a0a0a; color: #ff6b6b; }
+    .status-badge.appealing { background: #0a1a2a; color: #00aaff; }
+    .status-badge.processing { background: #1a0a2a; color: #cc88ff; }
+
+    .order-mid {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      margin-bottom: 10px;
+    }
+    .order-main-amount { font-size: 22px; font-weight: 700; }
+    .order-sub-amount { font-size: 13px; color: #666; margin-top: 2px; }
+    .order-price-col { text-align: right; }
+    .order-price-col .price-val { font-size: 14px; color: #fff; font-weight: 500; }
+    .order-price-col .price-lbl { font-size: 12px; color: #555; margin-top: 2px; }
+
+    .order-divider { height: 1px; background: #1a1a1a; margin-bottom: 10px; }
+
+    .order-meta {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .order-counterparty {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .cp-avatar {
+      width: 22px; height: 22px; border-radius: 4px;
+      background: #333; display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+    }
+    .cp-name { font-size: 13px; color: #888; }
+    .order-date { font-size: 12px; color: #444; }
+
+    .order-actions {
+      display: flex; gap: 8px; margin-top: 12px;
+    }
+    .action-btn {
+      flex: 1; padding: 8px 0; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; text-align: center;
+      border: 1px solid #222; background: transparent; color: #888;
+    }
+    .action-btn.primary { background: #00d4d4; border-color: #00d4d4; color: #000; }
+    .action-btn.danger  { background: transparent; border-color: #ff4d4f; color: #ff4d4f; }
+
+    /* ===== EMPTY STATE ===== */
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 40px 20px; text-align: center;
+    }
+    .empty-icon { font-size: 56px; margin-bottom: 16px; opacity: 0.4; }
+    .empty-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #888; }
+    .empty-sub { font-size: 14px; color: #444; line-height: 1.6; }
+
+    /* ===== LOADING ===== */
+    .skeleton {
+      border: 1px solid #1a1a1a; border-radius: 14px;
+      padding: 16px; margin-bottom: 12px; background: #0a0a0a;
+    }
+    .skel-line {
+      height: 14px; background: #1a1a1a; border-radius: 6px; margin-bottom: 10px;
+      animation: shimmer 1.5s infinite;
+    }
+    .skel-line.short { width: 40%; }
+    .skel-line.mid   { width: 65%; }
+    .skel-line.full  { width: 100%; }
+    @keyframes shimmer {
+      0%   { opacity: 0.4; }
+      50%  { opacity: 0.8; }
+      100% { opacity: 0.4; }
+    }
+
+    /* ===== LOAD MORE ===== */
+    .load-more-btn {
+      width: 100%; padding: 14px;
+      background: transparent; border: 1px solid #222;
+      border-radius: 12px; color: #888; font-size: 14px;
+      cursor: pointer; margin-bottom: 20px;
+    }
+    .load-more-btn:hover { border-color: #444; color: #ccc; }
+
+    /* ===== DETAIL SCREEN ===== */
+    .detail-topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px 10px; flex-shrink: 0;
+    }
+    .detail-status-row {
+      padding: 6px 20px 16px; display: flex; align-items: center; gap: 10px;
+    }
+    .detail-status-icon { font-size: 28px; }
+
+    .detail-section { padding: 0 20px 16px; }
+    .detail-section-title {
+      font-size: 13px; font-weight: 700; color: #555;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 10px; margin-top: 16px;
+    }
+    .detail-row {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 11px 0; font-size: 14px; border-bottom: 1px solid #0f0f0f;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-row .dl { color: #666; }
+    .detail-row .dv {
+      color: #fff; font-weight: 500; text-align: right; max-width: 60%;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .detail-row .dv.big { font-size: 20px; font-weight: 700; }
+    .copy-icon {
+      width: 16px; height: 16px; cursor: pointer;
+      background: #222; border-radius: 3px;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .copy-icon::after { content: '⧉'; font-size: 11px; color: #666; }
+    .divider-line { height: 1px; background: #111; margin: 4px 20px; }
+
+    .counterparty-card {
+      margin: 0 20px 16px; border: 1px solid #1a1a1a;
+      border-radius: 12px; padding: 14px;
+    }
+    .cp-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .cp-info { display: flex; align-items: center; gap: 8px; }
+    .cp-avatar-lg {
+      width: 32px; height: 32px; border-radius: 6px;
+      background: #333; display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 700; position: relative;
+    }
+    .cp-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #00c896;
+      position: absolute; bottom: -2px; right: -2px; border: 1.5px solid #000;
+    }
+    .cp-username { font-size: 15px; font-weight: 600; }
+    .star-icon { color: #00d4d4; font-size: 13px; margin-left: 4px; }
+    .chat-mini-btn {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: #1a1a1a; border: 1px solid #222;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .chat-mini-btn svg { width: 18px; height: 18px; }
+    .cp-stat-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+    .cp-stat-row .csl { color: #555; }
+    .cp-stat-row .csv { color: #888; }
+
+    /* Scrollable detail content */
+    .detail-scroll { flex: 1; overflow-y: auto; padding-bottom: 100px; }
+
+    /* Bottom bar */
+    .bottom-bar {
+      position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 100%; max-width: 430px;
+      padding: 12px 20px 28px; background: #000;
+      border-top: 1px solid #111;
+    }
+    .btn-row { display: flex; gap: 10px; }
+    .btn-full {
+      flex: 1; padding: 14px; border-radius: 50px;
+      font-size: 15px; font-weight: 700; cursor: pointer; text-align: center;
+      border: none;
+    }
+    .btn-full.teal { background: #00d4d4; color: #000; }
+    .btn-full.outline { background: transparent; border: 1px solid #333; color: #888; }
+    .btn-full.red { background: #ff4d4f; color: #fff; }
+
+    /* Toast */
+    .toast-msg {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 110px; background: #fff; color: #000;
+      padding: 12px 24px; border-radius: 50px; font-size: 14px; font-weight: 600;
+      white-space: nowrap; z-index: 200; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+    }
+    .toast-msg.show { opacity: 1; }
+
+    /* Summary stats strip */
+    .stats-strip {
+      display: flex; border-bottom: 1px solid #111; flex-shrink: 0;
+    }
+    .stat-cell {
+      flex: 1; text-align: center; padding: 10px 0;
+      border-right: 1px solid #111;
+    }
+    .stat-cell:last-child { border-right: none; }
+    .stat-cell .sv { font-size: 16px; font-weight: 700; }
+    .stat-cell .sl { font-size: 11px; color: #555; margin-top: 2px; }
+    .stat-cell .sv.buy   { color: #00d4d4; }
+    .stat-cell .sv.sell  { color: #f0b429; }
+    .stat-cell .sv.white { color: #fff; }
+
+    @media (max-width: 430px) { .app { max-width: 100%; } .bottom-bar { max-width: 100%; } }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 1: Order History List                                 -->
+  <!-- ============================================================ -->
+  <div class="screen active" id="screen-list">
+
+    <div class="topbar">
+      <div class="back-btn" onclick="goBack()">←</div>
+      <span class="topbar-title">P2P Orders</span>
+      <span class="topbar-right" onclick="openFilterSheet()">Filter</span>
+    </div>
+
+    <!-- Summary strip -->
+    <div class="stats-strip" id="statsStrip" style="display:none;">
+      <div class="stat-cell">
+        <div class="sv buy" id="stat-buy-count">0</div>
+        <div class="sl">Buy orders</div>
+      </div>
+      <div class="stat-cell">
+        <div class="sv sell" id="stat-sell-count">0</div>
+        <div class="sl">Sell orders</div>
+      </div>
+      <div class="stat-cell">
+        <div class="sv white" id="stat-vol">₹0</div>
+        <div class="sl">Total volume</div>
+      </div>
+    </div>
+
+    <!-- Type tabs -->
+    <div class="type-tabs">
+      <div class="type-tab active" id="ttab-all"  onclick="switchType('all')">All</div>
+      <div class="type-tab"        id="ttab-buy"  onclick="switchType('buy')">Buy</div>
+      <div class="type-tab"        id="ttab-sell" onclick="switchType('sell')">Sell</div>
+    </div>
+
+    <!-- Status filter pills -->
+    <div class="status-pills">
+      <div class="pill active" id="pill-all"        onclick="switchStatus('all')">All</div>
+      <div class="pill"        id="pill-pending"    onclick="switchStatus('pending')">Pending</div>
+      <div class="pill"        id="pill-processing" onclick="switchStatus('processing')">Processing</div>
+      <div class="pill"        id="pill-completed"  onclick="switchStatus('completed')">Completed</div>
+      <div class="pill"        id="pill-canceled"   onclick="switchStatus('canceled')">Canceled</div>
+      <div class="pill"        id="pill-appealing"  onclick="switchStatus('appealing')">Appealing</div>
+    </div>
+
+    <!-- List -->
+    <div class="order-list" id="orderList">
+      <!-- skeleton while loading -->
+      <div class="skeleton" id="skel1">
+        <div class="skel-line short"></div>
+        <div class="skel-line mid"></div>
+        <div class="skel-line full"></div>
+      </div>
+      <div class="skeleton" id="skel2">
+        <div class="skel-line short"></div>
+        <div class="skel-line mid"></div>
+        <div class="skel-line full"></div>
+      </div>
+      <div class="skeleton" id="skel3">
+        <div class="skel-line short"></div>
+        <div class="skel-line mid"></div>
+        <div class="skel-line full"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 2: Order Detail                                       -->
+  <!-- ============================================================ -->
+  <div class="screen" id="screen-detail">
+
+    <div class="detail-topbar">
+      <div class="back-btn" onclick="showScreen('screen-list')">←</div>
+      <span class="topbar-title">Order Details</span>
+      <span class="topbar-right" onclick="copyOrderNo()">Copy No.</span>
+    </div>
+
+    <div class="detail-scroll">
+
+      <!-- Status hero -->
+      <div class="detail-status-row">
+        <div class="detail-status-icon" id="det-status-icon">✓</div>
+        <div>
+          <div style="font-size:20px;font-weight:700;" id="det-status-text">Completed</div>
+          <div style="font-size:13px;color:#888;margin-top:2px;" id="det-status-sub">USDT transferred to your wallet</div>
+        </div>
+      </div>
+
+      <!-- Type + Amount -->
+      <div style="padding: 0 20px 16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <div class="usdt-icon">₮</div>
+          <span style="font-size:16px;font-weight:700;" id="det-type-label">Buy USDT</span>
+        </div>
+        <div class="detail-row" style="padding: 10px 0;">
+          <span class="dl">Trading amount</span>
+          <span class="dv big" id="det-trading-amount">₹1,000</span>
+        </div>
+        <div class="detail-row">
+          <span class="dl">Price</span>
+          <span class="dv" id="det-price">₹91.00</span>
+        </div>
+        <div class="detail-row">
+          <span class="dl">Quantity</span>
+          <span class="dv" id="det-quantity">10.99 USDT</span>
+        </div>
+        <div class="detail-row">
+          <span class="dl">Fee</span>
+          <span class="dv">0 USDT</span>
+        </div>
+        <div class="detail-row">
+          <span class="dl">Payment method</span>
+          <span class="dv" id="det-payment">UPI</span>
+        </div>
+      </div>
+
+      <div class="divider-line"></div>
+
+      <!-- Counterparty -->
+      <div class="counterparty-card">
+        <div class="cp-top">
+          <div class="cp-info">
+            <div class="cp-avatar-lg" id="det-cp-avatar">B<div class="cp-dot"></div></div>
+            <div>
+              <span class="cp-username" id="det-cp-name">BUYER</span>
+              <span class="star-icon">✦</span>
+            </div>
+          </div>
+          <div class="chat-mini-btn" onclick="openChat()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+        </div>
+        <div class="cp-stat-row"><span class="csl">Historical orders</span><span class="csv" id="det-cp-orders">—</span></div>
+        <div class="cp-stat-row"><span class="csl">Avg. release time</span><span class="csv" id="det-cp-release">—</span></div>
+        <div class="cp-stat-row"><span class="csl">Completed (both)</span><span class="csv" id="det-cp-completed">—</span></div>
+      </div>
+
+      <div class="divider-line"></div>
+
+      <!-- Order info -->
+      <div style="padding: 0 20px;">
+        <div class="detail-section-title">Order info</div>
+        <div class="detail-row">
+          <span class="dl">Order No</span>
+          <span class="dv" style="font-size:13px;">
+            <span id="det-order-no">—</span>
+            <span class="copy-icon" onclick="copyOrderNo()"></span>
+          </span>
+        </div>
+        <div class="detail-row">
+          <span class="dl">Order time</span>
+          <span class="dv" style="font-size:13px;" id="det-order-time">—</span>
+        </div>
+        <div class="detail-row">
+          <span class="dl">Completion time</span>
+          <span class="dv" style="font-size:13px;" id="det-complete-time">—</span>
+        </div>
+        <div class="detail-row" id="det-cancel-reason-row" style="display:none;">
+          <span class="dl">Cancel reason</span>
+          <span class="dv" style="font-size:13px;color:#ff6b6b;" id="det-cancel-reason">—</span>
+        </div>
+        <div class="detail-row">
+          <span class="dl">Notes</span>
+          <span class="dv" style="font-size:13px;" id="det-notes">—</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom actions (shown contextually) -->
+    <div class="bottom-bar" id="det-bottom-bar" style="display:none;">
+      <div class="btn-row" id="det-btn-row"></div>
+    </div>
+
+  </div>
+
+  <!-- Toast -->
+  <div class="toast-msg" id="toast">Copied!</div>
+
+</div>
+
+<script>
+  // ============================================================
+  // STATE
+  // ============================================================
+  let allOrders = [];
+  let filteredOrders = [];
+  let currentType   = 'all';
+  let currentStatus = 'all';
+  let page = 1;
+  const PAGE_SIZE = 10;
+  let selectedOrder = null;
+  let isLoading = false;
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  window.addEventListener('DOMContentLoaded', () => {
+    loadOrders();
+  });
+
+  // ============================================================
+  // LOAD ORDERS FROM BACKEND
+  // ============================================================
+  async function loadOrders(append = false) {
+    if (isLoading) return;
+    isLoading = true;
+    try {
+      const params = new URLSearchParams({ page, limit: PAGE_SIZE });
+      if (currentType   !== 'all') params.set('side', currentType);
+      if (currentStatus !== 'all') params.set('status', currentStatus);
+
+      const res = await fetch('/api/p2p/orders?' + params, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        const orders = data.orders || data || [];
+        if (append) {
+          allOrders = allOrders.concat(orders);
+        } else {
+          allOrders = orders;
+        }
+        renderStats(data);
+        applyFilter();
+        hideSkeleton();
+        return;
+      }
+    } catch (e) {}
+
+    // Demo fallback
+    if (!append) {
+      allOrders = generateDemoOrders();
+      renderStats(null);
+      applyFilter();
+      hideSkeleton();
+    }
+    isLoading = false;
+  }
+
+  // ============================================================
+  // DEMO DATA GENERATOR
+  // ============================================================
+  function generateDemoOrders() {
+    const statuses = ['completed','completed','completed','pending','canceled','processing','appealing'];
+    const payments = ['UPI','IMPS','NEFT','PhonePe','Bank Transfer','Digital eRupee'];
+    const buyers   = ['ER.LAOR','TradePro99','CryptoKing','FastBuyer','Vijay_P2P','Raj_Trader','sumitkmina8824'];
+    const orders = [];
+    const now = Date.now();
+    for (let i = 0; i < 18; i++) {
+      const side   = i % 3 === 0 ? 'sell' : 'buy';
+      const status = statuses[i % statuses.length];
+      const price  = 91 + Math.random() * 12;
+      const fiat   = [1000,2000,3000,5000,750,1500,4000][i % 7];
+      const crypto = (fiat / price).toFixed(2);
+      const cp     = buyers[i % buyers.length];
+      const created = new Date(now - (i * 3 * 3600 * 1000));
+      const finished = status === 'completed' ? new Date(created.getTime() + 8 * 60000) : null;
+      orders.push({
+        id: 'P2P-' + (1000 + i),
+        reference: 'P2P-' + (1000 + i),
+        side,
+        status,
+        fiatAmount: fiat,
+        cryptoAmount: crypto,
+        price: price.toFixed(2),
+        paymentMethod: payments[i % payments.length],
+        counterpartyUsername: cp,
+        counterpartyOrders: 'Buy ' + (Math.floor(Math.random()*500)) + ' Sell ' + (Math.floor(Math.random()*1000)),
+        counterpartyRelease: (Math.random() < 0.5 ? '< 5' : Math.ceil(Math.random()*10)) + ' min',
+        counterpartyCompleted: Math.floor(Math.random() * 20),
+        notes: '3rd party payment not allowed',
+        cancelReason: status === 'canceled' ? 'Agreed with counterparty to cancel.' : null,
+        createdAt: created.toISOString(),
+        completedAt: finished ? finished.toISOString() : null,
+      });
+    }
+    return orders;
+  }
+
+  // ============================================================
+  // STATS BAR
+  // ============================================================
+  function renderStats(data) {
+    const buyOrders  = allOrders.filter(o => o.side === 'buy');
+    const sellOrders = allOrders.filter(o => o.side === 'sell');
+    const vol = allOrders
+      .filter(o => o.status === 'completed')
+      .reduce((s, o) => s + Number(o.fiatAmount || 0), 0);
+
+    setText('stat-buy-count',  buyOrders.length);
+    setText('stat-sell-count', sellOrders.length);
+    setText('stat-vol', '₹' + fmtInr(vol));
+
+    if (allOrders.length > 0) {
+      document.getElementById('statsStrip').style.display = 'flex';
+    }
+  }
+
+  // ============================================================
+  // FILTER + RENDER
+  // ============================================================
+  function applyFilter() {
+    filteredOrders = allOrders.filter(o => {
+      const typeOk   = currentType   === 'all' || o.side   === currentType;
+      const statusOk = currentStatus === 'all' || o.status === currentStatus;
+      return typeOk && statusOk;
+    });
+    renderList();
+    isLoading = false;
+  }
+
+  function renderList() {
+    const list = document.getElementById('orderList');
+    list.innerHTML = '';
+
+    if (filteredOrders.length === 0) {
+      list.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <div class="empty-title">No orders found</div>
+          <div class="empty-sub">Your P2P orders will appear here once you start trading.</div>
+        </div>`;
+      return;
+    }
+
+    filteredOrders.forEach(order => {
+      list.appendChild(buildOrderCard(order));
+    });
+
+    // Load more button
+    if (allOrders.length >= PAGE_SIZE) {
+      const btn = document.createElement('button');
+      btn.className = 'load-more-btn';
+      btn.textContent = 'Load more orders';
+      btn.onclick = () => { page++; loadOrders(true); };
+      list.appendChild(btn);
+    }
+  }
+
+  function buildOrderCard(o) {
+    const card = document.createElement('div');
+    card.className = 'order-card';
+    card.onclick = () => openDetail(o);
+
+    const isBuy   = o.side === 'buy';
+    const fiat    = '₹' + fmtInr(Number(o.fiatAmount || 0));
+    const qty     = Number(o.cryptoAmount || 0).toFixed(2) + ' USDT';
+    const price   = '₹' + Number(o.price || 0).toFixed(2);
+    const cp      = o.counterpartyUsername || 'Unknown';
+    const date    = o.createdAt ? formatDate(new Date(o.createdAt)) : '—';
+    const statusHtml = statusBadge(o.status);
+    const showActions = o.status === 'pending' || o.status === 'processing';
+
+    card.innerHTML = `
+      <div class="order-card-top">
+        <div class="order-type-badge">
+          <div class="usdt-icon">₮</div>
+          <span class="order-type-text ${isBuy ? 'buy' : 'sell'}">${isBuy ? 'Buy' : 'Sell'} USDT</span>
+        </div>
+        ${statusHtml}
+      </div>
+      <div class="order-mid">
+        <div>
+          <div class="order-main-amount" style="color:${isBuy ? '#00d4d4' : '#f0b429'}">${isBuy ? '+' + qty : '-' + qty}</div>
+          <div class="order-sub-amount">${fiat}</div>
+        </div>
+        <div class="order-price-col">
+          <div class="price-val">${price}</div>
+          <div class="price-lbl">Unit price</div>
+        </div>
+      </div>
+      <div class="order-divider"></div>
+      <div class="order-meta">
+        <div class="order-counterparty">
+          <div class="cp-avatar">${cp.charAt(0).toUpperCase()}</div>
+          <span class="cp-name">${escHtml(cp)}</span>
+        </div>
+        <span class="order-date">${date}</span>
+      </div>
+      ${showActions ? `
+      <div class="order-actions">
+        <button class="action-btn" onclick="event.stopPropagation();openChat(${JSON.stringify(o)})">Chat</button>
+        <button class="action-btn primary" onclick="event.stopPropagation();continueOrder(${JSON.stringify(o)})">${isBuy ? 'Continue buying' : 'Release / Verify'}</button>
+      </div>` : ''}
+    `;
+    return card;
+  }
+
+  function statusBadge(s) {
+    const map = {
+      completed:  ['completed', 'Completed'],
+      pending:    ['pending',   'Pending'],
+      processing: ['processing','Processing'],
+      canceled:   ['canceled',  'Canceled'],
+      appealing:  ['appealing', 'Appealing'],
+    };
+    const [cls, label] = map[s] || ['pending', s];
+    return `<span class="status-badge ${cls}">${label}</span>`;
+  }
+
+  // ============================================================
+  // OPEN DETAIL
+  // ============================================================
+  function openDetail(o) {
+    selectedOrder = o;
+    const isBuy = o.side === 'buy';
+    const cp    = o.counterpartyUsername || 'Unknown';
+    const fiat  = '₹' + fmtInr(Number(o.fiatAmount || 0));
+    const qty   = Number(o.cryptoAmount || 0).toFixed(2) + ' USDT';
+    const price = '₹' + Number(o.price || 0).toFixed(2);
+
+    // Status hero
+    const heroMap = {
+      completed:  ['✓', 'Completed',  isBuy ? 'USDT has been transferred to your wallet.' : 'INR received. USDT released.'],
+      pending:    ['⏳', 'Pending',    isBuy ? 'Waiting for you to complete payment.' : 'Waiting for buyer to pay.'],
+      processing: ['🔄', 'Processing', 'Buyer has marked payment. Awaiting release.'],
+      canceled:   ['✕', 'Canceled',   'This order was canceled.'],
+      appealing:  ['⚖️', 'Appealing', 'Dispute under review by support.'],
+    };
+    const [icon, statusTxt, statusSub] = heroMap[o.status] || ['?','Unknown',''];
+    setText('det-status-icon', icon);
+    setText('det-status-text', statusTxt);
+    setText('det-status-sub',  statusSub);
+
+    // Type + amounts
+    setText('det-type-label',     (isBuy ? 'Buy' : 'Sell') + ' USDT');
+    setText('det-trading-amount', fiat);
+    setText('det-price',          price);
+    setText('det-quantity',       qty);
+    setText('det-payment',        o.paymentMethod || '—');
+
+    // Counterparty
+    const av = document.getElementById('det-cp-avatar');
+    av.innerHTML = cp.charAt(0).toUpperCase() + '<div class="cp-dot"></div>';
+    setText('det-cp-name', cp);
+    setText('det-cp-orders',    o.counterpartyOrders    || '—');
+    setText('det-cp-release',   o.counterpartyRelease   || '—');
+    setText('det-cp-completed', o.counterpartyCompleted != null ? String(o.counterpartyCompleted) : '—');
+
+    // Order info
+    setText('det-order-no',     o.reference || o.id || '—');
+    setText('det-order-time',   o.createdAt   ? formatDateTime(new Date(o.createdAt))   : '—');
+    setText('det-complete-time',o.completedAt ? formatDateTime(new Date(o.completedAt)) : '—');
+    setText('det-notes',        o.notes || '—');
+
+    const cancelRow = document.getElementById('det-cancel-reason-row');
+    if (o.cancelReason) {
+      cancelRow.style.display = 'flex';
+      setText('det-cancel-reason', o.cancelReason);
+    } else {
+      cancelRow.style.display = 'none';
+    }
+
+    // Bottom action buttons
+    const bar = document.getElementById('det-bottom-bar');
+    const btnRow = document.getElementById('det-btn-row');
+    btnRow.innerHTML = '';
+
+    if (o.status === 'pending' && isBuy) {
+      bar.style.display = 'block';
+      btnRow.innerHTML = `
+        <button class="btn-full outline" onclick="cancelFromDetail()">Cancel</button>
+        <button class="btn-full teal"    onclick="continueOrder(selectedOrder)">Pay now</button>`;
+    } else if (o.status === 'processing' && !isBuy) {
+      bar.style.display = 'block';
+      btnRow.innerHTML = `
+        <button class="btn-full outline" onclick="openChat()">Chat</button>
+        <button class="btn-full red"     onclick="showToast('Open sell flow to release USDT')">Release USDT</button>`;
+    } else if (o.status === 'appealing') {
+      bar.style.display = 'block';
+      btnRow.innerHTML = `<button class="btn-full teal" onclick="showToast('Support team will contact you within 30 min.')">Contact Support</button>`;
+    } else {
+      bar.style.display = 'none';
+    }
+
+    showScreen('screen-detail');
+  }
+
+  function cancelFromDetail() {
+    showToast('Redirecting to cancel flow…');
+    setTimeout(() => { window.location.href = '/p2p-order-flow.html'; }, 1000);
+  }
+
+  function continueOrder(o) {
+    const order = o || selectedOrder;
+    if (!order) return;
+    if (order.side === 'buy') {
+      window.location.href = '/p2p-order-flow.html';
+    } else {
+      window.location.href = '/p2p-sell-flow.html';
+    }
+  }
+
+  function openChat() {
+    window.location.href = '/p2p-chat.html';
+  }
+
+  function copyOrderNo() {
+    const no = document.getElementById('det-order-no');
+    if (!no) return;
+    navigator.clipboard.writeText(no.textContent.trim()).then(() => showToast('Order No. copied!'));
+  }
+
+  // ============================================================
+  // TAB / FILTER SWITCHES
+  // ============================================================
+  function switchType(type) {
+    currentType = type;
+    ['all','buy','sell'].forEach(t => {
+      document.getElementById('ttab-' + t).classList.toggle('active', t === type);
+    });
+    page = 1;
+    allOrders = [];
+    showSkeleton();
+    loadOrders();
+  }
+
+  function switchStatus(status) {
+    currentStatus = status;
+    ['all','pending','processing','completed','canceled','appealing'].forEach(s => {
+      document.getElementById('pill-' + s).classList.toggle('active', s === status);
+    });
+    page = 1;
+    allOrders = [];
+    showSkeleton();
+    loadOrders();
+  }
+
+  function openFilterSheet() {
+    showToast('Advanced filters coming soon');
+  }
+
+  // ============================================================
+  // SKELETON
+  // ============================================================
+  function showSkeleton() {
+    const list = document.getElementById('orderList');
+    list.innerHTML = `
+      <div class="skeleton"><div class="skel-line short"></div><div class="skel-line mid"></div><div class="skel-line full"></div></div>
+      <div class="skeleton"><div class="skel-line short"></div><div class="skel-line mid"></div><div class="skel-line full"></div></div>
+      <div class="skeleton"><div class="skel-line short"></div><div class="skel-line mid"></div><div class="skel-line full"></div></div>`;
+  }
+
+  function hideSkeleton() {
+    ['skel1','skel2','skel3'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    });
+  }
+
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById(id);
+    if (el) { el.classList.add('active'); el.scrollTop = 0; }
+  }
+
+  function goBack() {
+    window.history.back();
+  }
+
+  // ============================================================
+  // HELPERS
+  // ============================================================
+  function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+
+  function fmtInr(n) {
+    return Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  }
+
+  function formatDate(d) {
+    const pad = n => String(n).padStart(2,'0');
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+
+  function formatDateTime(d) {
+    const pad = n => String(n).padStart(2,'0');
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+      ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function showToast(msg, ms = 2500) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), ms);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bitegit Trade</title>
+    <link rel="stylesheet" href="/mobile-nav.css?v=20260301a" />
+    <link rel="stylesheet" href="/trade.css?v=20260303b" />
+    <script src="/bitegit-config.js"></script>
+  </head>
+  <body class="trade-page has-mobile-nav">
+    <header class="trade-topbar" id="tradeHeader">
+      <div class="topbar-left">
+        <a href="/" class="trade-brand">BITEGIT</a>
+        <div class="pair-chip">
+          <span class="pair-coin" id="pairCoin"><span class="coin-fallback">₿</span></span>
+          <div>
+            <h1 id="pairTitle">BTC/USDT</h1>
+            <p>Spot</p>
+          </div>
+        </div>
+        <label class="pair-select-wrap" for="pairSelector">
+          <span class="sr-only">Select pair</span>
+          <select id="pairSelector">
+            <option value="BTCUSDT">BTC/USDT</option>
+            <option value="ETHUSDT">ETH/USDT</option>
+            <option value="BNBUSDT">BNB/USDT</option>
+            <option value="SOLUSDT">SOL/USDT</option>
+            <option value="XRPUSDT">XRP/USDT</option>
+            <option value="ADAUSDT">ADA/USDT</option>
+          </select>
+        </label>
+      </div>
+
+      <nav class="topbar-nav" aria-label="Trade navigation">
+        <a href="/">Buy Crypto</a>
+        <a href="/markets.html">Markets</a>
+        <a href="/p2p">P2P</a>
+        <a href="/trade/spot/BTCUSDT" class="active">Trade</a>
+        <a href="/trade/perp/BTCUSDT">Derivatives</a>
+      </nav>
+
+      <div class="topbar-actions">
+        <a id="tradeLoginBtn" class="link-btn" href="/auth.html">Log In</a>
+        <a id="tradeSignupBtn" class="solid-btn trade-signup-btn" href="/auth.html?mode=signup">Sign Up</a>
+        <button id="tradeThemeToggle" type="button" class="theme-toggle-btn" aria-label="Toggle theme">🌙</button>
+        <button id="tradeMenuToggle" class="icon-btn" type="button" aria-label="Open menu" aria-controls="tradeNavDrawer" aria-expanded="false">☰</button>
+        <button id="tradeUserAvatar" type="button" class="avatar-btn" aria-label="Open account menu">U</button>
+      </div>
+    </header>
+
+    <div id="tradeNavOverlay" class="trade-nav-overlay hidden" aria-hidden="true"></div>
+    <aside id="tradeNavDrawer" class="trade-nav-drawer" aria-hidden="true">
+      <div class="trade-nav-head">
+        <strong>BITEGIT</strong>
+        <button id="tradeNavClose" type="button" aria-label="Close menu">✕</button>
+      </div>
+      <nav class="trade-nav-links" aria-label="Mobile trade navigation">
+        <a href="/">Buy Crypto</a>
+        <a href="/markets.html">Markets</a>
+        <a href="/trade/spot/BTCUSDT">Spot</a>
+        <a href="/trade/perp/BTCUSDT">Futures</a>
+        <a href="/p2p">P2P</a>
+        <a href="/#crypto-for-everyone">Earn</a>
+        <a href="/#events">ICO</a>
+        <a href="/#support">Support</a>
+        <a href="/assets">Assets</a>
+        <a data-drawer-login href="/auth.html">Log In</a>
+        <a data-drawer-signup href="/auth.html?mode=signup">Sign Up</a>
+        <button id="tradeDrawerLogout" type="button">Logout</button>
+      </nav>
+      <div class="trade-nav-extra">
+        <button id="tradeDrawerThemeToggle" type="button" class="theme-toggle-row">🌙 Theme</button>
+        <label class="trade-lang-row" for="tradeLanguageSelect">
+          <span>Language</span>
+          <select id="tradeLanguageSelect">
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+          </select>
+        </label>
+        <a href="/#app-download" class="trade-download-row">Download App</a>
+      </div>
+    </aside>
+
+    <section class="trade-stats-strip">
+      <article class="stat stat-price">
+        <span>Last Price</span>
+        <strong id="pairPrice">--</strong>
+      </article>
+      <article class="stat">
+        <span>24H Change</span>
+        <strong id="pairChange">--</strong>
+      </article>
+      <article class="stat">
+        <span>24H High</span>
+        <strong id="pairHigh">--</strong>
+      </article>
+      <article class="stat">
+        <span>24H Low</span>
+        <strong id="pairLow">--</strong>
+      </article>
+      <article class="stat">
+        <span>24H Volume</span>
+        <strong id="pairVolume">--</strong>
+      </article>
+      <div class="mode-switch">
+        <button id="flashModeBtn" type="button" class="active">Flash</button>
+        <button id="proModeBtn" type="button">Pro</button>
+      </div>
+    </section>
+
+    <div id="mobileMarketTabs" class="mobile-market-tabs">
+      <button type="button" data-mobile-tab="chart" class="active">Chart</button>
+      <button type="button" data-mobile-tab="book">Order Book</button>
+      <button type="button" data-mobile-tab="trades">Trades</button>
+      <button id="mobileBookCollapseBtn" type="button" class="mobile-collapse-btn">Collapse</button>
+    </div>
+
+    <main class="trade-main-grid">
+      <section id="chartColumn" class="chart-column">
+        <div class="chart-tabs-top">
+          <div class="chart-main-tabs">
+            <button type="button" class="active">Chart</button>
+            <button type="button">Overview</button>
+            <button type="button">Data</button>
+            <button type="button">Feed</button>
+            <button type="button">Trade Analysis</button>
+          </div>
+          <div class="chart-view-tabs" id="chartViewTabs">
+            <button type="button" data-chart-view="standard">Standard</button>
+            <button type="button" data-chart-view="tradingview" class="active">TradingView</button>
+            <button type="button" data-chart-view="depth">Depth</button>
+          </div>
+        </div>
+
+        <div class="chart-toolbar" id="intervalTabs">
+          <button type="button" class="active" data-interval="15m">15m</button>
+          <button type="button" data-interval="1h">1h</button>
+          <button type="button" data-interval="4h">4h</button>
+          <button type="button" data-interval="1d">1D</button>
+          <button type="button" data-interval="5m">5m</button>
+          <button type="button" data-interval="30m">30m</button>
+        </div>
+
+        <div class="chart-wrap">
+          <div id="tvChart" class="tv-chart" aria-label="Trade chart"></div>
+          <canvas id="klineCanvas"></canvas>
+        </div>
+
+        <div class="chart-foot">
+          <p id="chartStatus">Loading chart...</p>
+          <span id="chartUpdatedAt">--</span>
+        </div>
+      </section>
+
+      <section id="bookColumn" class="book-column">
+        <div class="book-head">
+          <div class="book-tabs">
+            <button id="tabOrderBook" type="button" class="active">Order Book</button>
+            <button id="tabRecentTrades" type="button">Recent Trades</button>
+          </div>
+          <p id="bookSource">Source: --</p>
+        </div>
+
+        <div id="panelOrderBook" class="book-panel">
+          <table class="book-table">
+            <thead>
+              <tr>
+                <th>Price</th>
+                <th>Qty</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="askRows"></tbody>
+          </table>
+
+          <p class="mid-price" id="midPrice">--</p>
+
+          <table class="book-table">
+            <tbody id="bidRows"></tbody>
+          </table>
+
+          <div class="book-ratio">
+            <span class="buy">B 45%</span>
+            <span class="sell">S 55%</span>
+          </div>
+        </div>
+
+        <div id="panelTrades" class="book-panel hidden">
+          <table class="book-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Price</th>
+                <th>Amount</th>
+                <th>Side</th>
+              </tr>
+            </thead>
+            <tbody id="tradeRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside id="desktopTradePanel" class="trade-side-panel">
+        <h2>Trade</h2>
+
+        <div class="market-switch-row">
+          <div class="spot-convert-switch">
+            <button type="button" class="active">Spot</button>
+            <button type="button">Convert</button>
+          </div>
+          <p>Margin <span>Off</span></p>
+        </div>
+
+        <div id="tradeSideSwitch" class="trade-side-switch">
+          <button type="button" data-side="buy" class="active">Buy</button>
+          <button type="button" data-side="sell">Sell</button>
+        </div>
+
+        <div id="orderTypeTabs" class="order-type-tabs">
+          <button type="button" class="active" data-order-type="limit">Limit</button>
+          <button type="button" data-order-type="market">Market</button>
+          <button type="button" data-order-type="tpsl">TP/SL</button>
+        </div>
+
+        <select id="tradeOrderType" class="hidden-select">
+          <option value="limit" selected>Limit</option>
+          <option value="market">Market</option>
+          <option value="tpsl">TP/SL</option>
+        </select>
+
+        <p class="balance-line">Available Balance <strong>******** USDT</strong></p>
+
+        <label class="trade-field">
+          <span>Price</span>
+          <input id="tradePriceView" type="text" value="--" readonly />
+        </label>
+
+        <label class="trade-field">
+          <span>Order Value (USDT)</span>
+          <input id="tradeAmountUsdt" type="number" min="10" step="0.01" value="100" />
+        </label>
+
+        <div class="risk-row">
+          <input id="tradeRiskSlider" type="range" min="0" max="100" value="10" step="1" />
+          <div>
+            <span>0</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        <p class="trade-estimate">Estimated Qty: <strong id="tradeEstimateQty">--</strong></p>
+        <p id="tradeActionMessage" class="trade-action-message">Enter amount and place order.</p>
+
+        <button id="placeTradeBtn" type="button" class="trade-submit-btn">Buy</button>
+
+        <div class="side-actions">
+          <button type="button">Borrow</button>
+          <button type="button">Deposit</button>
+          <button type="button">Transfer</button>
+        </div>
+      </aside>
+    </main>
+
+    <section class="orders-bottom">
+      <div class="orders-main-tabs">
+        <p class="active">Open Orders (0)</p>
+        <p>Positions (0)</p>
+        <p>Order History</p>
+        <p>Trade History</p>
+        <p>Assets</p>
+        <p>Tools (0)</p>
+      </div>
+
+      <div class="orders-sub-tabs">
+        <p class="active">Limit &amp; Market Orders</p>
+        <p>Conditional</p>
+        <p>TP/SL</p>
+        <p>Trailing Stop</p>
+        <p>Spread Trading</p>
+      </div>
+    </section>
+
+    <section id="mobileTradeSticky" class="mobile-trade-sticky">
+      <div class="mobile-trade-strip">
+        <button id="mobileQuickBuyBtn" type="button" class="mobile-quick-btn buy">
+          <span>Buy</span>
+          <strong id="mobileBuyPrice">--</strong>
+        </button>
+        <label class="mobile-qty-wrap" for="mobileTradeAmountUsdt">
+          <input id="mobileTradeAmountUsdt" type="number" min="10" step="0.01" value="100" placeholder="USDT" />
+          <span>USDT</span>
+        </label>
+        <button id="mobileQuickSellBtn" type="button" class="mobile-quick-btn sell">
+          <span>Sell</span>
+          <strong id="mobileSellPrice">--</strong>
+        </button>
+      </div>
+    </section>
+
+    <nav class="mobile-app-nav" aria-label="App navigation">
+      <a href="/">
+        <span class="nav-icon">⌂</span>
+        <span class="nav-label">Home</span>
+      </a>
+      <a href="/markets.html">
+        <span class="nav-icon">◍</span>
+        <span class="nav-label">Markets</span>
+      </a>
+      <a href="/trade/spot/BTCUSDT" class="active" aria-current="page">
+        <span class="nav-icon">⇅</span>
+        <span class="nav-label">Trade</span>
+      </a>
+      <a href="/assets">
+        <span class="nav-icon">◔</span>
+        <span class="nav-label">Assets</span>
+      </a>
+    </nav>
+
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="/theme.js?v=20260301a"></script>
+    <script src="/trade.js?v=20260304a"></script>
+  </body>
+</html>

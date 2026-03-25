@@ -1,0 +1,1578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>P2P Sell USDT</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 430px;
+      min-height: 100vh;
+      background: #000;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .screen {
+      display: none;
+      flex-direction: column;
+      min-height: 100vh;
+      padding-bottom: 120px;
+    }
+    .screen.active { display: flex; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 10px;
+      position: relative;
+    }
+    .topbar .back-btn {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 22px; color: #fff;
+    }
+    .topbar .title {
+      font-size: 17px; font-weight: 600; color: #fff;
+      position: absolute; left: 50%; transform: translateX(-50%);
+    }
+    .topbar .more-btn {
+      font-size: 22px; color: #fff; cursor: pointer; letter-spacing: 2px;
+    }
+
+    .content { padding: 0 20px; flex: 1; }
+
+    .page-heading { padding: 8px 20px 16px; }
+    .page-heading h1 { font-size: 24px; font-weight: 700; line-height: 1.3; color: #fff; }
+    .page-heading .timer-row { margin-top: 8px; font-size: 14px; color: #888; }
+    .page-heading .timer-row span { color: #f0b429; font-weight: 600; }
+
+    .buyer-card {
+      margin: 0 20px 16px;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .buyer-card .buyer-top {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+    }
+    .buyer-card .buyer-info { display: flex; align-items: center; gap: 8px; }
+    .buyer-avatar {
+      width: 32px; height: 32px; border-radius: 6px;
+      background: #333; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: #fff; position: relative;
+    }
+    .buyer-avatar .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #00c896;
+      position: absolute; bottom: -2px; right: -2px; border: 1.5px solid #000;
+    }
+    .buyer-name { font-size: 15px; font-weight: 600; color: #fff; }
+    .star-icon { color: #00d4d4; font-size: 14px; margin-left: 4px; }
+    .chat-btn {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: #fff; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; position: relative;
+    }
+    .chat-btn .notif-dot {
+      width: 10px; height: 10px; border-radius: 50%; background: #00d4d4;
+      position: absolute; top: 4px; right: 4px; border: 1.5px solid #fff;
+    }
+    .chat-btn svg { width: 20px; height: 20px; }
+    .buyer-card .note { font-size: 12px; color: #888; line-height: 1.5; margin-top: 2px; }
+
+    .section-title {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 20px 12px; font-size: 16px; font-weight: 700;
+    }
+    .usdt-icon {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: #26a17b; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800; color: #fff;
+    }
+
+    .detail-row {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      padding: 11px 20px; font-size: 14px;
+    }
+    .detail-row .label { color: #888; }
+    .detail-row .value {
+      color: #fff; font-weight: 500; text-align: right; max-width: 65%;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .detail-row .value.big { font-size: 18px; font-weight: 700; }
+    .copy-icon {
+      width: 16px; height: 16px; cursor: pointer;
+      background: #333; border-radius: 3px;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .copy-icon::after { content: '⧉'; font-size: 11px; color: #888; }
+    .payment-dot { width: 10px; height: 10px; border-radius: 2px; background: #00d4d4; flex-shrink: 0; }
+    .divider { height: 1px; background: #1a1a1a; margin: 4px 20px; }
+
+    .bottom-fixed {
+      position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 100%; max-width: 430px;
+      padding: 12px 20px 28px; background: #000;
+    }
+    .btn-primary {
+      width: 100%; padding: 16px;
+      background: #fff; color: #000;
+      border: none; border-radius: 50px;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-primary.teal { background: #00d4d4; color: #000; }
+    .btn-primary.red { background: #ff4d4f; color: #fff; }
+    .btn-primary.yellow { background: #f0b429; color: #000; }
+    .btn-secondary {
+      width: 100%; padding: 14px;
+      background: transparent; color: #fff;
+      border: none; font-size: 15px; font-weight: 600; cursor: pointer;
+      text-align: center; margin-top: 6px;
+    }
+    .btn-outline {
+      width: 100%; padding: 14px;
+      background: transparent; color: #888;
+      border: 1px solid #333; border-radius: 50px;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      text-align: center; margin-top: 6px;
+    }
+
+    /* ===== SCREEN 1 — SELL FORM ===== */
+    .tabs {
+      display: flex; gap: 20px; padding: 12px 20px 0; border-bottom: 1px solid #1a1a1a;
+    }
+    .tab-item {
+      padding-bottom: 12px; font-size: 15px; font-weight: 500;
+      color: #666; cursor: pointer; position: relative;
+    }
+    .tab-item.active { color: #fff; font-weight: 700; }
+    .tab-item.active::after {
+      content: ''; position: absolute; bottom: -1px; left: 0; right: 0;
+      height: 2px; background: #fff; border-radius: 2px;
+    }
+    .price-row {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 14px; color: #888; padding: 0 20px;
+      justify-content: flex-end; margin-top: 4px;
+    }
+    .refresh-icon { font-size: 16px; cursor: pointer; }
+
+    .amount-input-box {
+      margin: 12px 20px 8px;
+      background: #1a1a1a; border-radius: 10px; padding: 14px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .amount-input-box input {
+      background: transparent; border: none; outline: none;
+      font-size: 20px; font-weight: 600; color: #fff; width: 60%;
+    }
+    .inr-max { display: flex; align-items: center; gap: 10px; }
+    .inr-label { font-size: 15px; color: #666; }
+    .max-btn { color: #00d4d4; font-size: 15px; font-weight: 600; cursor: pointer; }
+
+    .limit-text { padding: 2px 20px 4px; font-size: 12px; color: #555; }
+    .usdt-equiv { padding: 0 20px 12px; font-size: 13px; color: #888; }
+    .usdt-equiv span { color: #00d4d4; }
+
+    .payment-select {
+      margin: 8px 20px;
+      background: #1a1a1a; border-radius: 10px; padding: 14px 16px;
+      display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+    }
+    .payment-select .left { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+
+    .advertiser-terms { padding: 16px 20px 8px; }
+    .advertiser-terms h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .advertiser-terms p { font-size: 13px; color: #888; }
+
+    .seller-stats { padding: 16px 20px; border-top: 1px solid #1a1a1a; }
+    .seller-stats-top {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+    }
+    .stat-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 14px; padding: 5px 0;
+    }
+    .stat-row .slabel { color: #666; }
+    .stat-row .sval { color: #fff; font-weight: 500; }
+
+    /* ===== WAIT PAYMENT SCREEN ===== */
+    .payment-info-box {
+      margin: 0 20px 16px;
+      background: #0d1f0d;
+      border: 1px solid #1a3a1a;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .payment-info-box h4 { font-size: 14px; font-weight: 700; color: #4caf50; margin-bottom: 12px; }
+    .pinfo-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; font-size: 14px; border-bottom: 1px solid #1a2a1a;
+    }
+    .pinfo-row:last-child { border-bottom: none; }
+    .pinfo-row .pl { color: #888; }
+    .pinfo-row .pv { color: #fff; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+
+    /* ===== BUYER PAID SCREEN (Screen 3) ===== */
+    .release-warning {
+      margin: 0 20px 16px;
+      background: #2a0a0a;
+      border: 1px solid #4a1a1a;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .release-warning h4 { font-size: 15px; font-weight: 700; color: #ff6b6b; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .release-warning ul { padding-left: 16px; }
+    .release-warning ul li { font-size: 13px; color: #ccc; line-height: 1.6; margin-bottom: 4px; }
+
+    .verify-steps { padding: 0 20px 16px; }
+    .verify-step { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: #1a1a1a; border: 2px solid #333;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+    }
+    .step-num.done { background: #00d4d4; border-color: #00d4d4; color: #000; }
+    .step-content h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .step-content p { font-size: 13px; color: #666; line-height: 1.5; }
+
+    /* ===== CHAT ===== */
+    .chat-header { padding: 12px 20px; border-bottom: 1px solid #1a1a1a; }
+    .chat-header .pay-bar {
+      display: flex; align-items: center; justify-content: space-between; padding: 10px 0 4px;
+    }
+    .chat-header .pay-info .amount { font-size: 16px; font-weight: 700; }
+    .chat-header .pay-info .ctimer { font-size: 13px; color: #888; }
+    .chat-header .pay-info .ctimer span { color: #f0b429; font-weight: 600; }
+    .release-btn {
+      padding: 8px 16px; background: #00d4d4;
+      border: none; border-radius: 8px;
+      color: #000; font-size: 14px; font-weight: 700; cursor: pointer;
+    }
+    .wait-btn {
+      padding: 8px 16px; background: transparent;
+      border: 1px solid #444; border-radius: 8px;
+      color: #888; font-size: 14px; cursor: pointer;
+    }
+
+    .chat-messages { flex: 1; padding: 12px 20px; overflow-y: auto; }
+    .msg-time { text-align: center; font-size: 12px; color: #555; margin: 12px 0 8px; }
+    .msg-item { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-start; }
+    .msg-item.mine { flex-direction: row-reverse; }
+    .msg-avatar {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: #333; display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700; flex-shrink: 0;
+    }
+    .msg-bubble-wrap { display: flex; flex-direction: column; gap: 4px; }
+    .msg-item.mine .msg-bubble-wrap { align-items: flex-end; }
+    .msg-sender { font-size: 12px; color: #666; }
+    .msg-bubble {
+      background: #1a1a1a; border-radius: 0 10px 10px 10px;
+      padding: 10px 14px; font-size: 14px; color: #fff;
+      max-width: 240px; line-height: 1.4;
+    }
+    .msg-item.mine .msg-bubble { background: #003333; border-radius: 10px 0 10px 10px; }
+    .system-msg {
+      background: #1a1a0a; border: 1px solid #333;
+      border-radius: 10px; padding: 12px 14px;
+      font-size: 13px; color: #ddd; line-height: 1.5; margin: 8px 0; font-weight: 500;
+    }
+
+    .chat-input-bar {
+      padding: 10px 16px 16px; border-top: 1px solid #1a1a1a;
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0; background: #000; width: 100%; box-sizing: border-box;
+    }
+    .chat-input {
+      flex: 1; min-width: 0; background: #1a1a1a; border: none; outline: none;
+      border-radius: 20px; padding: 10px 14px; color: #fff; font-size: 14px;
+    }
+    .img-btn {
+      width: 36px; height: 36px; background: transparent;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .img-btn svg { width: 24px; height: 24px; }
+    .send-btn {
+      width: 36px; height: 36px; min-width: 36px; background: #00d4d4; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0; border: none;
+    }
+    .send-btn svg { width: 16px; height: 16px; }
+
+    /* ===== CANCEL SCREENS ===== */
+    .cancel-option-box {
+      margin: 8px 20px; border: 1px solid #222; border-radius: 12px;
+      padding: 14px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .cancel-option-box span { font-size: 15px; }
+    .view-tip-btn, .chat-buyer-btn {
+      padding: 7px 14px; background: #222; border-radius: 8px;
+      font-size: 13px; color: #fff; cursor: pointer; white-space: nowrap;
+    }
+
+    .warning-points { padding: 0 20px; }
+    .warning-points h2 { font-size: 20px; font-weight: 700; margin-bottom: 12px; line-height: 1.3; }
+    .warning-points ol { padding-left: 0; list-style: none; }
+    .warning-points li { font-size: 14px; color: #888; line-height: 1.6; margin-bottom: 8px; }
+
+    .reason-list { padding: 8px 20px; }
+    .reason-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 12px 0; cursor: pointer; position: relative;
+    }
+    .radio-outer {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid #444; flex-shrink: 0; margin-top: 1px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .radio-outer.checked { border-color: #00d4d4; }
+    .radio-inner { width: 10px; height: 10px; border-radius: 50%; background: #00d4d4; }
+    .reason-text { font-size: 15px; color: #fff; line-height: 1.4; }
+
+    .checkbox-row {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 16px 20px; border-top: 1px solid #1a1a1a;
+    }
+    .checkbox-box {
+      width: 20px; height: 20px; border-radius: 4px;
+      background: #333; border: 1px solid #555; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; margin-top: 1px;
+    }
+    .checkbox-box.checked { background: #00d4d4; border-color: #00d4d4; }
+    .checkbox-box .check-mark { color: #000; font-size: 12px; font-weight: 700; }
+    .checkbox-label { font-size: 14px; color: #888; line-height: 1.4; }
+
+    /* ===== COMPLETED SCREEN ===== */
+    .success-circle {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: #0d2a0d; border: 3px solid #4caf50;
+      display: flex; align-items: center; justify-content: center;
+      margin: 30px auto 20px; font-size: 36px;
+    }
+    .success-title { text-align: center; font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .success-sub { text-align: center; font-size: 14px; color: #888; margin-bottom: 24px; padding: 0 20px; }
+
+    /* ===== RELEASE CONFIRM MODAL ===== */
+    .bottom-sheet-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100;
+      display: none; align-items: flex-end; justify-content: center;
+    }
+    .bottom-sheet-overlay.active { display: flex; }
+    .release-sheet {
+      width: 100%; max-width: 430px;
+      background: #111; border-radius: 16px 16px 0 0; padding: 8px 0 40px;
+    }
+    .sheet-handle {
+      width: 36px; height: 4px; background: #333; border-radius: 2px;
+      margin: 8px auto 16px;
+    }
+    .release-sheet h2 { font-size: 20px; font-weight: 700; padding: 4px 20px 12px; }
+    .release-sheet .big-warn {
+      margin: 0 20px 16px; background: #2a1a00;
+      border-radius: 10px; padding: 14px;
+      font-size: 13px; color: #ffcc00; line-height: 1.6;
+      display: flex; gap: 8px; align-items: flex-start;
+    }
+    .release-confirm-btn {
+      margin: 8px 20px 0;
+      width: calc(100% - 40px); padding: 16px;
+      background: #ff4d4f; color: #fff;
+      border: none; border-radius: 50px;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+    }
+    .release-cancel-btn {
+      width: 100%; padding: 14px;
+      background: transparent; color: #888;
+      border: none; font-size: 15px; cursor: pointer; text-align: center; margin-top: 8px;
+    }
+
+    /* ===== IMAGE SHEET ===== */
+    .bottom-sheet {
+      width: 100%; max-width: 430px;
+      background: #111; border-radius: 16px 16px 0 0; padding: 8px 0 40px;
+    }
+    .sheet-item {
+      padding: 18px 24px; font-size: 16px; color: #fff; cursor: pointer;
+      border-bottom: 1px solid #1a1a1a; text-align: center;
+    }
+    .sheet-item:last-child { border-bottom: none; color: #888; }
+
+    /* Rating stars */
+    .rating-box { padding: 20px; text-align: center; }
+    .rating-box h3 { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+    .stars { display: flex; justify-content: center; gap: 12px; margin-bottom: 20px; }
+    .star { font-size: 32px; cursor: pointer; color: #333; transition: color 0.2s; }
+    .star.active { color: #f0b429; }
+    .rating-skip { font-size: 14px; color: #555; cursor: pointer; text-decoration: underline; margin-top: 8px; }
+
+    /* Toast */
+    .toast-msg {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 140px; background: #fff; color: #000;
+      padding: 12px 24px; border-radius: 50px; font-size: 14px; font-weight: 600;
+      white-space: nowrap; z-index: 200; opacity: 0; transition: opacity 0.3s;
+    }
+    .toast-msg.show { opacity: 1; }
+
+    /* Online row */
+    .online-row { display: flex; align-items: center; gap: 6px; justify-content: center; padding-bottom: 8px; }
+    .online-dot { width: 8px; height: 8px; border-radius: 50%; background: #00c896; }
+    .online-text { font-size: 13px; color: #888; }
+
+    /* FAB */
+    .fab {
+      position: fixed; bottom: 130px; right: 20px;
+      width: 48px; height: 48px; border-radius: 50%;
+      background: #1a1a1a; border: 1px solid #333;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; z-index: 30;
+    }
+    .fab svg { width: 22px; height: 22px; }
+
+    /* Status badge */
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #0d2a0d; border: 1px solid #1a4a1a;
+      border-radius: 20px; padding: 6px 14px;
+      font-size: 13px; color: #4caf50; font-weight: 600;
+      margin: 8px 0 0 20px;
+    }
+    .status-badge.waiting { background: #1a1a0a; border-color: #3a3a0a; color: #f0b429; }
+    .status-badge.danger { background: #2a0a0a; border-color: #4a1a1a; color: #ff6b6b; }
+
+    @media (max-width: 430px) {
+      .app { max-width: 100%; }
+      .bottom-fixed { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 1: Sell USDT Form                                     -->
+  <!-- ============================================================ -->
+  <div class="screen active" id="screen-sell">
+    <div class="topbar">
+      <div class="back-btn" onclick="goBack()">←</div>
+      <div class="title">Sell USDT</div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab-item" id="tab-crypto" onclick="switchTab('crypto')">Crypto</div>
+      <div class="tab-item active" id="tab-fiat" onclick="switchTab('fiat')">Fiat</div>
+    </div>
+
+    <div class="price-row" style="margin-top:10px;">
+      Price <strong id="sell-price" style="color:#fff;">₹91.00</strong> <span class="refresh-icon" onclick="loadAds()">↺</span>
+    </div>
+
+    <div class="amount-input-box">
+      <input type="number" value="1000" id="sellAmount" oninput="calcEquiv()" />
+      <div class="inr-max">
+        <span class="inr-label" id="currencyLabel">INR</span>
+        <span class="max-btn" onclick="setMax()">All</span>
+      </div>
+    </div>
+
+    <div class="limit-text" id="limitText">Limit ₹1,000 - ₹5,000</div>
+    <div class="usdt-equiv" id="equivText">≈ <span>10.99 USDT</span></div>
+
+    <div class="payment-select" onclick="openPaymentSheet()">
+      <div class="left">
+        <div class="payment-dot"></div>
+        <span id="selectedPayment">UPI</span>
+      </div>
+      <span style="color:#555; font-size:18px;">▾</span>
+    </div>
+
+    <div class="advertiser-terms">
+      <h3>Advertiser terms</h3>
+      <p id="sell-terms">Payment must be received before USDT is released. No third-party payments.</p>
+    </div>
+
+    <div class="seller-stats">
+      <div class="seller-stats-top">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="buyer-avatar" style="font-size:13px;" id="buyer-avatar-form">B<div class="dot"></div></div>
+          <div>
+            <span id="sell-buyer-name" style="font-size:15px;font-weight:600;">BUYER</span>
+            <span class="star-icon">✦</span>
+          </div>
+        </div>
+        <div style="font-size:22px;color:#555;cursor:pointer;">→</div>
+      </div>
+      <div class="stat-row"><span class="slabel">Pay within</span><span class="sval" id="stat-pay-within">15 minute(s)</span></div>
+      <div class="stat-row"><span class="slabel">Historical orders</span><span class="sval" id="stat-historical">Buy 0 &nbsp; Sell 0</span></div>
+      <div class="stat-row"><span class="slabel">30D average release time</span><span class="sval" id="stat-avg-release">&lt; 5 min</span></div>
+      <div class="stat-row"><span class="slabel">Completed orders (both parties)</span><span class="sval" id="stat-completed">0</span></div>
+      <div class="stat-row"><span class="slabel">Account signup time</span><span class="sval" id="stat-signup">2026.03.24</span></div>
+    </div>
+
+    <div class="bottom-fixed">
+      <button class="btn-primary teal" onclick="createSellOrder()">Sell USDT with 0 fees</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 2: Order Created — Wait for Buyer Payment             -->
+  <!-- ============================================================ -->
+  <div class="screen" id="screen-wait-payment">
+    <div class="topbar">
+      <div class="back-btn" onclick="showScreen('screen-sell')">←</div>
+    </div>
+    <div class="page-heading">
+      <h1>Order created.<br>Waiting for buyer's payment.</h1>
+      <div class="timer-row">Buyer must pay within <span id="timer1">15:00</span>.</div>
+    </div>
+
+    <div class="status-badge waiting">⏳ Pending Payment</div>
+
+    <div class="buyer-card" style="margin-top:12px;">
+      <div class="buyer-top">
+        <div class="buyer-info">
+          <div class="buyer-avatar" id="wait-buyer-avatar">B<div class="dot"></div></div>
+          <div>
+            <span class="buyer-name" id="wait-buyer-name">BUYER</span>
+            <span class="star-icon">✦</span>
+          </div>
+        </div>
+        <div class="chat-btn" onclick="showScreen('screen-sell-chat')">
+          <div class="notif-dot"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </div>
+      </div>
+      <div class="note">* USDT is held in escrow until you confirm receipt of payment.</div>
+      <div class="note" style="margin-top:6px;">* Never release USDT before confirming payment in your bank account.</div>
+    </div>
+
+    <div class="section-title">
+      <div class="usdt-icon">₮</div>
+      <span>Sell USDT</span>
+    </div>
+
+    <div class="detail-row">
+      <span class="label">Amount to receive</span>
+      <span class="value big" id="wp-receive-amount">₹ 1,000</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Price</span>
+      <span class="value" id="wp-price">₹91.00</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Quantity</span>
+      <span class="value" id="wp-quantity">10.99 USDT</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Fee</span>
+      <span class="value">0 USDT</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Payment method</span>
+      <span class="value"><span class="payment-dot"></span> <span id="wp-payment-method">UPI</span></span>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="detail-row">
+      <span class="label">Your payment info</span>
+      <span class="value" style="font-size:13px;color:#00d4d4;" id="wp-your-upi">sumitkmina@upi</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Order No</span>
+      <span class="value" style="font-size:13px;"><span id="wp-order-no">—</span> <span class="copy-icon" onclick="copyText('wp-order-no')"></span></span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Order time</span>
+      <span class="value" style="font-size:13px;" id="wp-order-time">—</span>
+    </div>
+
+    <div class="bottom-fixed">
+      <button class="btn-primary" onclick="showScreen('screen-sell-chat')">Chat with buyer</button>
+      <button class="btn-secondary" onclick="showScreen('screen-sell-before-cancel')">Cancel order</button>
+    </div>
+
+    <div class="fab">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+        <path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 3: Buyer Marked Paid — Verify & Release               -->
+  <!-- ============================================================ -->
+  <div class="screen" id="screen-buyer-paid">
+    <div class="topbar">
+      <div class="back-btn" onclick="showScreen('screen-wait-payment')">←</div>
+    </div>
+    <div class="page-heading">
+      <h1>Buyer has marked payment as sent.</h1>
+      <div class="timer-row">Verify payment before releasing <span id="timer2">05:00</span>.</div>
+    </div>
+
+    <div class="status-badge danger">⚠️ Verify Before Releasing</div>
+
+    <div class="buyer-card" style="margin-top:12px;">
+      <div class="buyer-top">
+        <div class="buyer-info">
+          <div class="buyer-avatar" id="paid-buyer-avatar">B<div class="dot"></div></div>
+          <div>
+            <span class="buyer-name" id="paid-buyer-name">BUYER</span>
+            <span class="star-icon">✦</span>
+          </div>
+        </div>
+        <div class="chat-btn" onclick="showScreen('screen-sell-chat')">
+          <div class="notif-dot"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="release-warning">
+      <h4>⚠️ DO NOT release until you verify!</h4>
+      <ul>
+        <li>Log into your bank / UPI app and confirm the money is in your account.</li>
+        <li>Scammers send fake payment screenshots — always check the actual bank balance.</li>
+        <li>Once you release USDT, it cannot be recovered.</li>
+        <li>If unsure, click <strong style="color:#00d4d4;">Appeal</strong> instead.</li>
+      </ul>
+    </div>
+
+    <div class="section-title">
+      <div class="usdt-icon">₮</div>
+      <span>Sell USDT</span>
+    </div>
+
+    <div class="detail-row">
+      <span class="label">Amount to receive</span>
+      <span class="value big" id="bp-receive-amount">₹ 1,000</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Price</span>
+      <span class="value" id="bp-price">₹91.00</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Quantity</span>
+      <span class="value" id="bp-quantity">10.99 USDT</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Payment method</span>
+      <span class="value"><span class="payment-dot"></span> <span id="bp-payment-method">UPI</span></span>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="detail-row">
+      <span class="label">Order No</span>
+      <span class="value" style="font-size:13px;"><span id="bp-order-no">—</span></span>
+    </div>
+
+    <div class="bottom-fixed">
+      <button class="btn-primary red" onclick="openReleaseModal()">Release USDT</button>
+      <button class="btn-secondary" onclick="showToast('Appeal submitted. Our team will review within 30 min.')">Appeal</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 4: P2P Chat (Sell Side)                              -->
+  <!-- ============================================================ -->
+  <div class="screen" id="screen-sell-chat" style="padding-bottom:0; height:100vh; max-height:100vh; overflow:hidden;">
+    <div class="topbar">
+      <div class="back-btn" onclick="showScreen('screen-wait-payment')">←</div>
+      <div class="title" id="chat-title">BUYER</div>
+      <div class="more-btn">···</div>
+    </div>
+    <div class="online-row"><div class="online-dot"></div><span class="online-text">Online</span></div>
+
+    <div style="padding: 0 20px 12px; border-bottom: 1px solid #1a1a1a; flex-shrink:0;">
+      <div class="pay-bar">
+        <div class="pay-info">
+          <div class="amount">To receive <span id="chat-receive-amount">₹ 1,000</span></div>
+          <div class="ctimer">Buyer must pay within <span id="chatTimer">14:27</span>.</div>
+        </div>
+        <button class="release-btn" id="chat-action-btn" onclick="openReleaseModal()">Release</button>
+      </div>
+    </div>
+
+    <div class="chat-messages" style="flex:1;overflow-y:auto;min-height:0;" id="chatMessages">
+      <div class="msg-time" id="chat-order-time-label">2026-03-24</div>
+      <div class="system-msg">
+        Order created. USDT is locked in escrow. Waiting for buyer to complete payment.
+      </div>
+      <div class="msg-item">
+        <div class="msg-avatar" id="chat-buyer-avatar-msg">B</div>
+        <div class="msg-bubble-wrap">
+          <div class="msg-sender" id="chat-buyer-name-msg">BUYER</div>
+          <div class="msg-bubble">Hi, I'll pay now via UPI.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-input-bar">
+      <div class="img-btn" onclick="showImageSheet()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      </div>
+      <input class="chat-input" type="text" id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendMsg()" />
+      <button class="send-btn" onclick="sendMsg()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 5: Before Cancel (Seller side)                       -->
+  <!-- ============================================================ -->
+  <div class="screen" id="screen-sell-before-cancel">
+    <div class="topbar">
+      <div class="back-btn" onclick="showScreen('screen-wait-payment')">←</div>
+    </div>
+    <div class="page-heading">
+      <h1>Before you cancel, check these first.</h1>
+    </div>
+
+    <div class="cancel-option-box">
+      <span>Issue with buyer?</span>
+      <div class="chat-buyer-btn" onclick="showScreen('screen-sell-chat')">Chat with buyer</div>
+    </div>
+
+    <div class="cancel-option-box">
+      <span>Buyer not responding?</span>
+      <div class="view-tip-btn">View tips</div>
+    </div>
+
+    <div style="height:24px;"></div>
+
+    <div class="warning-points">
+      <h2>Read before canceling your sell order.</h2>
+      <ol>
+        <li><span>1.</span> If buyer has already paid, do NOT cancel. Contact support instead.</li>
+        <li><span>2.</span> Frequent cancellations will lower your merchant rating.</li>
+        <li><span>3.</span> You can raise an <span style="color:#00d4d4;font-weight:700;">Appeal</span> if the buyer is unresponsive.</li>
+      </ol>
+    </div>
+
+    <div class="bottom-fixed">
+      <button class="btn-primary" onclick="showScreen('screen-sell-cancel-reason')">Proceed to cancel</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 6: Cancellation Reason (Seller)                      -->
+  <!-- ============================================================ -->
+  <div class="screen" id="screen-sell-cancel-reason">
+    <div style="overflow-y:auto;flex:1;padding-bottom:180px;">
+      <div class="topbar">
+        <div class="back-btn" onclick="showScreen('screen-sell-before-cancel')">←</div>
+      </div>
+      <div class="page-heading">
+        <h1>Please select a reason for cancellation</h1>
+        <div style="color:#00d4d4;font-size:14px;margin-top:6px;cursor:pointer;">Cancellation policy</div>
+      </div>
+
+      <div class="reason-list" id="sellReasonList">
+        <div class="reason-item" onclick="selectSellReason(0)">
+          <div class="radio-outer" id="sreason-0"><div class="radio-inner"></div></div>
+          <div class="reason-text">I don't want to proceed with this order.</div>
+        </div>
+        <div class="reason-item" onclick="selectSellReason(1)">
+          <div class="radio-outer" id="sreason-1"></div>
+          <div class="reason-text">Buyer does not meet my requirements.</div>
+        </div>
+        <div class="reason-item" onclick="selectSellReason(2)">
+          <div class="radio-outer" id="sreason-2"></div>
+          <div class="reason-text">Buyer is unresponsive.</div>
+        </div>
+        <div class="reason-item" onclick="selectSellReason(3)">
+          <div class="radio-outer" id="sreason-3"></div>
+          <div class="reason-text">I agreed with the buyer to cancel the order.</div>
+        </div>
+        <div class="reason-item" onclick="selectSellReason(4)">
+          <div class="radio-outer" id="sreason-4"></div>
+          <div class="reason-text">Buyer asked for third-party payment.</div>
+        </div>
+        <div class="reason-item" onclick="selectSellReason(5)">
+          <div class="radio-outer" id="sreason-5"></div>
+          <div class="reason-text">Buyer was rude or unprofessional.</div>
+        </div>
+        <div class="reason-item" onclick="selectSellReason(6)">
+          <div class="radio-outer" id="sreason-6"></div>
+          <div class="reason-text">I believe the buyer may be a scammer.</div>
+        </div>
+        <div class="reason-item" onclick="selectSellReason(7)">
+          <div class="radio-outer" id="sreason-7"></div>
+          <div class="reason-text">Other</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:#000;">
+      <div class="checkbox-row">
+        <div class="checkbox-box checked" id="sell-cancel-checkbox" onclick="toggleSellCheckbox()">
+          <span class="check-mark">✓</span>
+        </div>
+        <div class="checkbox-label">I confirm buyer has NOT paid me / I have returned the payment.</div>
+      </div>
+      <div style="padding: 0 20px 28px;">
+        <button class="btn-primary" onclick="confirmSellCancel()">Confirm cancellation</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 7: Completed — USDT Released                         -->
+  <!-- ============================================================ -->
+  <div class="screen" id="screen-sell-completed">
+    <div class="topbar">
+      <div class="back-btn" onclick="showScreen('screen-sell')">←</div>
+    </div>
+
+    <div class="success-circle">✓</div>
+    <div class="success-title">USDT Released!</div>
+    <div class="success-sub" id="completed-sub">You have successfully sold <strong id="completed-qty">10.99 USDT</strong> and received <strong id="completed-inr">₹1,000</strong>.</div>
+
+    <div class="divider" style="margin: 0 20px 16px;"></div>
+
+    <div class="detail-row">
+      <span class="label">Quantity sold</span>
+      <span class="value" id="comp-qty">10.99 USDT</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Amount received</span>
+      <span class="value" id="comp-inr">₹1,000</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Price</span>
+      <span class="value" id="comp-price">₹91.00</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Fee</span>
+      <span class="value">0 USDT</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Order No</span>
+      <span class="value" style="font-size:13px;" id="comp-order-no">—</span>
+    </div>
+
+    <div style="height:20px;"></div>
+
+    <!-- Rating -->
+    <div class="rating-box">
+      <h3>Rate your buyer</h3>
+      <div class="stars" id="ratingStars">
+        <span class="star" onclick="rateStar(1)">★</span>
+        <span class="star" onclick="rateStar(2)">★</span>
+        <span class="star" onclick="rateStar(3)">★</span>
+        <span class="star" onclick="rateStar(4)">★</span>
+        <span class="star" onclick="rateStar(5)">★</span>
+      </div>
+      <button class="btn-primary teal" id="rateSubmitBtn" onclick="submitRating()" style="margin-top:0;">Submit rating</button>
+      <div class="rating-skip" onclick="skipRating()">Skip</div>
+    </div>
+
+    <div class="bottom-fixed">
+      <button class="btn-primary" onclick="placeNewOrder()">Sell again</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 8: Canceled                                          -->
+  <!-- ============================================================ -->
+  <div class="screen" id="screen-sell-canceled">
+    <div class="topbar">
+      <div class="back-btn" onclick="showScreen('screen-sell')">←</div>
+    </div>
+    <div class="page-heading">
+      <h1>Order Canceled</h1>
+      <div style="font-size:14px;color:#888;margin-top:6px;">Your sell order has been canceled. USDT has been returned to your wallet.</div>
+    </div>
+
+    <div class="buyer-card">
+      <div class="buyer-top">
+        <div class="buyer-info">
+          <div class="buyer-avatar" id="canceled-buyer-avatar">B<div class="dot"></div></div>
+          <div>
+            <span class="buyer-name" id="canceled-buyer-name">BUYER</span>
+            <span class="star-icon">✦</span>
+          </div>
+        </div>
+        <div class="chat-btn" onclick="showScreen('screen-sell-chat')">
+          <div class="notif-dot"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">
+      <div class="usdt-icon">₮</div>
+      <span>Sell USDT</span>
+    </div>
+
+    <div class="detail-row">
+      <span class="label">Amount</span>
+      <span class="value big" id="canc-amount">₹ 1,000</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Price</span>
+      <span class="value" id="canc-price">₹91.00</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Quantity</span>
+      <span class="value" id="canc-qty">10.99 USDT</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Fee</span>
+      <span class="value">0 USDT</span>
+    </div>
+    <div class="divider"></div>
+    <div class="detail-row">
+      <span class="label">Order No</span>
+      <span class="value" style="font-size:13px;" id="canc-order-no">—</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Order time</span>
+      <span class="value" style="font-size:13px;" id="canc-time">—</span>
+    </div>
+
+    <div class="bottom-fixed">
+      <button class="btn-primary" onclick="placeNewOrder()">Place a new sell order</button>
+      <button class="btn-secondary">Order inquiry</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- OVERLAY: Release Confirm Modal                               -->
+  <!-- ============================================================ -->
+  <div class="bottom-sheet-overlay" id="release-overlay" onclick="closeReleaseModal(event)">
+    <div class="release-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle"></div>
+      <h2>Release USDT</h2>
+      <div class="big-warn">
+        <span style="font-size:18px;flex-shrink:0;">⚠️</span>
+        <span>Only release after you have <strong>confirmed the payment in your bank account</strong>. Fake screenshots are common. This action is irreversible.</span>
+      </div>
+      <div class="detail-row" style="padding: 10px 20px;">
+        <span class="label">Releasing</span>
+        <span class="value big" id="modal-release-qty">10.99 USDT</span>
+      </div>
+      <div class="detail-row" style="padding: 6px 20px 14px;">
+        <span class="label">To buyer</span>
+        <span class="value" id="modal-buyer-name">BUYER</span>
+      </div>
+      <button class="release-confirm-btn" onclick="confirmRelease()">Yes, I confirmed — Release USDT</button>
+      <button class="release-cancel-btn" onclick="closeReleaseModal()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- OVERLAY: Payment Method Sheet                                -->
+  <!-- ============================================================ -->
+  <div class="bottom-sheet-overlay" id="payment-overlay" onclick="closePaymentSheet(event)">
+    <div class="bottom-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle"></div>
+      <div class="sheet-item" onclick="selectPayment('UPI')">UPI</div>
+      <div class="sheet-item" onclick="selectPayment('IMPS')">IMPS</div>
+      <div class="sheet-item" onclick="selectPayment('NEFT')">NEFT</div>
+      <div class="sheet-item" onclick="selectPayment('Bank Transfer')">Bank Transfer</div>
+      <div class="sheet-item" onclick="selectPayment('PhonePe')">PhonePe</div>
+      <div class="sheet-item" onclick="closePaymentSheet()">Cancel</div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- OVERLAY: Image Sheet                                         -->
+  <!-- ============================================================ -->
+  <div class="bottom-sheet-overlay" id="image-overlay" onclick="closeImageSheet(event)">
+    <div class="bottom-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle"></div>
+      <div class="sheet-item">Take a photo</div>
+      <div class="sheet-item">Select from album</div>
+      <div class="sheet-item">Video</div>
+      <div class="sheet-item" onclick="closeImageSheet()">Cancel</div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast-msg" id="toast">Done</div>
+
+</div>
+
+<script>
+  // ============================================================
+  // STATE
+  // ============================================================
+  let currentAd = null;
+  let currentOrder = null;
+  let currentUser = null;
+  let timerSeconds = 15 * 60;
+  let timerInterval = null;
+  let currentTab = 'fiat';
+  let selectedSellReason = 0;
+  let sellCheckboxChecked = true;
+  let selectedRating = 0;
+  let sseSource = null;
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  window.addEventListener('DOMContentLoaded', async () => {
+    await checkAuth();
+    await loadAds();
+    selectSellReason(0);
+  });
+
+  // ============================================================
+  // AUTH
+  // ============================================================
+  async function checkAuth() {
+    try {
+      const res = await fetch('/api/p2p/me', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.loggedIn && data.user) { currentUser = data.user; return; }
+      }
+    } catch (e) {}
+    currentUser = { id: 'demo', username: 'sumitkmina8824' };
+  }
+
+  // ============================================================
+  // LOAD ADS (buy-side ads = buyers wanting USDT)
+  // ============================================================
+  async function loadAds() {
+    try {
+      const res = await fetch('/api/p2p/ads?side=buy&asset=USDT', { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.ads && data.ads.length > 0) {
+        currentAd = data.ads[0];
+        renderSellForm();
+      }
+    } catch (e) {}
+  }
+
+  function renderSellForm() {
+    if (!currentAd) return;
+    const ad = currentAd;
+    const price = Number(ad.price || 91);
+    setText('sell-price', '₹' + price.toFixed(2));
+    setText('sell-buyer-name', ad.createdByUsername || ad.advertiser || 'BUYER');
+    setText('sell-terms', ad.terms || ad.remarks || 'Payment must be received before releasing USDT.');
+    setText('stat-pay-within', (ad.payWindow || 15) + ' minute(s)');
+    setText('stat-historical', 'Buy ' + (ad.completedBuyOrders || 0) + '   Sell ' + (ad.completedSellOrders || 0));
+    setText('stat-avg-release', (ad.avgReleaseTime || '< 5') + ' min');
+    setText('stat-completed', String(ad.completedOrdersBothParties || 0));
+    const createdAt = ad.createdAt ? new Date(ad.createdAt).toISOString().split('T')[0].replace(/-/g, '.') : '';
+    if (createdAt) setText('stat-signup', createdAt);
+    const minLim = ad.minLimit || 1000;
+    const maxLim = ad.maxLimit || 5000;
+    setText('limitText', '₹' + fmtInr(minLim) + ' - ₹' + fmtInr(maxLim));
+    calcEquiv();
+  }
+
+  // ============================================================
+  // CALC EQUIV
+  // ============================================================
+  function calcEquiv() {
+    const price = parseFloat(document.getElementById('sell-price').textContent.replace('₹','').replace(',','')) || 91;
+    const val = parseFloat(document.getElementById('sellAmount').value) || 0;
+    const isFiat = currentTab === 'fiat';
+    if (isFiat) {
+      const usdt = val / price;
+      document.getElementById('equivText').innerHTML = '≈ <span>' + usdt.toFixed(2) + ' USDT</span>';
+    } else {
+      const inr = val * price;
+      document.getElementById('equivText').innerHTML = '≈ <span>₹' + fmtInr(inr) + ' INR</span>';
+    }
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById('tab-crypto').classList.toggle('active', tab === 'crypto');
+    document.getElementById('tab-fiat').classList.toggle('active', tab === 'fiat');
+    const label = document.getElementById('currencyLabel');
+    const input = document.getElementById('sellAmount');
+    if (tab === 'fiat') {
+      label.textContent = 'INR';
+      input.value = 1000;
+    } else {
+      label.textContent = 'USDT';
+      input.value = 10.99;
+    }
+    calcEquiv();
+  }
+
+  function setMax() {
+    const price = parseFloat(document.getElementById('sell-price').textContent.replace('₹','').replace(',','')) || 91;
+    const maxLim = currentAd ? (currentAd.maxLimit || 5000) : 5000;
+    if (currentTab === 'fiat') {
+      document.getElementById('sellAmount').value = maxLim;
+    } else {
+      document.getElementById('sellAmount').value = (maxLim / price).toFixed(2);
+    }
+    calcEquiv();
+  }
+
+  // ============================================================
+  // CREATE SELL ORDER
+  // ============================================================
+  async function createSellOrder() {
+    const val = parseFloat(document.getElementById('sellAmount').value) || 0;
+    if (val <= 0) { showToast('Enter a valid amount'); return; }
+
+    const price = parseFloat(document.getElementById('sell-price').textContent.replace('₹','').replace(',','')) || 91;
+    const isFiat = currentTab === 'fiat';
+    const fiatAmt = isFiat ? val : Math.round(val * price);
+    const cryptoAmt = isFiat ? (val / price) : val;
+    const payment = document.getElementById('selectedPayment').textContent;
+
+    if (currentUser && currentUser.id !== 'demo' && currentAd && currentAd.id) {
+      try {
+        const body = { adId: currentAd.id, side: 'sell', paymentMethod: payment };
+        if (isFiat) body.fiatAmount = fiatAmt;
+        else body.cryptoAmount = cryptoAmt;
+
+        const res = await fetch('/api/p2p/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          currentOrder = data.order || data;
+          renderWaitScreen();
+          showScreen('screen-wait-payment');
+          startTimer();
+          startSSE(currentOrder.id || currentOrder.reference);
+          return;
+        }
+        showToast(data.message || 'Using demo mode');
+      } catch (e) {}
+    }
+
+    // Demo fallback
+    currentOrder = {
+      fiatAmount: fiatAmt,
+      price: price,
+      cryptoAmount: cryptoAmt.toFixed(2),
+      paymentMethod: payment,
+      reference: 'SP2P-' + Date.now(),
+      createdAt: new Date().toISOString(),
+      buyerUsername: document.getElementById('sell-buyer-name').textContent,
+      yourUpi: 'sumitkmina@upi',
+      side: 'sell'
+    };
+    timerSeconds = 15 * 60;
+    renderWaitScreen();
+    showScreen('screen-wait-payment');
+    startTimer();
+  }
+
+  // ============================================================
+  // RENDER SCREENS
+  // ============================================================
+  function renderWaitScreen() {
+    if (!currentOrder) return;
+    const o = currentOrder;
+    const fiat = '₹ ' + fmtInr(Number(o.fiatAmount || 0));
+    const price = '₹' + Number(o.price || 0).toFixed(2);
+    const qty = Number(o.cryptoAmount || 0).toFixed(2) + ' USDT';
+    const buyerName = o.buyerUsername || (currentAd && (currentAd.createdByUsername || currentAd.advertiser)) || 'BUYER';
+    const payment = o.paymentMethod || 'UPI';
+    const orderNo = o.reference || o.id || '—';
+    const orderTime = o.createdAt ? formatDateTime(new Date(o.createdAt)) : '—';
+
+    // Screen 2
+    setText('wp-receive-amount', fiat);
+    setText('wp-price', price);
+    setText('wp-quantity', qty);
+    setText('wp-payment-method', payment);
+    setText('wp-your-upi', o.yourUpi || 'sumitkmina@upi');
+    setText('wp-order-no', orderNo);
+    setText('wp-order-time', orderTime);
+    setAvatar('wait-buyer-avatar', buyerName);
+    setText('wait-buyer-name', buyerName);
+
+    // Screen 3
+    setText('bp-receive-amount', fiat);
+    setText('bp-price', price);
+    setText('bp-quantity', qty);
+    setText('bp-payment-method', payment);
+    setText('bp-order-no', orderNo);
+    setAvatar('paid-buyer-avatar', buyerName);
+    setText('paid-buyer-name', buyerName);
+
+    // Chat
+    setText('chat-title', buyerName);
+    setText('chat-receive-amount', fiat);
+    setText('chat-buyer-name-msg', buyerName);
+    setText('chat-order-time-label', orderTime.split(' ')[0] || '');
+    const chatAvMsg = document.getElementById('chat-buyer-avatar-msg');
+    if (chatAvMsg) chatAvMsg.textContent = buyerName.charAt(0).toUpperCase();
+
+    // Release modal
+    setText('modal-release-qty', qty);
+    setText('modal-buyer-name', buyerName);
+
+    // Canceled screen
+    setText('canc-amount', fiat);
+    setText('canc-price', price);
+    setText('canc-qty', qty);
+    setText('canc-order-no', orderNo);
+    setText('canc-time', orderTime);
+    setAvatar('canceled-buyer-avatar', buyerName);
+    setText('canceled-buyer-name', buyerName);
+  }
+
+  function renderCompletedScreen() {
+    if (!currentOrder) return;
+    const o = currentOrder;
+    const qty = Number(o.cryptoAmount || 0).toFixed(2) + ' USDT';
+    const fiat = '₹' + fmtInr(Number(o.fiatAmount || 0));
+    const price = '₹' + Number(o.price || 0).toFixed(2);
+    const orderNo = o.reference || o.id || '—';
+    setText('completed-qty', qty);
+    setText('completed-inr', fiat);
+    setText('comp-qty', qty);
+    setText('comp-inr', fiat);
+    setText('comp-price', price);
+    setText('comp-order-no', orderNo);
+  }
+
+  // ============================================================
+  // RELEASE CRYPTO
+  // ============================================================
+  function openReleaseModal() {
+    document.getElementById('release-overlay').classList.add('active');
+  }
+  function closeReleaseModal(e) {
+    if (!e || e.target === document.getElementById('release-overlay')) {
+      document.getElementById('release-overlay').classList.remove('active');
+    }
+  }
+
+  async function confirmRelease() {
+    closeReleaseModal();
+
+    if (currentUser && currentUser.id !== 'demo' && currentOrder && (currentOrder.id)) {
+      try {
+        const res = await fetch('/api/p2p/orders/' + currentOrder.id + '/release', {
+          method: 'POST', credentials: 'include'
+        });
+        if (res.ok) {
+          renderCompletedScreen();
+          stopTimer();
+          showScreen('screen-sell-completed');
+          return;
+        }
+      } catch (e) {}
+    }
+
+    // Demo
+    renderCompletedScreen();
+    stopTimer();
+    showScreen('screen-sell-completed');
+  }
+
+  // ============================================================
+  // SSE — listen for buyer-paid event
+  // ============================================================
+  function startSSE(orderId) {
+    if (!orderId || !window.EventSource) return;
+    try {
+      if (sseSource) sseSource.close();
+      sseSource = new EventSource('/api/p2p/orders/' + orderId + '/stream', { withCredentials: true });
+      sseSource.onmessage = (e) => {
+        try {
+          const d = JSON.parse(e.data);
+          handleOrderEvent(d);
+        } catch (_) {}
+      };
+      sseSource.onerror = () => { sseSource.close(); };
+    } catch (_) {}
+  }
+
+  function handleOrderEvent(d) {
+    if (!d || !d.type) return;
+    if (d.type === 'buyer_paid' || d.status === 'buyer_paid') {
+      // Buyer marked payment — move to screen 3
+      showScreen('screen-buyer-paid');
+      showToast('Buyer has marked payment as sent. Please verify!');
+      // Switch chat release button
+      const btn = document.getElementById('chat-action-btn');
+      if (btn) { btn.textContent = 'Release'; btn.className = 'release-btn'; }
+    }
+    if (d.type === 'order_canceled' || d.status === 'canceled') {
+      showScreen('screen-sell-canceled');
+    }
+  }
+
+  // ============================================================
+  // TIMER
+  // ============================================================
+  function startTimer() {
+    stopTimer();
+    timerInterval = setInterval(() => {
+      timerSeconds--;
+      if (timerSeconds <= 0) {
+        timerSeconds = 0;
+        stopTimer();
+        // Auto cancel
+        showScreen('screen-sell-canceled');
+      }
+      updateTimerDisplay();
+    }, 1000);
+    updateTimerDisplay();
+  }
+
+  function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  function updateTimerDisplay() {
+    const m = Math.floor(timerSeconds / 60);
+    const s = timerSeconds % 60;
+    const str = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    setText('timer1', str);
+    setText('timer2', str);
+    setText('chatTimer', str);
+  }
+
+  // ============================================================
+  // CANCEL FLOW
+  // ============================================================
+  function selectSellReason(idx) {
+    for (let i = 0; i < 8; i++) {
+      const el = document.getElementById('sreason-' + i);
+      if (!el) continue;
+      if (i === idx) {
+        el.classList.add('checked');
+        el.innerHTML = '<div class="radio-inner"></div>';
+      } else {
+        el.classList.remove('checked');
+        el.innerHTML = '';
+      }
+    }
+    selectedSellReason = idx;
+  }
+
+  function toggleSellCheckbox() {
+    sellCheckboxChecked = !sellCheckboxChecked;
+    const box = document.getElementById('sell-cancel-checkbox');
+    box.classList.toggle('checked', sellCheckboxChecked);
+    box.innerHTML = sellCheckboxChecked ? '<span class="check-mark">✓</span>' : '';
+  }
+
+  async function confirmSellCancel() {
+    if (!sellCheckboxChecked) { showToast('Please confirm the checkbox'); return; }
+
+    if (currentUser && currentUser.id !== 'demo' && currentOrder && currentOrder.id) {
+      try {
+        const reasons = [
+          "I don't want to proceed.",
+          "Buyer doesn't meet my requirements.",
+          "Buyer is unresponsive.",
+          "Agreed to cancel.",
+          "Third-party payment request.",
+          "Rude or unprofessional.",
+          "Potential scammer.",
+          "Other"
+        ];
+        await fetch('/api/p2p/orders/' + currentOrder.id + '/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ reason: reasons[selectedSellReason] || 'Other' })
+        });
+      } catch (e) {}
+    }
+
+    stopTimer();
+    if (sseSource) { sseSource.close(); sseSource = null; }
+    showScreen('screen-sell-canceled');
+    showToast('Order canceled');
+  }
+
+  // ============================================================
+  // RATING
+  // ============================================================
+  function rateStar(n) {
+    selectedRating = n;
+    document.querySelectorAll('#ratingStars .star').forEach((s, i) => {
+      s.classList.toggle('active', i < n);
+    });
+  }
+
+  async function submitRating() {
+    if (selectedRating === 0) { showToast('Please select a rating'); return; }
+    if (currentOrder && currentOrder.id) {
+      try {
+        await fetch('/api/p2p/orders/' + currentOrder.id + '/rate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ rating: selectedRating, role: 'seller' })
+        });
+      } catch (e) {}
+    }
+    showToast('Rating submitted. Thank you!');
+    document.getElementById('rateSubmitBtn').textContent = 'Rated ★'.repeat(selectedRating).slice(0,10);
+    document.getElementById('rateSubmitBtn').style.background = '#333';
+    document.getElementById('rateSubmitBtn').style.color = '#888';
+  }
+
+  function skipRating() {
+    document.querySelector('.rating-box').style.display = 'none';
+  }
+
+  // ============================================================
+  // PAYMENT METHOD SHEET
+  // ============================================================
+  function openPaymentSheet() {
+    document.getElementById('payment-overlay').classList.add('active');
+  }
+  function closePaymentSheet(e) {
+    if (!e || e.target === document.getElementById('payment-overlay')) {
+      document.getElementById('payment-overlay').classList.remove('active');
+    }
+  }
+  function selectPayment(method) {
+    document.getElementById('selectedPayment').textContent = method;
+    closePaymentSheet();
+  }
+
+  // ============================================================
+  // IMAGE SHEET
+  // ============================================================
+  function showImageSheet() {
+    document.getElementById('image-overlay').classList.add('active');
+  }
+  function closeImageSheet(e) {
+    if (!e || e.target === document.getElementById('image-overlay')) {
+      document.getElementById('image-overlay').classList.remove('active');
+    }
+  }
+
+  // ============================================================
+  // CHAT — send message
+  // ============================================================
+  function sendMsg() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+
+    const container = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'msg-item mine';
+    div.innerHTML = `
+      <div class="msg-bubble-wrap">
+        <div class="msg-bubble">${escHtml(text)}</div>
+      </div>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+
+    // Send to backend
+    if (currentOrder && currentOrder.id) {
+      fetch('/api/p2p/orders/' + currentOrder.id + '/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ message: text })
+      }).catch(() => {});
+    }
+  }
+
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById(id);
+    if (el) { el.classList.add('active'); el.scrollTop = 0; }
+  }
+
+  function goBack() {
+    window.history.back();
+  }
+
+  function placeNewOrder() {
+    currentOrder = null;
+    stopTimer();
+    if (sseSource) { sseSource.close(); sseSource = null; }
+    showScreen('screen-sell');
+  }
+
+  // ============================================================
+  // HELPERS
+  // ============================================================
+  function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+
+  function setAvatar(id, name) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = name.charAt(0).toUpperCase() + '<div class="dot"></div>';
+  }
+
+  function fmtInr(n) {
+    return Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  }
+
+  function formatDateTime(d) {
+    const pad = n => String(n).padStart(2,'0');
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+      ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function copyText(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent.trim()).then(() => showToast('Copied!'));
+  }
+
+  function showToast(msg, duration = 2500) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), duration);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bitegit Assets</title>
+    <script src="/bitegit-config.js"></script>
+    <link rel="stylesheet" href="/mobile-nav.css?v=20260303b" />
+    <style>
+      :root {
+        --assets-bg: #0b0f18;
+        --assets-panel: #121826;
+        --assets-panel-2: #171f30;
+        --assets-line: rgba(255, 255, 255, 0.12);
+        --assets-text: #ecf1fb;
+        --assets-muted: #95a2b9;
+        --assets-accent: #8dfb00;
+        --assets-danger: #ff6b7c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        min-height: 100%;
+        overflow-x: hidden;
+      }
+
+      body.assets-page {
+        background: radial-gradient(circle at 10% 0%, rgba(17, 145, 224, 0.15), transparent 40%), var(--assets-bg);
+        color: var(--assets-text);
+        font-family: 'Manrope', 'Segoe UI', sans-serif;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .assets-header {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        background: rgba(11, 15, 24, 0.92);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--assets-line);
+      }
+
+      .assets-header-inner {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 0.9rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.8rem;
+      }
+
+      .assets-brand {
+        color: var(--assets-accent);
+        text-decoration: none;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+      }
+
+      .assets-nav {
+        display: flex;
+        gap: 0.8rem;
+      }
+
+      .assets-nav a {
+        color: var(--assets-muted);
+        text-decoration: none;
+        font-size: 0.92rem;
+      }
+
+      .assets-nav a.active {
+        color: var(--assets-text);
+        font-weight: 700;
+      }
+
+      .assets-main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 1rem 1rem calc(110px + env(safe-area-inset-bottom));
+      }
+
+      .assets-shell {
+        background: var(--assets-panel);
+        border: 1px solid var(--assets-line);
+        border-radius: 16px;
+        padding: 1rem;
+        box-shadow: 0 18px 38px rgba(0, 0, 0, 0.38);
+      }
+
+      .assets-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 0.8rem;
+        flex-wrap: wrap;
+      }
+
+      .assets-head h1 {
+        margin: 0;
+        font-size: 1.3rem;
+      }
+
+      .assets-status {
+        margin: 0;
+        color: var(--assets-muted);
+        font-size: 0.9rem;
+      }
+
+      .assets-status.error {
+        color: var(--assets-danger);
+      }
+
+      .assets-tabs {
+        display: inline-grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
+        max-width: 420px;
+      }
+
+      .assets-tab {
+        min-height: 42px;
+        border-radius: 12px;
+        border: 1px solid var(--assets-line);
+        background: var(--assets-panel-2);
+        color: var(--assets-muted);
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .assets-tab.active {
+        background: var(--assets-accent);
+        color: #061004;
+        border-color: transparent;
+      }
+
+      .assets-balance-card {
+        border: 1px solid var(--assets-line);
+        background: #0f1522;
+        border-radius: 14px;
+        padding: 1rem;
+        margin-top: 0.8rem;
+      }
+
+      .assets-balance-card p {
+        margin: 0;
+        color: var(--assets-muted);
+      }
+
+      .assets-balance-value {
+        margin-top: 0.5rem;
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: var(--assets-accent);
+      }
+
+      .assets-summary-line {
+        margin-top: 0.6rem;
+        color: var(--assets-muted);
+        font-size: 0.88rem;
+      }
+
+      .assets-actions {
+        margin-top: 1rem;
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+
+      .assets-btn {
+        min-height: 42px;
+        padding: 0 16px;
+        border-radius: 10px;
+        border: 1px solid var(--assets-line);
+        background: var(--assets-panel-2);
+        color: var(--assets-text);
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .assets-btn.primary {
+        background: var(--assets-accent);
+        color: #061004;
+        border-color: transparent;
+      }
+
+      .assets-msg {
+        margin-top: 0.8rem;
+        color: var(--assets-muted);
+        min-height: 1.2rem;
+      }
+
+      .assets-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 150;
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+      }
+
+      .assets-modal-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(6, 8, 14, 0.78);
+      }
+
+      .assets-modal-card {
+        position: relative;
+        width: min(430px, 100%);
+        border-radius: 14px;
+        border: 1px solid var(--assets-line);
+        background: #121a28;
+        padding: 1rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.42);
+      }
+
+      .assets-modal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.8rem;
+      }
+
+      .assets-modal-head h2 {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      .assets-modal-close {
+        min-width: 34px;
+        min-height: 34px;
+        border-radius: 8px;
+        border: 1px solid var(--assets-line);
+        background: #1a2436;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      .assets-note {
+        color: var(--assets-muted);
+        margin-top: 0.5rem;
+        margin-bottom: 0.65rem;
+        font-size: 0.9rem;
+      }
+
+      .assets-select {
+        width: 100%;
+        min-height: 40px;
+        border-radius: 10px;
+        border: 1px solid var(--assets-line);
+        background: #0f1522;
+        color: var(--assets-text);
+        padding: 0 0.72rem;
+      }
+
+      .assets-address-box {
+        margin-top: 0.75rem;
+        border: 1px solid var(--assets-line);
+        border-radius: 10px;
+        background: #0f1522;
+        padding: 0.75rem;
+      }
+
+      .assets-field-label {
+        margin: 0 0 0.45rem;
+        color: var(--assets-muted);
+        font-size: 0.86rem;
+      }
+
+      .assets-address-row {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+      }
+
+      .assets-address-code {
+        flex: 1;
+        min-width: 0;
+        border: 1px solid var(--assets-line);
+        border-radius: 8px;
+        background: #111a2a;
+        padding: 0.55rem;
+        font-size: 0.83rem;
+        color: var(--assets-text);
+        word-break: break-all;
+      }
+
+      .assets-copy-btn {
+        min-height: 34px;
+        padding: 0 0.78rem;
+        border-radius: 8px;
+        border: 1px solid var(--assets-line);
+        background: #1a2436;
+        color: var(--assets-text);
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .assets-copy-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .assets-qr-wrap {
+        margin-top: 0.75rem;
+        border: 1px solid var(--assets-line);
+        border-radius: 10px;
+        background: #0f1522;
+        padding: 0.75rem;
+        display: grid;
+        place-items: center;
+        gap: 0.45rem;
+      }
+
+      .assets-qr-img {
+        width: 190px;
+        height: 190px;
+        border-radius: 10px;
+        border: 1px solid var(--assets-line);
+        background: #fff;
+        object-fit: contain;
+      }
+
+      .assets-qr-meta {
+        margin: 0;
+        font-size: 0.8rem;
+        color: var(--assets-muted);
+        text-align: center;
+      }
+
+      .assets-withdraw-form {
+        margin-top: 0.45rem;
+        display: grid;
+        gap: 0.62rem;
+      }
+
+      .assets-inline-row {
+        display: flex;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+      }
+
+      .assets-inline-row .assets-input {
+        flex: 1;
+      }
+
+      .assets-inline-row .assets-btn {
+        min-width: 130px;
+      }
+
+      .assets-scanner {
+        margin-top: 0.4rem;
+        border: 1px dashed var(--assets-line);
+        border-radius: 10px;
+        padding: 0.65rem;
+        background: rgba(9, 14, 24, 0.75);
+      }
+
+      .assets-scanner video {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--assets-line);
+        background: #000;
+      }
+
+      .assets-scanner-actions {
+        margin-top: 0.6rem;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .assets-input {
+        min-height: 42px;
+        border-radius: 10px;
+        border: 1px solid var(--assets-line);
+        background: #0f1522;
+        color: var(--assets-text);
+        padding: 0 0.72rem;
+      }
+
+      .assets-summary-line.error {
+        color: var(--assets-danger);
+      }
+
+      .assets-summary-line.success {
+        color: var(--assets-accent);
+      }
+
+      @media (max-width: 768px) {
+        .assets-nav {
+          display: none;
+        }
+
+        .assets-main {
+          padding-top: 0.75rem;
+        }
+      }
+    </style>
+  </head>
+  <body class="assets-page has-mobile-nav">
+    <header class="assets-header">
+      <div class="assets-header-inner">
+        <a class="assets-brand" href="/">BITEGIT</a>
+        <nav class="assets-nav" aria-label="Assets navigation">
+          <a href="/">Home</a>
+          <a href="/markets.html">Markets</a>
+          <a href="/trade/spot/BTCUSDT">Trade</a>
+          <a href="/assets" class="active" aria-current="page">Assets</a>
+          <a href="/p2p">P2P</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="assets-main">
+      <section class="assets-shell">
+        <div class="assets-head">
+          <h1>Assets</h1>
+          <p id="assetsStatus" class="assets-status">Loading balances...</p>
+        </div>
+
+        <div class="assets-tabs" role="tablist" aria-label="Wallet sections">
+          <button type="button" class="assets-tab active" data-assets-tab="overview" aria-selected="true">Overview</button>
+          <button type="button" class="assets-tab" data-assets-tab="spot" aria-selected="false">Spot</button>
+          <button type="button" class="assets-tab" data-assets-tab="funding" aria-selected="false">Funding</button>
+        </div>
+
+        <section id="assetsPanelOverview" class="assets-balance-card" data-assets-panel="overview">
+          <p>Total Balance</p>
+          <div id="assetsTotalBalance" class="assets-balance-value">0.00 USDT</div>
+          <p class="assets-summary-line">Spot: <span id="assetsSpotInline">0.00 USDT</span> | Funding: <span id="assetsFundingInline">0.00 USDT</span></p>
+        </section>
+
+        <section id="assetsPanelSpot" class="assets-balance-card hidden" data-assets-panel="spot">
+          <p>Spot Wallet Balance</p>
+          <div id="assetsSpotBalance" class="assets-balance-value">0.00 USDT</div>
+          <p class="assets-summary-line">Available for spot trading.</p>
+        </section>
+
+        <section id="assetsPanelFunding" class="assets-balance-card hidden" data-assets-panel="funding">
+          <p>Funding Wallet Balance</p>
+          <div id="assetsFundingBalance" class="assets-balance-value">0.00 USDT</div>
+          <p class="assets-summary-line">Used for deposits, withdrawals, and P2P settlement.</p>
+        </section>
+
+        <div class="assets-actions">
+          <button id="assetsDepositBtn" type="button" class="assets-btn primary">Deposit</button>
+          <button id="assetsWithdrawBtn" type="button" class="assets-btn">Withdraw</button>
+          <button id="assetsTransferBtn" type="button" class="assets-btn">Transfer</button>
+        </div>
+
+        <p id="assetsActionMessage" class="assets-msg"></p>
+      </section>
+    </main>
+
+    <nav class="mobile-app-nav" aria-label="App navigation">
+      <a href="/">
+        <span class="nav-icon">⌂</span>
+        <span class="nav-label">Home</span>
+      </a>
+      <a href="/markets.html">
+        <span class="nav-icon">◍</span>
+        <span class="nav-label">Markets</span>
+      </a>
+      <a href="/trade/spot/BTCUSDT">
+        <span class="nav-icon">⇅</span>
+        <span class="nav-label">Trade</span>
+      </a>
+      <a href="/assets" class="active" aria-current="page">
+        <span class="nav-icon">◔</span>
+        <span class="nav-label">Assets</span>
+      </a>
+    </nav>
+
+    <section id="depositModal" class="assets-modal hidden" aria-hidden="true">
+      <div class="assets-modal-backdrop" data-modal-close="depositModal"></div>
+      <article class="assets-modal-card" role="dialog" aria-modal="true" aria-labelledby="depositModalTitle">
+        <div class="assets-modal-head">
+          <h2 id="depositModalTitle">Deposit</h2>
+          <button type="button" class="assets-modal-close" data-modal-close="depositModal" aria-label="Close deposit">✕</button>
+        </div>
+        <p class="assets-note">Select network and deposit only USDT on that exact chain.</p>
+        <label class="assets-field-label" for="assetsDepositNetwork">Deposit Network</label>
+        <select id="assetsDepositNetwork" class="assets-select">
+          <option value="TRC20">USDT - TRC20</option>
+          <option value="ERC20">USDT - ERC20</option>
+          <option value="BEP20">USDT - BEP20</option>
+        </select>
+        <div class="assets-address-box">
+          <p class="assets-field-label">Deposit Address</p>
+          <div class="assets-address-row">
+            <code id="assetsDepositAddressValue" class="assets-address-code">Admin will provide deposit address shortly.</code>
+            <button id="assetsDepositCopyBtn" type="button" class="assets-copy-btn" disabled>Copy</button>
+          </div>
+          <p id="assetsDepositNetworkWarning" class="assets-summary-line">Send only USDT on selected network to this address.</p>
+          <p id="assetsDepositConfirmations" class="assets-summary-line">Required confirmations: -</p>
+        </div>
+        <div class="assets-qr-wrap">
+          <img id="assetsDepositQrImage" class="assets-qr-img" alt="Deposit QR Code" />
+          <p id="assetsDepositQrMeta" class="assets-qr-meta">QR will appear after address is configured.</p>
+        </div>
+      </article>
+    </section>
+
+    <section id="withdrawModal" class="assets-modal hidden" aria-hidden="true">
+      <div class="assets-modal-backdrop" data-modal-close="withdrawModal"></div>
+      <article class="assets-modal-card" role="dialog" aria-modal="true" aria-labelledby="withdrawModalTitle">
+        <div class="assets-modal-head">
+          <h2 id="withdrawModalTitle">Withdraw</h2>
+          <button type="button" class="assets-modal-close" data-modal-close="withdrawModal" aria-label="Close withdraw">✕</button>
+        </div>
+        <p class="assets-note">Choose network and paste/scan destination address.</p>
+        <form id="assetsWithdrawForm" class="assets-withdraw-form">
+          <label class="assets-field-label" for="assetsWithdrawNetwork">Withdraw Network</label>
+          <select id="assetsWithdrawNetwork" class="assets-select">
+            <option value="TRC20">USDT - TRC20</option>
+            <option value="ERC20">USDT - ERC20</option>
+            <option value="BEP20">USDT - BEP20</option>
+          </select>
+          <label class="assets-field-label" for="assetsWithdrawAddress">Recipient Address</label>
+          <div class="assets-inline-row">
+            <input id="assetsWithdrawAddress" class="assets-input" type="text" placeholder="T... / 0x..." autocomplete="off" required />
+            <button id="assetsWithdrawScanBtn" type="button" class="assets-btn">Scan QR</button>
+          </div>
+          <div id="assetsWithdrawScanner" class="assets-scanner hidden" aria-hidden="true">
+            <video id="assetsWithdrawScannerVideo" autoplay muted playsinline></video>
+            <p id="assetsWithdrawScannerHint" class="assets-summary-line">Point camera to address QR code.</p>
+            <div class="assets-scanner-actions">
+              <button id="assetsWithdrawScannerCloseBtn" type="button" class="assets-btn">Stop Scan</button>
+            </div>
+          </div>
+          <label class="assets-field-label" for="assetsWithdrawAmount">Amount (USDT)</label>
+          <input id="assetsWithdrawAmount" class="assets-input" type="number" min="0.000001" step="0.000001" placeholder="0.00" required />
+          <button id="assetsWithdrawSubmitBtn" type="submit" class="assets-btn primary">Submit Withdrawal</button>
+          <p id="assetsWithdrawResult" class="assets-summary-line"></p>
+        </form>
+      </article>
+    </section>
+
+    <script src="/assets.js?v=20260303c"></script>
+  </body>
+</html>

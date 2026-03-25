@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Log In — Bitegit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0b0e11;
+      --surface: #161a1f;
+      --border: rgba(255,255,255,0.08);
+      --text: #eaecef;
+      --muted: #848e9c;
+      --accent: #f0b90b;
+      --green: #2ecc71;
+      --green-hover: #27ae60;
+      --input-bg: #1e2329;
+      --input-border: #2b3139;
+      --input-focus: #f0b90b;
+      --error: #f6465d;
+      --radius: 8px;
+    }
+
+    html, body { width: 100%; min-height: 100vh; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; }
+
+    /* ── Top bar ── */
+    .topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 56px; padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--bg); border-bottom: 1px solid var(--border);
+    }
+    .topbar-logo { font-size: 20px; font-weight: 700; color: var(--accent); text-decoration: none; letter-spacing: 0.5px; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .topbar-link { color: var(--muted); text-decoration: none; font-size: 13px; transition: color .2s; }
+    .topbar-link:hover { color: var(--text); }
+    .topbar-signup { background: var(--accent); color: #000; font-weight: 600; font-size: 13px; padding: 7px 16px; border-radius: var(--radius); text-decoration: none; transition: opacity .2s; }
+    .topbar-signup:hover { opacity: 0.88; }
+
+    /* ── Layout ── */
+    .page { display: flex; min-height: 100vh; padding-top: 56px; }
+
+    /* Left panel */
+    .left-panel {
+      flex: 1; display: none;
+      flex-direction: column; justify-content: center; align-items: center;
+      padding: 48px; position: relative; overflow: hidden;
+      background: linear-gradient(135deg, #0f1923 0%, #0b0e11 60%);
+    }
+    @media (min-width: 900px) { .left-panel { display: flex; } }
+    .left-panel::before {
+      content: ''; position: absolute; top: -100px; left: -100px;
+      width: 400px; height: 400px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(240,185,11,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .left-panel::after {
+      content: ''; position: absolute; bottom: -80px; right: -80px;
+      width: 300px; height: 300px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(46,204,113,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .left-graphic { position: relative; z-index: 1; text-align: center; }
+    .left-coins { font-size: 80px; line-height: 1; margin-bottom: 32px; }
+    .left-title { font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 12px; line-height: 1.3; }
+    .left-sub { font-size: 15px; color: var(--muted); max-width: 340px; line-height: 1.6; }
+    .left-stats { display: flex; gap: 32px; margin-top: 40px; }
+    .stat { text-align: center; }
+    .stat-val { font-size: 22px; font-weight: 700; color: var(--accent); }
+    .stat-lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* Right panel / form */
+    .right-panel {
+      width: 100%; max-width: 460px; margin: 0 auto;
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 40px 24px;
+    }
+    @media (min-width: 900px) { .right-panel { padding: 48px 48px; } }
+
+    h1 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+    .welcome-sub { color: var(--muted); margin-bottom: 28px; font-size: 14px; }
+
+    /* Channel tabs */
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+    .tab-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--muted); font-size: 14px; font-weight: 500;
+      padding: 10px 16px; border-bottom: 2px solid transparent;
+      margin-bottom: -1px; transition: color .2s, border-color .2s;
+      font-family: inherit;
+    }
+    .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+
+    /* Form */
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; color: var(--muted); margin-bottom: 6px; font-size: 13px; }
+    .form-input {
+      width: 100%; background: var(--input-bg); border: 1px solid var(--input-border);
+      border-radius: var(--radius); color: var(--text);
+      font-size: 14px; font-family: inherit; padding: 12px 14px;
+      outline: none; transition: border-color .2s;
+    }
+    .form-input::placeholder { color: var(--muted); }
+    .form-input:focus { border-color: var(--input-focus); }
+    .form-input.error { border-color: var(--error); }
+
+    .password-wrap { position: relative; }
+    .password-wrap .form-input { padding-right: 44px; }
+    .toggle-pw {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer; color: var(--muted);
+      font-size: 16px; padding: 4px; line-height: 1;
+    }
+    .toggle-pw:hover { color: var(--text); }
+
+    .form-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; margin-top: -4px; }
+    .checkbox-label { display: flex; align-items: center; gap: 7px; cursor: pointer; color: var(--muted); font-size: 13px; }
+    .checkbox-label input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+    .forgot-link { color: var(--muted); font-size: 13px; text-decoration: none; transition: color .2s; }
+    .forgot-link:hover { color: var(--accent); }
+
+    .err-msg { color: var(--error); font-size: 12px; margin-top: 4px; display: none; }
+    .err-msg.show { display: block; }
+
+    .btn-primary {
+      width: 100%; background: var(--accent); color: #000;
+      border: none; border-radius: var(--radius);
+      font-size: 15px; font-weight: 700; font-family: inherit;
+      padding: 13px; cursor: pointer; transition: opacity .2s, transform .1s;
+      margin-bottom: 20px;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.88; }
+    .btn-primary:active:not(:disabled) { transform: scale(0.98); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status-msg { text-align: center; font-size: 13px; padding: 10px 14px; border-radius: var(--radius); margin-bottom: 16px; display: none; }
+    .status-msg.show { display: block; }
+    .status-msg.success { background: rgba(46,204,113,0.12); color: #2ecc71; border: 1px solid rgba(46,204,113,0.2); }
+    .status-msg.fail { background: rgba(246,70,93,0.12); color: #f6465d; border: 1px solid rgba(246,70,93,0.2); }
+
+    /* Divider */
+    .divider { display: flex; align-items: center; gap: 12px; margin: 4px 0 20px; }
+    .divider-line { flex: 1; height: 1px; background: var(--border); }
+    .divider-text { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+    /* Social buttons */
+    .social-btns { display: flex; gap: 10px; margin-bottom: 24px; }
+    .social-btn {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: var(--input-bg); border: 1px solid var(--input-border);
+      border-radius: var(--radius); padding: 10px 8px;
+      color: var(--text); font-size: 13px; font-family: inherit;
+      cursor: pointer; transition: border-color .2s, background .2s; text-decoration: none;
+    }
+    .social-btn:hover { border-color: var(--muted); background: #252c35; }
+    .social-icon { font-size: 18px; line-height: 1; }
+
+    .signup-prompt { text-align: center; color: var(--muted); font-size: 13px; }
+    .signup-prompt a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .signup-prompt a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<header class="topbar">
+  <a class="topbar-logo" href="/">BITEGIT</a>
+  <div class="topbar-right">
+    <span style="color:var(--muted);font-size:13px;">Don't have an account?</span>
+    <a class="topbar-signup" href="/signup.html">Sign Up</a>
+  </div>
+</header>
+
+<div class="page">
+  <!-- Left panel -->
+  <div class="left-panel">
+    <div class="left-graphic">
+      <div class="left-coins">₿ ◎ Ξ</div>
+      <div class="left-title">Trade the World's<br/>Leading Crypto</div>
+      <div class="left-sub">Secure, fast, and trusted by millions of traders worldwide. Start your crypto journey today.</div>
+      <div class="left-stats">
+        <div class="stat"><div class="stat-val">10M+</div><div class="stat-lbl">Users</div></div>
+        <div class="stat"><div class="stat-val">700+</div><div class="stat-lbl">Coins</div></div>
+        <div class="stat"><div class="stat-val">$2B+</div><div class="stat-lbl">Daily Volume</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel (form) -->
+  <div class="right-panel">
+    <h1>Log In</h1>
+    <p class="welcome-sub">Welcome back to Bitegit</p>
+
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" id="tabEmail" data-ch="email" role="tab">Email</button>
+      <button class="tab-btn" id="tabPhone" data-ch="phone" role="tab">Phone Number</button>
+    </div>
+
+    <form id="loginForm" novalidate>
+      <div class="form-group">
+        <label class="form-label" id="contactLbl" for="contactInp">Email Address</label>
+        <input class="form-input" id="contactInp" name="contact" type="email" autocomplete="email" placeholder="Enter your email" />
+        <div class="err-msg" id="contactErr">Please enter a valid email address.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="passwordInp">Password</label>
+        <div class="password-wrap">
+          <input class="form-input" id="passwordInp" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" />
+          <button class="toggle-pw" type="button" id="togglePw" aria-label="Show password">👁</button>
+        </div>
+        <div class="err-msg" id="passwordErr">Password is required.</div>
+      </div>
+
+      <div class="form-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="rememberMe" />
+          Remember me
+        </label>
+        <a class="forgot-link" href="/auth.html?mode=forgot">Forgot password?</a>
+      </div>
+
+      <div class="status-msg" id="statusMsg"></div>
+
+      <button class="btn-primary" type="submit" id="submitBtn">Log In</button>
+    </form>
+
+    <div class="divider">
+      <div class="divider-line"></div>
+      <span class="divider-text">Or continue with</span>
+      <div class="divider-line"></div>
+    </div>
+
+    <div class="social-btns">
+      <button class="social-btn" type="button" id="googleBtn">
+        <span class="social-icon">G</span>
+        <span>Google</span>
+      </button>
+      <button class="social-btn" type="button" id="appleBtn">
+        <span class="social-icon">⌘</span>
+        <span>Apple</span>
+      </button>
+      <button class="social-btn" type="button" id="qrBtn">
+        <span class="social-icon">⬚</span>
+        <span>QR Code</span>
+      </button>
+    </div>
+
+    <div class="signup-prompt">
+      Don't have an account? <a href="/signup.html">Sign Up</a>
+    </div>
+  </div>
+</div>
+
+<script src="/bitegit-config.js"></script>
+<script>
+(function () {
+  const API = (window.BITEGIT_API_BASE || 'http://localhost:3000/api/v1');
+  let channel = 'email';
+
+  const form = document.getElementById('loginForm');
+  const contactInp = document.getElementById('contactInp');
+  const contactLbl = document.getElementById('contactLbl');
+  const contactErr = document.getElementById('contactErr');
+  const passwordInp = document.getElementById('passwordInp');
+  const passwordErr = document.getElementById('passwordErr');
+  const togglePw = document.getElementById('togglePw');
+  const submitBtn = document.getElementById('submitBtn');
+  const statusMsg = document.getElementById('statusMsg');
+  const tabEmail = document.getElementById('tabEmail');
+  const tabPhone = document.getElementById('tabPhone');
+
+  // Tab switching
+  [tabEmail, tabPhone].forEach(btn => {
+    btn.addEventListener('click', () => {
+      [tabEmail, tabPhone].forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+      channel = btn.dataset.ch;
+      if (channel === 'email') {
+        contactLbl.textContent = 'Email Address';
+        contactInp.type = 'email';
+        contactInp.placeholder = 'Enter your email';
+        contactInp.autocomplete = 'email';
+        contactErr.textContent = 'Please enter a valid email address.';
+      } else {
+        contactLbl.textContent = 'Phone Number';
+        contactInp.type = 'tel';
+        contactInp.placeholder = '+1 234 567 8900';
+        contactInp.autocomplete = 'tel';
+        contactErr.textContent = 'Please enter a valid phone number.';
+      }
+      contactInp.value = '';
+      clearErrors();
+    });
+  });
+
+  // Toggle password
+  togglePw.addEventListener('click', () => {
+    const show = passwordInp.type === 'password';
+    passwordInp.type = show ? 'text' : 'password';
+    togglePw.textContent = show ? '🙈' : '👁';
+  });
+
+  function clearErrors() {
+    [contactErr, passwordErr].forEach(el => el.classList.remove('show'));
+    [contactInp, passwordInp].forEach(el => el.classList.remove('error'));
+    hideStatus();
+  }
+
+  function showStatus(text, type) {
+    statusMsg.textContent = text;
+    statusMsg.className = 'status-msg show ' + type;
+  }
+
+  function hideStatus() {
+    statusMsg.className = 'status-msg';
+  }
+
+  function setLoading(on) {
+    submitBtn.disabled = on;
+    submitBtn.textContent = on ? 'Logging in…' : 'Log In';
+  }
+
+  function validate() {
+    let ok = true;
+    const contact = contactInp.value.trim();
+    if (channel === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) {
+      contactErr.classList.add('show'); contactInp.classList.add('error'); ok = false;
+    }
+    if (channel === 'phone' && !/^\+?\d{7,15}$/.test(contact.replace(/\s/g, ''))) {
+      contactErr.classList.add('show'); contactInp.classList.add('error'); ok = false;
+    }
+    if (!passwordInp.value.trim()) {
+      passwordErr.classList.add('show'); passwordInp.classList.add('error'); ok = false;
+    }
+    return ok;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearErrors();
+    if (!validate()) return;
+
+    setLoading(true);
+    try {
+      const body = channel === 'email'
+        ? { email: contactInp.value.trim().toLowerCase(), password: passwordInp.value }
+        : { phone: contactInp.value.trim().replace(/\s/g, ''), password: passwordInp.value };
+
+      const res = await fetch(API + '/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        const tok = data.accessToken || data.token;
+        if (tok) localStorage.setItem('bitegit_token', tok);
+        if (data.refreshToken) localStorage.setItem('bitegit_refresh_token', data.refreshToken);
+        showStatus('Login successful! Redirecting…', 'success');
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect');
+        const safe = redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/';
+        setTimeout(() => { window.location.href = safe; }, 900);
+      } else {
+        showStatus(data.message || 'Login failed. Please check your credentials.', 'fail');
+      }
+    } catch {
+      showStatus('Network error. Please try again.', 'fail');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  // Social stubs
+  document.getElementById('googleBtn').addEventListener('click', () => showStatus('Google login coming soon.', 'fail'));
+  document.getElementById('appleBtn').addEventListener('click', () => showStatus('Apple login coming soon.', 'fail'));
+  document.getElementById('qrBtn').addEventListener('click', () => showStatus('QR login coming soon.', 'fail'));
+})();
+</script>
+</body>
+</html>
