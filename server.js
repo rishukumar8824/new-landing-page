@@ -2667,6 +2667,18 @@ app.get('/api/p2p/ads', async (req, res) => {
   }
 });
 
+app.get('/api/p2p/ads/:adId', async (req, res) => {
+  try {
+    const offer = await repos.getOfferById(req.params.adId);
+    if (!offer) {
+      return res.status(404).json({ message: 'Ad not found.' });
+    }
+    return res.json({ success: true, ad: offer });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
+
 app.get('/api/p2p/my-ads', requiresP2PUser, async (req, res) => {
   const side = String(req.query.side || '').trim().toLowerCase();
   const asset = String(req.query.asset || 'USDT').trim().toUpperCase();
@@ -2750,6 +2762,77 @@ async function createP2PAdController(req, res) {
 // Backward compatible + new secure endpoint.
 app.post('/api/p2p/offers', requiresP2PUser, createP2PAdController);
 app.post('/api/p2p/ads', requiresP2PUser, createP2PAdController);
+
+app.patch('/api/p2p/offers/:offerId', requiresP2PUser, async (req, res) => {
+  try {
+    const userId = String(req.p2pUser?.id || '').trim();
+    const { offerId } = req.params;
+    const offer = await repos.getOfferById(offerId);
+    if (!offer) {
+      return res.status(404).json({ message: 'Offer not found.' });
+    }
+    if (String(offer.createdByUserId || '').trim() !== userId) {
+      return res.status(403).json({ message: 'Not your ad.' });
+    }
+
+    const { price, minLimit, maxLimit, payments, status, remark } = req.body || {};
+    if (status && !['ACTIVE', 'PAUSED'].includes(String(status).trim().toUpperCase())) {
+      return res.status(400).json({ message: 'Status must be ACTIVE or PAUSED.' });
+    }
+
+    const updated = await repos.updateOffer(offerId, userId, {
+      price,
+      minLimit,
+      maxLimit,
+      payments,
+      status: status ? String(status).trim().toUpperCase() : undefined,
+      remark
+    });
+    if (!updated) {
+      return res.status(404).json({ message: 'Update failed.' });
+    }
+    invalidateP2POffersCache();
+    return res.json({ offer: updated });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+app.delete('/api/p2p/offers/:offerId', requiresP2PUser, async (req, res) => {
+  try {
+    const userId = String(req.p2pUser?.id || '').trim();
+    const { offerId } = req.params;
+    const offer = await repos.getOfferById(offerId);
+    if (!offer) {
+      return res.status(404).json({ message: 'Offer not found.' });
+    }
+    if (String(offer.createdByUserId || '').trim() !== userId) {
+      return res.status(403).json({ message: 'Not your ad.' });
+    }
+
+    const activeOrders = await repos.listP2PLiveOrders({
+      asset: offer.asset,
+      side: offer.side,
+      limit: 200
+    });
+    const hasActive = activeOrders.some((order) => {
+      const linkedOfferId = String(order.adId || order.offerId || '').trim();
+      return linkedOfferId === String(offerId || '').trim();
+    });
+    if (hasActive) {
+      return res.status(409).json({ message: 'Cannot delete ad with active orders.' });
+    }
+
+    const deleted = await repos.deleteOffer(offerId, userId);
+    if (!deleted) {
+      return res.status(404).json({ message: 'Delete failed.' });
+    }
+    invalidateP2POffersCache();
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
 
 app.post('/api/merchant/activate', requiresP2PUser, async (req, res) => {
   try {

@@ -75,17 +75,10 @@ function formatTimer(seconds) {
 }
 
 function normalizeStatus(status) {
-  const normalized = String(status || '').trim().toUpperCase();
-  if (normalized === 'OPEN' || normalized === 'PENDING') {
+  if (status === 'OPEN' || status === 'PENDING') {
     return 'CREATED';
   }
-  if (normalized === 'PAYMENT_SENT') {
-    return 'PAID';
-  }
-  if (normalized === 'COMPLETED') {
-    return 'RELEASED';
-  }
-  return normalized;
+  return String(status || '').toUpperCase();
 }
 
 function statusLabel(status) {
@@ -655,7 +648,7 @@ function stopTimersAndStream() {
 }
 
 async function loadCurrentUser() {
-  const response = await fetch('/api/p2p/me', { credentials: 'include' });
+  const response = await fetch('/api/p2p/me');
   const payload = await response.json();
 
   if (!response.ok || !payload.loggedIn || !payload.user) {
@@ -666,7 +659,7 @@ async function loadCurrentUser() {
 }
 
 async function fetchOrder() {
-  const response = await fetch(`/api/p2p/orders/${encodeURIComponent(orderId)}`, { credentials: 'include' });
+  const response = await fetch(`/api/p2p/orders/${encodeURIComponent(orderId)}`);
   const payload = await response.json();
 
   if (!response.ok || !payload.order) {
@@ -883,7 +876,7 @@ function startRealtimeUpdates() {
         chatState.textContent = error.message;
       }
     }
-  }, 5000);
+  }, 3000);
 
   orderPollInterval = setInterval(async () => {
     try {
@@ -893,13 +886,9 @@ function startRealtimeUpdates() {
         chatState.textContent = error.message;
       }
     }
-  }, 10000);
+  }, 7000);
 
   orderStream = new EventSource(`/api/p2p/orders/${encodeURIComponent(orderId)}/stream`);
-  orderStream.addEventListener('connected', () => {
-    fetchOrder().catch(() => {});
-    fetchMessages({ smoothScroll: true }).catch(() => {});
-  });
   orderStream.addEventListener('order_update', (event) => {
     try {
       const payload = JSON.parse(event.data || '{}');
@@ -924,10 +913,6 @@ function startRealtimeUpdates() {
       // no-op
     }
   });
-  orderStream.onerror = () => {
-    fetchOrder().catch(() => {});
-    fetchMessages({ smoothScroll: true }).catch(() => {});
-  };
 }
 
 function bindEvents() {
