@@ -392,8 +392,32 @@ async function postJson(url, payload) {
     credentials: 'include',
     body: JSON.stringify(payload || {})
   });
-  const data = await response.json().catch(() => ({}));
-  return { response, data };
+  const rawText = await response.text().catch(() => '');
+  let data = {};
+  if (rawText) {
+    try {
+      data = JSON.parse(rawText);
+    } catch (_) {
+      const plainText = String(rawText || '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (plainText) {
+        data = { message: plainText.slice(0, 220) };
+      }
+    }
+  }
+  return { response, data, rawText };
+}
+
+async function resolveLoginSessionAfterSubmit() {
+  try {
+    const response = await fetch('/api/p2p/me', { credentials: 'include' });
+    const data = await response.json().catch(() => ({}));
+    return response.ok && Boolean(data?.loggedIn);
+  } catch (_) {
+    return false;
+  }
 }
 
 function clampSliderValue(value, challenge) {
@@ -589,6 +613,13 @@ async function handleSubmit(event) {
     const { response, data } = await postJson(endpoint, payload);
 
     if (!response.ok) {
+      if (state.mode === MODE_LOGIN && await resolveLoginSessionAfterSubmit()) {
+        setStatus('Login successful.', 'success');
+        window.setTimeout(() => {
+          window.location.href = redirectTo;
+        }, 250);
+        return;
+      }
       setStatus(data?.message || 'Auth failed. Try again.', 'error');
       return;
     }
@@ -602,6 +633,11 @@ async function handleSubmit(event) {
       window.setTimeout(() => {
         setMode(MODE_LOGIN);
       }, 450);
+      return;
+    }
+
+    if (state.mode === MODE_LOGIN && !(await resolveLoginSessionAfterSubmit())) {
+      setStatus('Login completed but session is still syncing. Please try once more.', 'error');
       return;
     }
 

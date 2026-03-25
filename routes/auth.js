@@ -570,7 +570,8 @@ function registerAuthRoutes(app, deps) {
       await repos.touchP2PCredentialLogin(email, {
         ipAddress,
         userAgent,
-        deviceLabel: userAgent
+        deviceLabel: userAgent,
+        role
       });
 
       await safeAuditLog({
@@ -673,7 +674,7 @@ function registerAuthRoutes(app, deps) {
       // Fire-and-forget background tasks — don't block the response
       Promise.all([
         walletService.ensureWallet(user.id, { username: user.username }),
-        repos.touchP2PCredentialLogin(email, { ipAddress, userAgent, deviceLabel: userAgent }),
+        repos.touchP2PCredentialLogin(email, { ipAddress, userAgent, deviceLabel: userAgent, role }),
         safeAuditLog({ userId: user.id, action: 'login_success', ipAddress, metadata: { email, role: user.role } }),
         safeOnLoginSuccess({ user, ipAddress, userAgent }),
         isNewDeviceLogin && authEmailService && typeof authEmailService.sendNewDeviceLoginAlert === 'function'
