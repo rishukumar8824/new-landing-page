@@ -2390,7 +2390,25 @@ async function submitDealOrder() {
 
 function renderLiveOrders(orders) {
   const incomingOrders = Array.isArray(orders) ? orders : [];
-  const participantOrders = incomingOrders.filter((order) => Boolean(order?.isParticipant));
+  const currentUserId = String(currentUser?.id || '').trim();
+  const participantOrders = incomingOrders
+    .map((order) => {
+      if (!order || typeof order !== 'object') {
+        return null;
+      }
+
+      const buyerUserId = String(order.buyerUserId || '').trim();
+      const sellerUserId = String(order.sellerUserId || '').trim();
+      const inferredParticipant =
+        Boolean(currentUserId) && (buyerUserId === currentUserId || sellerUserId === currentUserId);
+
+      return {
+        ...order,
+        isParticipant:
+          typeof order.isParticipant === 'boolean' ? order.isParticipant : inferredParticipant
+      };
+    })
+    .filter((order) => Boolean(order?.isParticipant));
   participantOrders.forEach((order) => storeOrderForMobile(order));
   pruneMobileOrdersCache();
   const visibleOrders = participantOrders.filter((order) => isOngoingOrderStatus(order.status));
@@ -2480,7 +2498,10 @@ async function loadLiveOrders() {
   }
 
   try {
-    const response = await fetch('/api/p2p/orders/live');
+    const response = await fetch('/api/p2p/orders/my-active', {
+      credentials: 'include',
+      headers: { 'Cache-Control': 'no-store' }
+    });
     const data = await response.json();
 
     if (!response.ok) {
@@ -3043,7 +3064,10 @@ async function loadMobileActiveOrdersDirect() {
   // Directly fetches current user's active orders (bypasses the 20-order live feed limit)
   if (!currentUser) return;
   try {
-    var resp = await fetch('/api/p2p/orders/my-active');
+    var resp = await fetch('/api/p2p/orders/my-active', {
+      credentials: 'include',
+      headers: { 'Cache-Control': 'no-store' }
+    });
     var data = await resp.json();
     var orders = data.orders || [];
     orders.forEach(function(o) { storeOrderForMobile(o); });

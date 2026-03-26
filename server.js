@@ -2900,6 +2900,37 @@ app.get('/api/p2p/orders/live', requiresP2PUser, async (req, res) => {
   }
 });
 
+app.get('/api/p2p/orders/my-active', requiresP2PUser, async (req, res) => {
+  if (!repos) {
+    return res.status(503).json({
+      message: 'Server is starting up. Please retry in a moment.',
+      code: 'SERVICE_UNAVAILABLE',
+      orders: []
+    });
+  }
+
+  try {
+    await maybeExpireP2POrders();
+    const activeOrders = (await repos.listP2PActiveOrdersForUser({
+      userId: req.p2pUser.id,
+      limit: 50
+    }))
+      .map((order) => normalizeOrderState(order))
+      .map((order) => ({
+        ...order,
+        isParticipant: true,
+        paymentMethod: order.paymentMethod
+      }));
+
+    return res.json({
+      total: activeOrders.length,
+      orders: activeOrders
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error fetching active orders.' });
+  }
+});
+
 app.get('/api/p2p/orders/by-reference/:reference', requiresP2PUser, async (req, res) => {
   const reference = String(req.params.reference || '').trim();
 
