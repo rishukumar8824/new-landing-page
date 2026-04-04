@@ -3,9 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev": "node_modules/.bin/next dev",
+    "dev": "node_modules/.bin/next dev -H 0.0.0.0",
     "build": "node_modules/.bin/next build",
-    "start": "node_modules/.bin/next start"
+    "postbuild": "node scripts/sync-fallback-css.mjs",
+    "start": "node_modules/.bin/next start -H 0.0.0.0"
   },
   "dependencies": {
     "next": "14.2.5",
