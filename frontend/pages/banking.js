@@ -704,13 +704,14 @@ export default function BankingPage() {
   const [depositDetail,setDepositDetail] = useState(null);
   const [depositLoad,  setDepositLoad]   = useState(false);
   const [copyDone,     setCopyDone]      = useState(false);
-  const [coinSearch,   setCoinSearch]    = useState("");
+  const [depositSearch, setDepositSearch] = useState("");
 
   // ── Withdraw flow ──
   // steps: null → "coin" → "network" → "form"
   const [withdrawStep, setWithdrawStep]  = useState(null);
   const [withdrawCoin, setWithdrawCoin]  = useState(null);
   const [withdrawNet,  setWithdrawNet]   = useState(null);
+  const [withdrawSearch, setWithdrawSearch] = useState("");
   const [withdrawForm, setWithdrawForm]  = useState({ address: "", amount: "" });
   const [withdrawLoad, setWithdrawLoad]  = useState(false);
   const [withdrawMsg,  setWithdrawMsg]   = useState(null);
@@ -779,7 +780,8 @@ export default function BankingPage() {
 
   // ── Deposit handlers ──
   const openDepositFlow = () => {
-    setDepositStep("coin"); setCoinSearch(""); setDepositCoin(null);
+    setWithdrawStep(null); setShowTransfer(false);
+    setDepositStep("coin"); setDepositSearch(""); setDepositCoin(null);
     setDepositNet(null); setDepositDetail(null); setCopyDone(false);
   };
   const onDepositCoinSelect = async (wallet) => {
@@ -810,7 +812,8 @@ export default function BankingPage() {
 
   // ── Withdraw handlers ──
   const openWithdrawFlow = () => {
-    setWithdrawStep("coin"); setCoinSearch(""); setWithdrawCoin(null);
+    setDepositStep(null); setShowTransfer(false);
+    setWithdrawStep("coin"); setWithdrawSearch(""); setWithdrawCoin(null);
     setWithdrawNet(null); setWithdrawForm({ address: "", amount: "" }); setWithdrawMsg(null);
   };
   const onWithdrawCoinSelect = (wallet) => {
@@ -1012,10 +1015,21 @@ export default function BankingPage() {
                     <span className="wr-usd">{hideBalance ? "****" : `≈ $${fmtUsd(usdVal)}`}</span>
                   </div>
                   <div className="wr-actions">
-                    <button className="wr-btn wr-dep" onClick={() => { openDepositFlow(); setTimeout(() => onDepositCoinSelect(w), 50); }}>
+                    <button className="wr-btn wr-dep" onClick={() => {
+                      setWithdrawStep(null); setShowTransfer(false);
+                      setDepositCoin(w); setDepositNet(null); setDepositDetail(null);
+                      setCopyDone(false); setDepositSearch("");
+                      setDepositStep("network");
+                    }}>
                       <IcDeposit />
                     </button>
-                    <button className="wr-btn wr-wdl" onClick={() => { openWithdrawFlow(); setTimeout(() => onWithdrawCoinSelect(w), 50); }}>
+                    <button className="wr-btn wr-wdl" onClick={() => {
+                      setDepositStep(null); setShowTransfer(false);
+                      setWithdrawCoin(w); setWithdrawNet(null);
+                      setWithdrawForm({ address: "", amount: "" }); setWithdrawMsg(null);
+                      setWithdrawSearch("");
+                      setWithdrawStep("network");
+                    }}>
                       <IcWithdraw />
                     </button>
                   </div>
@@ -1096,7 +1110,7 @@ export default function BankingPage() {
       {/* ── Deposit Modal ── */}
       <BottomSheet show={!!depositStep} onClose={closeDeposit} title={depositTitle} onBack={depositBack}>
         {depositStep === "coin" && (
-          <CoinSelectStep wallets={ALL_DEPOSIT_COINS} search={coinSearch} setSearch={setCoinSearch} onSelect={onDepositCoinSelect} mode="deposit" />
+          <CoinSelectStep wallets={ALL_DEPOSIT_COINS} search={depositSearch} setSearch={setDepositSearch} onSelect={onDepositCoinSelect} mode="deposit" />
         )}
         {depositStep === "network" && depositCoin && (
           <NetworkSelectStep coin={depositCoin} onSelect={onDepositNetSelect} />
@@ -1109,7 +1123,7 @@ export default function BankingPage() {
       {/* ── Withdraw Modal ── */}
       <BottomSheet show={!!withdrawStep} onClose={closeWithdraw} title={withdrawTitle} onBack={withdrawBack}>
         {withdrawStep === "coin" && (
-          <CoinSelectStep wallets={ALL_DEPOSIT_COINS.map(c => { const w = [...spotWallets,...fundingWallets].find(x => String(x.currency?.symbol||"").toUpperCase()===c.currency.symbol); return w||c; })} search={coinSearch} setSearch={setCoinSearch} onSelect={onWithdrawCoinSelect} mode="withdraw" />
+          <CoinSelectStep wallets={ALL_DEPOSIT_COINS.map(c => { const w = [...spotWallets,...fundingWallets].find(x => String(x.currency?.symbol||"").toUpperCase()===c.currency.symbol); return w||c; })} search={withdrawSearch} setSearch={setWithdrawSearch} onSelect={onWithdrawCoinSelect} mode="withdraw" />
         )}
         {withdrawStep === "network" && withdrawCoin && (
           <NetworkSelectStep coin={withdrawCoin} onSelect={onWithdrawNetSelect} />
